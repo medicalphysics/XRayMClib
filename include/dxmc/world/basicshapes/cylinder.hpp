@@ -241,14 +241,16 @@ namespace basicshape {
                 } else if (-cylinder.half_height <= y[0] && y[0] <= cylinder.half_height) {
                     // cap upper
                     if (std::abs(nad) > GEOMETRIC_ERROR<double>()) {
-                        const auto c = vectormath::add(b, vectormath::scale(cylinder.direction, cylinder.half_height));
+                        const int side = nad >= 0 ? 1 : -1;
+                        const auto c = vectormath::add(b, vectormath::scale(cylinder.direction, side * cylinder.half_height));
                         t[1] = vectormath::dot(cylinder.direction, c) / nad;
                         return t;
                     }
                 } else if (-cylinder.half_height <= y[1] && y[1] <= cylinder.half_height) {
                     // cap lower
                     if (std::abs(nad) > GEOMETRIC_ERROR<double>()) {
-                        const auto c = vectormath::add(b, vectormath::scale(cylinder.direction, -cylinder.half_height));
+                        const int side = nad >= 0 ? -1 : 1;
+                        const auto c = vectormath::add(b, vectormath::scale(cylinder.direction, side * cylinder.half_height));
                         t[0] = vectormath::dot(cylinder.direction, c) / nad;
                         return t;
                     }

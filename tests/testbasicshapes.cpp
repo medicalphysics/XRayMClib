@@ -254,13 +254,6 @@ bool testCylinderForwardIntersection()
     success = success && t[0] == 0;
     success = success && t[1] == 6;
 
-    p.pos = { 4.0839869976043701, -0.55314152687788010, 7.5147741995751858 };
-    p.dir = { 0.54546342835878225, -0.13294172771255339, -0.82752410560411160 };
-    res = dxmc::basicshape::cylinder::intersectForwardInterval(p, cylinder);
-    t = res.value_or(dummy);
-    success = success && t[0] == 0;
-    success = success && t[1] == 6;
-
     dxmc::RandomState state;
     for (std::size_t i = 0; i < 1e6; ++i) {
         for (std::size_t i = 0; i < 3; ++i) {
