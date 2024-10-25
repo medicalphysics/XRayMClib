@@ -183,19 +183,22 @@ namespace basicshape {
             const auto r2 = cylinder.radius * cylinder.radius;
             if (nana < GEOMETRIC_ERROR<double>()) {
                 std::array<double, 2> t;
-
-                const auto c1 = vectormath::add(b, vectormath::scale(cylinder.direction, -cylinder.half_height));
-                t[0] = vectormath::dot(cylinder.direction, c1) / vectormath::dot(cylinder.direction, p.dir);
-                const auto ndc1 = vectormath::subtract(vectormath::scale(p.dir, t[0]), c1);
+                const auto nad = vectormath::dot(cylinder.direction, p.dir);
+                const auto c0 = vectormath::add(b, vectormath::scale(cylinder.direction, -cylinder.half_height));
+                t[0] = vectormath::dot(cylinder.direction, c0) / nad;
+                const auto ndc1 = vectormath::subtract(vectormath::scale(p.dir, t[0]), c0);
                 if (vectormath::dot(ndc1, ndc1) < r2) {
-                    const auto c2 = vectormath::add(b, vectormath::scale(cylinder.direction, cylinder.half_height));
-                    t[1] = vectormath::dot(cylinder.direction, c2) / vectormath::dot(cylinder.direction, p.dir);
-                    const auto ndc2 = vectormath::subtract(vectormath::scale(p.dir, t[1]), c2);
-                    if (vectormath::dot(ndc2, ndc2) < r2)
+                    const auto c1 = vectormath::add(b, vectormath::scale(cylinder.direction, cylinder.half_height));
+                    t[1] = vectormath::dot(cylinder.direction, c1) / nad;
+                    const auto ndc2 = vectormath::subtract(vectormath::scale(p.dir, t[1]), c1);
+                    if (vectormath::dot(ndc2, ndc2) < r2) {
+                        if (nad < 0.0)
+                            std::swap(t[0], t[1]);
                         return t;
+                    }
                 }
                 return std::nullopt;
-                // endpoints only
+
             } else {
                 const auto bna = vectormath::dot(b, na);
                 const auto broot = nana * r2 - bna * bna;
@@ -214,20 +217,39 @@ namespace basicshape {
                     vectormath::dot(cylinder.direction, vectormath::subtract(vectormath::scale(p.dir, t[0]), b)),
                     vectormath::dot(cylinder.direction, vectormath::subtract(vectormath::scale(p.dir, t[1]), b))
                 };
+
+                const auto nad = vectormath::dot(p.dir, cylinder.direction);
+
                 if (-cylinder.half_height <= y[0] && y[0] <= cylinder.half_height && -cylinder.half_height <= y[1] && y[1] <= cylinder.half_height) {
                     // we are inside cylinder
                     return t;
+                } else if ((y[0] <= -cylinder.half_height && y[1] >= cylinder.half_height) || (y[1] <= -cylinder.half_height && y[0] >= cylinder.half_height)) {
+                    // we are outside but hits both caps
+                    if (std::abs(nad) > GEOMETRIC_ERROR<double>()) {
+                        const auto nd_inv = 1.0 / nad;
+                        const auto c0 = vectormath::add(b, vectormath::scale(cylinder.direction, -cylinder.half_height));
+                        const auto c1 = vectormath::add(b, vectormath::scale(cylinder.direction, cylinder.half_height));
+                        if (nad >= 0) {
+                            t[0] = vectormath::dot(cylinder.direction, c0) * nd_inv;
+                            t[1] = vectormath::dot(cylinder.direction, c1) * nd_inv;
+                        } else {
+                            t[1] = vectormath::dot(cylinder.direction, c0) * nd_inv;
+                            t[0] = vectormath::dot(cylinder.direction, c1) * nd_inv;
+                        }
+                        return t;
+                    }
                 } else if (-cylinder.half_height <= y[0] && y[0] <= cylinder.half_height) {
                     // cap upper
-                    if (std::abs(vectormath::dot(cylinder.direction, p.dir)) > GEOMETRIC_ERROR<double>()) {
+                    if (std::abs(nad) > GEOMETRIC_ERROR<double>()) {
                         const auto c = vectormath::add(b, vectormath::scale(cylinder.direction, cylinder.half_height));
-                        t[1] = vectormath::dot(cylinder.direction, c) / vectormath::dot(cylinder.direction, p.dir);
+                        t[1] = vectormath::dot(cylinder.direction, c) / nad;
                         return t;
                     }
                 } else if (-cylinder.half_height <= y[1] && y[1] <= cylinder.half_height) {
-                    if (std::abs(vectormath::dot(cylinder.direction, p.dir)) > GEOMETRIC_ERROR<double>()) {
+                    // cap lower
+                    if (std::abs(nad) > GEOMETRIC_ERROR<double>()) {
                         const auto c = vectormath::add(b, vectormath::scale(cylinder.direction, -cylinder.half_height));
-                        t[0] = vectormath::dot(cylinder.direction, c) / vectormath::dot(cylinder.direction, p.dir);
+                        t[0] = vectormath::dot(cylinder.direction, c) / nad;
                         return t;
                     }
                 }
