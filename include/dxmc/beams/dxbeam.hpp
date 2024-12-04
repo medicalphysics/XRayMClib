@@ -37,11 +37,11 @@ public:
         const std::array<double, 2>& collimationAngles, const SpecterDistribution<double> specter)
         : m_pos(pos)
         , m_dirCosines(dircosines)
-        , m_collimationAngles(collimationAngles)
         , m_NParticles(N)
         , m_weight(weight)
         , m_specter(specter)
     {
+        m_collimationHalfAngles = { collimationAngles[0] / 2, collimationAngles[1] / 2 };
         m_dir = vectormath::cross(m_dirCosines);
     }
 
@@ -51,8 +51,8 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationAngles[0], m_collimationAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationAngles[1], m_collimationAngles[1]);
+        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
+        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
@@ -91,7 +91,7 @@ private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    std::array<double, 2> m_collimationAngles = { 0, 0 };
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };
     std::uint64_t m_NParticles = 100;
     double m_weight = 1;
     SpecterDistribution<double> m_specter;
@@ -205,8 +205,8 @@ public:
     }
     void setCollimationAngles(double X, double Y)
     {
-        m_collimationAngles[0] = std::clamp(X, 0.0, PI_VAL() / 2);
-        m_collimationAngles[1] = std::clamp(Y, 0.0, PI_VAL() / 2);
+        m_collimationAngles[0] = std::clamp(X, 0.0, PI_VAL());
+        m_collimationAngles[1] = std::clamp(Y, 0.0, PI_VAL());
     }
     std::array<double, 2> collimationAnglesDeg() const
     {
@@ -227,8 +227,9 @@ public:
     void setBeamSize(double beamSizeX, double beamSizeY, double sourceDetectorDistance)
     {
         if (sourceDetectorDistance > 0) {
-            m_collimationAngles[0] = std::atan(std::abs(beamSizeX) / (2 * sourceDetectorDistance));
-            m_collimationAngles[1] = std::atan(std::abs(beamSizeY) / (2 * sourceDetectorDistance));
+            setCollimationAngles(
+                m_collimationAngles[0] = std::atan(std::abs(beamSizeX) / (2 * sourceDetectorDistance)) * 2,
+                m_collimationAngles[1] = std::atan(std::abs(beamSizeY) / (2 * sourceDetectorDistance)) * 2);
         }
     }
 
