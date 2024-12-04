@@ -22,6 +22,7 @@ Copyright 2019 Erlend Andersen
 #include "dxmc/constants.hpp"
 #include "dxmc/interpolation.hpp"
 #include "dxmc/material/atomhandler.hpp"
+#include "dxmc/material/material.hpp"
 
 #include <algorithm>
 #include <array>
@@ -274,16 +275,23 @@ protected:
         res.meanEnergy = std::transform_reduce(std::execution::par_unseq, energy.cbegin(), energy.cend(), specter.cbegin(), double { 0 }, std::plus {}, std::multiplies {});
 
         // HVL
+        // Al att vector
         const auto& Al = AtomHandler::Atom(13);
-
         const auto photo = interpolate(Al.photoel, energy);
         const auto incoherent = interpolate(Al.incoherent, energy);
         const auto coherent = interpolate(Al.coherent, energy);
-
         auto att = addVectors(photo, incoherent, coherent);
-
         const auto dens = Al.standardDensity;
         std::for_each(std::execution::par_unseq, att.begin(), att.end(), [dens](auto& a) { a *= dens; });
+
+        // Calculating air KERMA
+        auto air = Material<5>::byNistName("Air, Dry (near sea level)").value();
+        std::vector<double> kerma(energy.size());
+        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), specter.cbegin(), kerma.begin(), [&air](auto e, auto s) {
+            return e * s * air.massEnergyTransferAttenuation(e);
+        });
+        const auto norm = std::reduce(std::execution::par_unseq, kerma.cbegin(), kerma.cend(), 0.0);
+        std::for_each(std::execution::par_unseq, kerma.begin(), kerma.end(), [norm](auto& k) { k /= norm; });
 
         // Boosted gradient decent for finding half value layer
         auto x = 0.5;
@@ -292,7 +300,7 @@ protected:
         double g;
         do {
             x = std::max(x + step, 0.0001);
-            g = std::transform_reduce(std::execution::par_unseq, specter.cbegin(), specter.cend(), att.cbegin(), 0.0, std::plus<>(), [x](auto s, auto a) -> double { return s * std::exp(-a * x); });
+            g = std::transform_reduce(std::execution::par_unseq, kerma.cbegin(), kerma.cend(), att.cbegin(), 0.0, std::plus<>(), [x](auto s, auto a) -> double { return s * std::exp(-a * x); });
             step = (g - 0.5) * std::max(5 - iter, 1);
         } while ((std::abs(g - 0.5) > 0.005 && iter++ < 10));
 

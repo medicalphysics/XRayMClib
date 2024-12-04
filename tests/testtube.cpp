@@ -14,7 +14,9 @@ bool testHalfLayerCalculation()
 {
 
     Tube t;
+    t.setVoltage(100);
     t.setAlFiltration(2.0);
+    t.setAnodeAngleDeg(10);
     auto e = t.getEnergy();
     auto s = t.getSpecter(e);
     const auto& al = AtomHandler::Atom(13);
@@ -32,10 +34,14 @@ bool testHalfLayerCalculation()
 
     const auto mmHVL = t.mmAlHalfValueLayer();
 
-    auto I0 = std::reduce(s.cbegin(), s.cend(), 0.0);
-    auto I1 = std::transform_reduce(
-        s.cbegin(), s.cend(), att.cbegin(), 0.0, std::plus<>(),
-        [=](auto i, auto a) { return i * std::exp(-a * mmHVL * .1); });
+    auto air = Material<5>::byNistName("Air, Dry (near sea level)").value();
+    std::vector<double> kerma(e.size());
+    double I0 = 0;
+    double I1 = 0;
+    for (std::size_t i = 0; i < e.size(); ++i) {
+        I0 += e[i] * s[i] * air.massEnergyTransferAttenuation(e[i]);
+        I1 += e[i] * s[i] * air.massEnergyTransferAttenuation(e[i]) * std::exp(-att[i] * mmHVL * .1);
+    }
 
     bool success = (std::abs(I1 / I0) - 0.5) < 0.01;
     if (success)
@@ -49,7 +55,7 @@ bool testHalfLayerCalculation()
 void printSpecter()
 {
     Tube t;
-    t.setAnodeAngleDeg(30);
+    t.setAnodeAngleDeg(10);
     t.setVoltage(100);
     const auto s = t.getSpecter();
     std::cout << "Energy [keV], Intensity [A.U]\n";
