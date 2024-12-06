@@ -195,7 +195,7 @@ public:
     {
         return m_tube.meanSpecterEnergy();
     }
-    const std::array<double, 2>& collimationAngles() const
+    const std::array<double, 2>& collimationHalfAngles() const
     {
         return m_collimationHalfAngles;
     }
