@@ -15,7 +15,7 @@ A brief example on how to use DXMClib to simulate a pencilbeam of 60 keV onto a 
    :language: c++
    :linenos:
 
-The examble can be built by CMake with the following CMakeLists.txt file.
+The example can be built by CMake with the following CMakeLists.txt file.
 
 .. literalinclude:: ../../examples/pencilbeam/CMakeLists.txt
    :language: cmake

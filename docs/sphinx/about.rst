@@ -24,4 +24,6 @@ DXMClib uses CMake as build generator, to include DXMClib in a CMake project it 
     target_include_directories(your_executable PRIVATE ${libdxmc_SOURCE_DIR}/include)
     # Linking to DXMClib
     target_link_libraries(your_executable PRIVATE libdxmc)
+    # CMake function to copy material data to executable folder
+    dxmclib_add_physics_list(your_executable)
 
