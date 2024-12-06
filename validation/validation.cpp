@@ -113,7 +113,7 @@ void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAn
     if constexpr (std::is_same_v<B, dxmc::IsotropicMonoEnergyBeamCircle<false>> || std::is_same_v<B, dxmc::IsotropicBeamCircle<false>>) {
         const auto& p = beam.position();
         const auto& d = beam.direction();
-        const auto a = beam.collimationAngle();
+        const auto a = beam.collimationHalfAngle();
         const auto x = [&d, a]() {
             const auto ind = dxmc::vectormath::argmin3<std::size_t>(d);
             std::array<double, 3> nr = { 0, 0, 0 };
@@ -368,7 +368,7 @@ bool TG195Case1Fluence(bool mammo = false)
     beam.setNumberOfParticlesPerExposure(N_HISTORIES);
     beam.setPosition({ 0, 0, 0 });
     beam.setDirection({ 0, 0, -1 });
-    beam.setCollimationAngle(std::atan(0.5 / 100.0));
+    beam.setCollimationHalfAngle(std::atan(0.5 / 100.0));
 
     std::array<double, 2> filter_thickness = { 0, 0 };
     std::array<double, 3> TG195result = { 0, 0, 0 };
@@ -523,10 +523,10 @@ bool TG195Case2AbsorbedEnergy(bool tomo = false)
         const auto y_ang_min = std::atan((h - 39.0 / 2) / 180);
         const auto y_ang_max = std::atan((h + 39.0 / 2) / 180);
         const auto x_ang = std::atan(39.0 / (2 * 180));
-        beam.setCollimationAngles(-x_ang, y_ang_min, x_ang, y_ang_max);
+        beam.setCollimationHalfAngles(-x_ang, y_ang_min, x_ang, y_ang_max);
     } else {
         const auto collangle = std::atan(39.0 / (2 * 180));
-        beam.setCollimationAngles(-collangle, -collangle, collangle, collangle);
+        beam.setCollimationHalfAngles(-collangle, -collangle, collangle, collangle);
     }
 
     ResultKeys res;
@@ -727,7 +727,7 @@ bool TG195Case3AbsorbedEnergy(bool tomo = false)
         constexpr double plane_sizex = 14.0;
         const auto angx_max = std::atan(plane_sizex / height);
         constexpr double angx_min = 0;
-        beam.setCollimationAngles(angx_min, -angy_max, angx_max, -angy_min); // since we have ycosine = {0,-1,0}
+        beam.setCollimationHalfAngles(angx_min, -angy_max, angx_max, -angy_min); // since we have ycosine = {0,-1,0}
 
         beam.setPosition(beampos);
         const std::array<double, 3> cosinex = { 1, 0, 0 };
@@ -738,7 +738,7 @@ bool TG195Case3AbsorbedEnergy(bool tomo = false)
         beam.setDirectionCosines({ 1, 0, 0 }, { 0, -1, 0 });
         const auto collanglex = std::atan(14.0 / source_plane);
         const auto collangley = std::atan(13.0 / source_plane);
-        beam.setCollimationAngles(0, -collangley, collanglex, collangley);
+        beam.setCollimationHalfAngles(0, -collangley, collanglex, collangley);
     }
 
     if constexpr (LOWENERGYCORRECTION == 1 && std::same_as<Beam, IsotropicMonoEnergyBeam<>>) {
@@ -850,7 +850,7 @@ bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = fa
         beam.setEnergySpecter(specter);
         const auto collangle_y = std::atan(16.0 / 60);
         const auto collangle_z = large_collimation ? std::atan(4.0 / 60) : std::atan(0.5 / 60);
-        beam.setCollimationAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
+        beam.setCollimationHalfAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
         beam.setNumberOfExposures(N_EXPOSURES);
         beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 
@@ -861,7 +861,7 @@ bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = fa
         Beam beam({ -60, 0, 0 }, { { { 0, 1, 0 }, { 0, 0, 1 } } }, 56.4);
         const auto collangle_y = std::atan(16.0 / 60);
         const auto collangle_z = large_collimation ? std::atan(4.0 / 60) : std::atan(0.5 / 60);
-        beam.setCollimationAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
+        beam.setCollimationHalfAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
         beam.setNumberOfExposures(N_EXPOSURES);
         beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 
@@ -996,7 +996,7 @@ bool TG195Case42AbsorbedEnergy(bool large_collimation = false)
     }
     const auto collangle_y = std::atan(16.0 / 60);
     const auto collangle_z = large_collimation ? std::atan(4.0 / 60) : std::atan(0.5 / 60);
-    beam.setCollimationAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
+    beam.setCollimationHalfAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
     beam.setNumberOfExposures(N_EXPOSURES);
     beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 
@@ -1219,7 +1219,7 @@ bool TG195Case5AbsorbedEnergy()
 
     const auto collangle_y = std::atan(25.0 / 60);
     const auto collangle_z = std::atan(0.5 / 60);
-    beam.setCollimationAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
+    beam.setCollimationHalfAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
     beam.setNumberOfExposures(N_EXPOSURES);
     beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 

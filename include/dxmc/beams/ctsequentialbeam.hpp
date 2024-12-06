@@ -40,10 +40,10 @@ template <bool ENABLETRACKING = false>
 class CTSequentialBeamExposure {
 public:
     CTSequentialBeamExposure(const std::array<double, 3>& pos, const std::array<std::array<double, 3>, 2>& dircosines, std::uint64_t N, double weight,
-        const std::array<double, 2>& collimationAngles, const SpecterDistribution<double>* specter, const BowtieFilter* bowtie)
+        const std::array<double, 2>& collimationHalfAngles, const SpecterDistribution<double>* specter, const BowtieFilter* bowtie)
         : m_pos(pos)
         , m_dirCosines(dircosines)
-        , m_collimationAngles(collimationAngles)
+        , m_collimationHalfAngles(collimationHalfAngles)
         , m_NParticles(N)
         , m_weight(weight)
         , m_specter(specter)
@@ -58,7 +58,7 @@ public:
 
     const std::array<std::array<double, 3>, 2>& directionCosines() const { return m_dirCosines; }
 
-    const std::array<double, 2> collimationAngles() const { return m_collimationAngles; }
+    const std::array<double, 2> collimationHalfAngles() const { return m_collimationHalfAngles; }
 
     std::uint64_t numberOfParticles() const
     {
@@ -67,8 +67,8 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationAngles[0], m_collimationAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationAngles[1], m_collimationAngles[1]);
+        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
+        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
 
         const auto bowtie_weight = m_bowtieFilter->operator()(angx);
 
@@ -114,7 +114,7 @@ private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    std::array<double, 2> m_collimationAngles = { 0, 0 };
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };
     std::uint64_t m_NParticles = 100;
     double m_weight = 1;
     const SpecterDistribution<double>* m_specter = nullptr;
@@ -182,11 +182,11 @@ public:
         m_collimation = std::max(std::abs(coll_cm), 0.1);
     }
 
-    std::array<double, 2> collimationAngles() const
+    std::array<double, 2> collimationHalfAngles() const
     {
         std::array<double, 2> r = {
-            2 * std::atan(m_FOV / m_SDD),
-            2 * std::atan(2 * m_collimation / m_SDD)
+            std::atan(m_FOV / m_SDD),
+            std::atan(0.5 * m_collimation / m_SDD)
         };
         return r;
     }
@@ -331,8 +331,8 @@ public:
         // generating CTDIbeam
         const auto angx = std::atan(m_FOV / m_SDD);
         const auto angy = std::atan(0.5 * m_collimation / m_SDD);
-        const std::array<double, 2> collimationAngles = { angx, angy };
-        CTDIBeam beam(m_stepAngle, m_SDD, collimationAngles, m_particlesPerExposure, m_specter, m_bowtieFilter, m_organFilter);
+        const std::array<double, 2> collimationHalfAngles = { angx, angy };
+        CTDIBeam beam(m_stepAngle, m_SDD, collimationHalfAngles, m_particlesPerExposure, m_specter, m_bowtieFilter, m_organFilter);
 
         Transport transport;
 

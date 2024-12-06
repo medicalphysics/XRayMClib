@@ -33,9 +33,9 @@ template <bool ENABLETRACKING = false>
 class CTDIBeamExposure {
 public:
     CTDIBeamExposure(double angle, double SDD, std::uint64_t historiesPerExposure,
-        const std::array<double, 2>& collimationAngles, const SpecterDistribution<double>* specter, const BowtieFilter* bowtie, double weight = 1)
+        const std::array<double, 2>& collimationHalfAngles, const SpecterDistribution<double>* specter, const BowtieFilter* bowtie, double weight = 1)
         : m_Nparticles(historiesPerExposure)
-        , m_collimationAngles(collimationAngles)
+        , m_collimationHalfAngles(collimationHalfAngles)
         , m_weight(weight)
         , m_specter(specter)
         , m_bowtieFilter(bowtie)
@@ -56,8 +56,8 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationAngles[0], m_collimationAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationAngles[1], m_collimationAngles[1]);
+        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
+        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
 
         const auto bowtie_weight = m_bowtieFilter->operator()(angx);
 
@@ -100,7 +100,7 @@ private:
     std::array<double, 3> m_dir = { 0, 1, 0 };
     std::array<double, 3> m_dirCosineX = { 1, 0, 0 };
     std::array<double, 3> m_dirCosineY = { 0, 0, 1 };
-    std::array<double, 2> m_collimationAngles = { 0, 0 };
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };
     double m_weight = 1;
     const SpecterDistribution<double>* m_specter = nullptr;
     const BowtieFilter* m_bowtieFilter = nullptr;
@@ -109,11 +109,11 @@ private:
 template <bool ENABLETRACKING = false>
 class CTDIBeam {
 public:
-    CTDIBeam(double angleStep, double SDD, const std::array<double, 2>& collimationAngles, std::uint64_t particlesPerExposure, const SpecterDistribution<double>& specter, const BowtieFilter& bowtie, const CTOrganAECFilter& organFilter, double weight = 1)
+    CTDIBeam(double angleStep, double SDD, const std::array<double, 2>& collimationHalfAngles, std::uint64_t particlesPerExposure, const SpecterDistribution<double>& specter, const BowtieFilter& bowtie, const CTOrganAECFilter& organFilter, double weight = 1)
         : m_angleStep(angleStep)
         , m_sdd(SDD)
         , m_weight(weight)
-        , m_collimationAngles(collimationAngles)
+        , m_collimationHalfAngles(collimationHalfAngles)
         , m_particlesPerExposure(particlesPerExposure)
         , m_specter(specter)
         , m_bowtieFilter(bowtie)
@@ -121,11 +121,11 @@ public:
     {
     }
 
-    CTDIBeam(double angleStep, double SDD, const std::array<double, 2>& collimationAngles, std::uint64_t particlesPerExposure, const SpecterDistribution<double>& specter, const BowtieFilter& bowtie, double weight = 1)
+    CTDIBeam(double angleStep, double SDD, const std::array<double, 2>& collimationHalfAngles, std::uint64_t particlesPerExposure, const SpecterDistribution<double>& specter, const BowtieFilter& bowtie, double weight = 1)
         : m_angleStep(angleStep)
         , m_sdd(SDD)
         , m_weight(weight)
-        , m_collimationAngles(collimationAngles)
+        , m_collimationHalfAngles(collimationHalfAngles)
         , m_particlesPerExposure(particlesPerExposure)
         , m_specter(specter)
         , m_bowtieFilter(bowtie)
@@ -144,7 +144,7 @@ public:
     {
         const auto angle = i * m_angleStep;
         const auto organWeight = m_organFilter.useFilter() ? m_organFilter(angle) : 1.0;
-        return CTDIBeamExposure<ENABLETRACKING>(angle, m_sdd, m_particlesPerExposure, m_collimationAngles, &m_specter, &m_bowtieFilter, m_weight * organWeight);
+        return CTDIBeamExposure<ENABLETRACKING>(angle, m_sdd, m_particlesPerExposure, m_collimationHalfAngles, &m_specter, &m_bowtieFilter, m_weight * organWeight);
     }
 
     double calibrationFactor(TransportProgress* progress = nullptr) const
@@ -156,7 +156,7 @@ private:
     double m_angleStep = 0;
     double m_sdd = 1;
     double m_weight = 1;
-    std::array<double, 2> m_collimationAngles = { 0, 0 };
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };
     std::uint64_t m_particlesPerExposure = 1;
     SpecterDistribution<double> m_specter;
     BowtieFilter m_bowtieFilter;

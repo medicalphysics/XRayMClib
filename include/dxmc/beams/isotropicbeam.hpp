@@ -40,10 +40,10 @@ public:
 
     const std::array<double, 3>& position() const { return m_pos; }
 
-    void setCollimationAngles(const std::array<double, 4>& angles)
+    void setCollimationHalfAngles(const std::array<double, 4>& angles)
     {
         for (std::size_t i = 0; i < angles.size(); ++i)
-            m_collimationAngles[i] = angles[i];
+            m_collimationHalfAngles[i] = angles[i];
     }
 
     void setSpecterDistribution(const SpecterDistribution<double>& s)
@@ -55,8 +55,8 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(m_collimationAngles[0], m_collimationAngles[2]);
-        const auto angy = state.randomUniform(m_collimationAngles[1], m_collimationAngles[3]);
+        const auto angx = state.randomUniform(m_collimationHalfAngles[0], m_collimationHalfAngles[2]);
+        const auto angy = state.randomUniform(m_collimationHalfAngles[1], m_collimationHalfAngles[3]);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
@@ -95,7 +95,7 @@ private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    std::array<double, 4> m_collimationAngles = { 0, 0, 0, 0 };
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };
     std::uint64_t m_NParticles = 100;
     SpecterDistribution<double> m_specterDist;
 };
@@ -143,21 +143,21 @@ public:
         m_specter = SpecterDistribution(specter);
     }
 
-    const std::array<double, 4>& collimationAngles() const { return m_collimationAngles; }
+    const std::array<double, 4>& collimationAngles() const { return m_collimationHalfAngles; }
 
-    void setCollimationAngles(const std::array<double, 4>& angles) { m_collimationAngles = angles; }
-    void setCollimationAngles(double minX, double minY, double maxX, double maxY)
+    void setCollimationHalfAngles(const std::array<double, 4>& angles) { m_collimationHalfAngles = angles; }
+    void setCollimationHalfAngles(double minX, double minY, double maxX, double maxY)
     {
-        m_collimationAngles[0] = minX;
-        m_collimationAngles[1] = minY;
-        m_collimationAngles[2] = maxX;
-        m_collimationAngles[3] = maxY;
+        m_collimationHalfAngles[0] = minX;
+        m_collimationHalfAngles[1] = minY;
+        m_collimationHalfAngles[2] = maxX;
+        m_collimationHalfAngles[3] = maxY;
     }
 
     IsotropicBeamExposure<ENABLETRACKING> exposure(std::size_t i) const noexcept
     {
         IsotropicBeamExposure<ENABLETRACKING> exp(m_pos, m_dirCosines, m_particlesPerExposure);
-        exp.setCollimationAngles(m_collimationAngles);
+        exp.setCollimationHalfAngles(m_collimationHalfAngles);
         exp.setSpecterDistribution(m_specter);
         return exp;
     }
@@ -170,7 +170,7 @@ public:
 private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    std::array<double, 4> m_collimationAngles = { 0, 0, 0, 0 };
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };
     std::uint64_t m_Nexposures = 100;
     std::uint64_t m_particlesPerExposure = 100;
     SpecterDistribution<double> m_specter;

@@ -47,7 +47,7 @@ bool testIsotropicBeamCircle()
 
     constexpr double angle = 10.0 * std::numbers::pi_v<double> / 180.0;
 
-    beam.setCollimationAngle(angle);
+    beam.setCollimationHalfAngle(angle);
 
     dxmc::Tube tube;
     auto specter = tube.getSpecter();
@@ -61,7 +61,7 @@ bool testIsotropicMonoEnergyBeamCircle()
 
     constexpr double angle = 10.0 * std::numbers::pi_v<double> / 180.0;
 
-    beam.setCollimationAngle(angle);
+    beam.setCollimationHalfAngle(angle);
 
     return initiateBeam(beam);
 }

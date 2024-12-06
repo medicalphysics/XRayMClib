@@ -109,20 +109,20 @@ public:
         m_FOVA = std::max(std::abs(fov_cm), 1.0);
     }
 
-    std::array<double, 2> collimationAnglesA() const
+    std::array<double, 2> collimationHalfAnglesA() const
     {
         std::array r = {
-            2 * std::atan(m_FOVA / m_SDD),
-            2 * std::atan(2 * m_collimation / m_SDD)
+            std::atan(m_FOVA / m_SDD),
+            std::atan(0.5 * m_collimation / m_SDD)
         };
         return r;
     }
 
-    std::array<double, 2> collimationAnglesB() const
+    std::array<double, 2> collimationHalfAnglesB() const
     {
         std::array r = {
-            2 * std::atan(m_FOVB / m_SDD),
-            2 * std::atan(2 * m_collimation / m_SDD)
+             std::atan(m_FOVB / m_SDD),
+             std::atan(0.5 * m_collimation / m_SDD)
         };
         return r;
     }

@@ -92,7 +92,7 @@ void testfluencescore()
 
     dxmc::IsotropicBeam<> beam({ -1000, 0, 0 }, { 0, 1, 0, 0, 0, 1 });
     beam.setEnergySpecter(ts);
-    beam.setCollimationAngles(0, 0, 0, 0);
+    beam.setCollimationHalfAngles(0, 0, 0, 0);
 
     beam.setNumberOfParticlesPerExposure(1E6);
     beam.setNumberOfExposures(100);

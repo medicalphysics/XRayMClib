@@ -200,7 +200,7 @@ void testMeshPlaneVisualization()
     beam.setDirectionCosines({ -1, 0, 0, 0, 1, 0 });
     beam.setNumberOfExposures(24);
     beam.setNumberOfParticlesPerExposure(100);
-    beam.setCollimationAngles({ 0.1, 0.1 });
+    beam.setCollimationHalfAngles({ 0.1, 0.1 });
 
     dxmc::Transport transport;
     transport.setNumberOfThreads(1);

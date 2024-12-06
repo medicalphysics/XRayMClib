@@ -41,7 +41,7 @@ public:
 
     const std::array<double, 3>& position() const { return m_pos; }
 
-    void setCollimationAngle(double angle)
+    void setCollimationHalfAngle(double angle)
     {
         m_r = std::tan(std::abs(angle));
     }
@@ -149,17 +149,17 @@ public:
         m_energy = std::clamp(std::abs(energy), MIN_ENERGY(), MAX_ENERGY());
     }
 
-    void setCollimationAngle(double ang)
+    void setCollimationHalfAngle(double ang)
     {
-        m_collimationAngle = std::clamp(std::abs(ang), 0.0, PI_VAL());
+        m_collimationHalfAngle = std::clamp(std::abs(ang), 0.0, PI_VAL());
     }
 
-    double collimationAngle() const { return m_collimationAngle; }
+    double collimationHalfAngle() const { return m_collimationHalfAngle; }
 
     IsotropicMonoEnergyBeamCircleExposure<ENABLETRACKING> exposure(std::size_t i) const noexcept
     {
         IsotropicMonoEnergyBeamCircleExposure<ENABLETRACKING> exp(m_pos, m_dir, m_particlesPerExposure);
-        exp.setCollimationAngle(m_collimationAngle);
+        exp.setCollimationHalfAngle(m_collimationHalfAngle);
         exp.setEnergy(m_energy);
         return exp;
     }
@@ -172,7 +172,7 @@ public:
 private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 1, 0, 0 };
-    double m_collimationAngle = 0;
+    double m_collimationHalfAngle = 0;
     std::uint64_t m_Nexposures = 100;
     std::uint64_t m_particlesPerExposure = 100;
     double m_energy = 60;

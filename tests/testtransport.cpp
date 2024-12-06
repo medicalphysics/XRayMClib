@@ -155,7 +155,7 @@ bool testCylinder()
     dxmc::IsotropicMonoEnergyBeam<> beam;
     const auto collAngleY = std::atan(2.0f / dist);
     const auto collAngleZ = std::atan(2.0f / dist);
-    beam.setCollimationAngles({ -collAngleY, -collAngleZ, collAngleY, collAngleZ });
+    beam.setCollimationHalfAngles({ -collAngleY, -collAngleZ, collAngleY, collAngleZ });
 
     beam.setNumberOfParticlesPerExposure(1e6);
     beam.setNumberOfExposures(32);
@@ -209,7 +209,7 @@ bool testCTDI()
 
     const auto collAngleY = std::atan(16.0 / 60);
     const auto collAngleZ = 0; //    std::atan(4.0f / 60);
-    beam.setCollimationAngles({ -collAngleY, -collAngleZ, collAngleY, collAngleZ });
+    beam.setCollimationHalfAngles({ -collAngleY, -collAngleZ, collAngleY, collAngleZ });
     beam.setNumberOfParticlesPerExposure(1e6);
     beam.setNumberOfExposures(32);
 

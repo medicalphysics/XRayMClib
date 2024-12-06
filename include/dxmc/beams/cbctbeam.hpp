@@ -35,15 +35,14 @@ template <bool ENABLETRACKING = false>
 class CBCTBeamExposure {
 public:
     CBCTBeamExposure(const std::array<double, 3>& pos, const std::array<std::array<double, 3>, 2>& dircosines, std::uint64_t N, double weight,
-        const std::array<double, 2>& collimationAngles, const SpecterDistribution<double>* specter)
+        const std::array<double, 2>& collimationHalfAngles, const SpecterDistribution<double>* specter)
         : m_pos(pos)
         , m_dirCosines(dircosines)
+        , m_collimationHalfAngles(collimationHalfAngles)
         , m_NParticles(N)
         , m_weight(weight)
         , m_specter(specter)
     {
-        m_collimationHalfAngles[0] = collimationAngles[0] * 0.5;
-        m_collimationHalfAngles[1] = collimationAngles[1] * 0.5;
         m_dir = vectormath::cross(m_dirCosines);
     }
 
@@ -53,10 +52,9 @@ public:
 
     const std::array<std::array<double, 3>, 2>& directionCosines() const { return m_dirCosines; }
 
-    std::array<double, 2> collimationAngles() const
+    const std::array<double, 2>& collimationHalfAngles() const
     {
-        std::array<double, 2> ang = { m_collimationHalfAngles[0] * 2, m_collimationHalfAngles[1] * 2 };
-        return ang;
+        return m_collimationHalfAngles;
     }
 
     std::uint64_t numberOfParticles() const
@@ -222,33 +220,33 @@ public:
         return m_tube.meanSpecterEnergy();
     }
 
-    const std::array<double, 2>& collimationAngles() const
+    const std::array<double, 2>& collimationHalfAngles() const
     {
-        return m_collimationAngles;
+        return m_collimationHalfAngles;
     }
-    void setCollimationAngles(const std::array<double, 2>& angles)
+    void setCollimationHalfAngles(const std::array<double, 2>& angles)
     {
-        setCollimationAngles(angles[0], angles[1]);
+        setCollimationHalfAngles(angles[0], angles[1]);
     }
-    void setCollimationAngles(double X, double Y)
+    void setCollimationHalfAngles(double X, double Y)
     {
-        m_collimationAngles[0] = std::clamp(X, 0.0, PI_VAL());
-        m_collimationAngles[1] = std::clamp(Y, 0.0, PI_VAL());
+        m_collimationHalfAngles[0] = std::clamp(X, 0.0, PI_VAL() * 0.5);
+        m_collimationHalfAngles[1] = std::clamp(Y, 0.0, PI_VAL() * 0.5);
     }
-    std::array<double, 2> collimationAnglesDeg() const
+    std::array<double, 2> collimationHalfAnglesDeg() const
     {
-        auto d = m_collimationAngles;
+        auto d = m_collimationHalfAngles;
         d[0] *= RAD_TO_DEG();
         d[1] *= RAD_TO_DEG();
         return d;
     }
-    void setCollimationAnglesDeg(const std::array<double, 2>& angles)
+    void setCollimationHalfAnglesDeg(const std::array<double, 2>& angles)
     {
-        setCollimationAnglesDeg(angles[0], angles[1]);
+        setCollimationHalfAnglesDeg(angles[0], angles[1]);
     }
-    void setCollimationAnglesDeg(double X, double Y)
+    void setCollimationHalfAnglesDeg(double X, double Y)
     {
-        setCollimationAngles(DEG_TO_RAD() * X, DEG_TO_RAD() * Y);
+        setCollimationHalfAngles(DEG_TO_RAD() * X, DEG_TO_RAD() * Y);
     }
 
     double sourceDetectorDistance() const
@@ -281,7 +279,7 @@ public:
 
         // position along cylinder axis
 
-        CBCTBeamExposure<ENABLETRACKING> exp(pos, cosines, m_particlesPerExposure, m_weight, m_collimationAngles, &m_specter);
+        CBCTBeamExposure<ENABLETRACKING> exp(pos, cosines, m_particlesPerExposure, m_weight, m_collimationHalfAngles, &m_specter);
         return exp;
     }
 
@@ -314,7 +312,7 @@ protected:
 private:
     std::array<double, 3> m_isocenter = { 0, 0, 0 };
     std::array<double, 3> m_direction = { 0, 0, 1 };
-    std::array<double, 2> m_collimationAngles = { 0, 0 };
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };
     double m_angleStart = 0;
     double m_angleStop = PI_VAL();
     double m_angleStep = PI_VAL() / 180;
