@@ -38,11 +38,12 @@ public:
         const std::array<double, 2>& collimationAngles, const SpecterDistribution<double>* specter)
         : m_pos(pos)
         , m_dirCosines(dircosines)
-        , m_collimationAngles(collimationAngles)
         , m_NParticles(N)
         , m_weight(weight)
         , m_specter(specter)
     {
+        m_collimationHalfAngles[0] = collimationAngles[0] * 0.5;
+        m_collimationHalfAngles[1] = collimationAngles[1] * 0.5;
         m_dir = vectormath::cross(m_dirCosines);
     }
 
@@ -52,7 +53,11 @@ public:
 
     const std::array<std::array<double, 3>, 2>& directionCosines() const { return m_dirCosines; }
 
-    const std::array<double, 2> collimationAngles() const { return m_collimationAngles; }
+    std::array<double, 2> collimationAngles() const
+    {
+        std::array<double, 2> ang = { m_collimationHalfAngles[0] * 2, m_collimationHalfAngles[1] * 2 };
+        return ang;
+    }
 
     std::uint64_t numberOfParticles() const
     {
@@ -61,8 +66,8 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationAngles[0], m_collimationAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationAngles[1], m_collimationAngles[1]);
+        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
+        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
@@ -101,7 +106,7 @@ private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    std::array<double, 2> m_collimationAngles = { 0, 0 };
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };
     std::uint64_t m_NParticles = 100;
     double m_weight = 1;
     const SpecterDistribution<double>* m_specter = nullptr;
@@ -227,8 +232,8 @@ public:
     }
     void setCollimationAngles(double X, double Y)
     {
-        m_collimationAngles[0] = std::clamp(X, 0.0, PI_VAL() / 2);
-        m_collimationAngles[1] = std::clamp(Y, 0.0, PI_VAL() / 2);
+        m_collimationAngles[0] = std::clamp(X, 0.0, PI_VAL());
+        m_collimationAngles[1] = std::clamp(Y, 0.0, PI_VAL());
     }
     std::array<double, 2> collimationAnglesDeg() const
     {
