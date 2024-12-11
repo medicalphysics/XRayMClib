@@ -80,7 +80,7 @@ bool testWorld()
 
 int main(int argc, char* argv[])
 {
-    std::cout << "World Tests\n";
+ 
     auto success = true;
 
     success = success && testWorld();

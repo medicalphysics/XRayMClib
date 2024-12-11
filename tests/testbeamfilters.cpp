@@ -158,33 +158,18 @@ bool testBowtie()
         0.334773581,
         0.340129958
     };
-    /*
 
-    angle.push_back(0.166511074);
-    weight.push_back(3.53208);
-    angle.push_back(0);
-    weight.push_back(13.9167);
-    angle.push_back(0.041992107);
-    weight.push_back(12.5868);
-    angle.push_back(0.083836642);
-    weight.push_back(9.41943);
-    angle.push_back(0.246954945);
-    weight.push_back(1.96665);
-    angle.push_back(0.324269441);
-    weight.push_back(1.27605);
-    angle.push_back(0.390607044);
-    weight.push_back(0.947716);
-*/
     dxmc::BowtieFilter filter(angle, weight);
-
-    // test values
-    std::cout << "a, f1, f1s, f2, f2s, f3, f3s\n";
-    for (std::size_t i = 0; i < angle.size(); ++i) {
-        const auto a = angle[i];
-        std::cout << a << ", ";
-        std::cout << weight[i] << ",";
-        std::cout << filter(a) << '\n';
-    }
+    /*
+        // test values
+        std::cout << "a, f1, f1s, f2, f2s, f3, f3s\n";
+        for (std::size_t i = 0; i < angle.size(); ++i) {
+            const auto a = angle[i];
+            std::cout << a << ", ";
+            std::cout << weight[i] << ",";
+            std::cout << filter(a) << '\n';
+        }
+    */
 
     double w = 0;
     constexpr std::size_t N = 1E6;
@@ -196,7 +181,11 @@ bool testBowtie()
     w /= N;
 
     auto success = std::abs(w - 1) < 0.01;
-
+    std::cout << "Test Bowtiefilter ";
+    if (success)
+        std::cout << "SUCCESS\n";
+    else
+        std::cout << "FAILURE\n";
     return success;
 }
 
@@ -222,7 +211,15 @@ bool testOrganAECfilter()
     const auto mean = acc / N;
     const auto max = f.maxWeight();
 
-    if (std::abs(mean - 1) < 1E-3)
+    bool success = std::abs(mean - 1) < 1E-3;
+
+    std::cout << "Test CTOrganFilter ";
+    if (success)
+        std::cout << "SUCCESS\n";
+    else
+        std::cout << "FAILURE\n";
+
+    if (success)
         return true;
 
     return false;

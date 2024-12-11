@@ -132,7 +132,7 @@ bool testCBCTBeam()
 
 int main()
 {
-    std::cout << "Testing beams\n";
+    std::cout << "Testing beams ";
 
     bool success = true;
     success = success && testIsotropicMonoEnergyBeamCircle();
@@ -143,6 +143,11 @@ int main()
     success = success && testCTSpiralBeam();
     success = success && testCBCTBeam();
     success = success && testCTSpiralDEBeam();
+
+    if (success)
+        std::cout << "SUCCESS\n";
+    else
+        std::cout << "FAILURE\n";
 
     if (success)
         return EXIT_SUCCESS;

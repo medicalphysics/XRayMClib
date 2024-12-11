@@ -40,7 +40,7 @@ bool testForcedinteractions()
     auto& spheref1 = wf.addItem<SphereF>({ radii });
     auto& spheref2 = wf.addItem<SphereF>({ radii, { radii * 2 + radii * 100, 0, 0 } });
 
-    auto material_water = dxmc::Material< 5>::byNistName("Water, Liquid").value();
+    auto material_water = dxmc::Material<5>::byNistName("Water, Liquid").value();
     sphere1.setMaterial(material_water, 1.2);
     sphere2.setMaterial(material_water, 1.2);
     spheref1.setMaterial(material_water, 1.2);
@@ -54,8 +54,8 @@ bool testForcedinteractions()
     beam.setNumberOfParticlesPerExposure(1e4);
 
     dxmc::Transport transport;
-    transport(wf, beam);
-    transport(w, beam);
+    transport.runConsole(wf, beam);
+    transport.runConsole(w, beam);
 
     auto dose1 = sphere1.doseScored().dose();
     auto dose2 = sphere2.doseScored().dose();
@@ -71,7 +71,7 @@ bool testForcedinteractions()
     auto sttd2 = sphere2.doseScored().standardDeviation();
     auto sttdf2 = spheref2.doseScored().standardDeviation();
 
-    std::cout << "Testing forced interactions in worldsphere for precision " << sizeof(double) << std::endl;
+    std::cout << "Testing forced interactions in worldsphere" << std::endl;
     std::cout << "Random " << dose1 << ", " << dose2 << " stddev: " << sttd1 << ", " << sttd2 << std::endl;
     std::cout << "Forced " << dosef1 << ", " << dosef2 << " stddev: " << sttdf1 << ", " << sttdf2 << std::endl;
     std::cout << "Diff: " << diff1 << ", " << diff2 << std::endl;
@@ -81,7 +81,7 @@ bool testForcedinteractions()
     const auto test1 = diff1 / std::sqrt(sttd1 * sttd1 + sttdf1 * sttdf1);
     const auto test2 = diff2 / std::sqrt(sttd2 * sttd2 + sttdf2 * sttdf2);
 
-    std::cout << test1 << ", " << test2 << std::endl;
+    std::cout << "Test statistics: " << test1 << ", " << test2 << std::endl;
     auto success = (test1 < test_coeff) && (test2 < test_coeff);
     if (success)
         std::cout << "SUCCESS: differences within statistical limits" << std::endl;

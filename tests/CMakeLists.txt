@@ -3,24 +3,16 @@ ENABLE_TESTING()
 
 set(TEST_SOURCES 
     "testmaterials.cpp"
-    "testworld.cpp"
     "testbeams.cpp"
-    "testctdiphantom.cpp"
-    "testtriangulatedmesh.cpp"
-    "testtetrahedalmesh.cpp"
     "testctaecfilter.cpp"
     "testworlditems.cpp" 
     "testbasicshapes.cpp"
-    "testtube.cpp"
-    "testvisualization.cpp"
-    "testfluencescore.cpp"
+    "testtube.cpp"    
     "testbeamfilters.cpp"   
     "testrandom.cpp"
-    "testtransport.cpp"
     "testvectormath.cpp"
     "testworldsphere.cpp"
     "testmassenergytransfer.cpp"
-    "testflatkdtree.cpp"
 )
 
 

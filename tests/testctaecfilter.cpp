@@ -18,6 +18,8 @@ Copyright 2023 Erlend Andersen
 
 #include "dxmc/beams/filters/ctaecfilter.hpp"
 
+#include <iostream>
+
 bool testAECCTFilter()
 {
 
@@ -46,7 +48,7 @@ bool testAECCTFilterBetween()
     double stop = 4;
 
     f.setData({ 0, 0, start }, { 0, 0, stop }, w);
-   
+
     f.normalizeBetween({ 0, 0, -1 }, { 0, 0, 1 });
 
     auto area = f.integrate({ 0, 0, -1 }, { 0, 0, 1 });
@@ -70,6 +72,13 @@ int main()
     bool success = true;
     success = success && testAECCTFilter();
     success = success && testAECCTFilterBetween();
+
+    std::cout << "Test CT AEC Filter ";
+    if (success)
+        std::cout << "SUCCESS\n";
+    else
+        std::cout << "FAILURE\n";
+
     if (success) {
         return EXIT_SUCCESS;
     } else {

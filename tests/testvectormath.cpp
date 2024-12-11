@@ -4,6 +4,7 @@
 #include "dxmc/vectormath.hpp"
 
 #include <array>
+#include <iostream>
 #include <numbers>
 
 using namespace dxmc;
@@ -69,7 +70,7 @@ bool testPeturb()
         const auto angle = state.randomUniform<T>(2 * std::numbers::pi_v<T>) - std::numbers::pi_v<T>;
         const auto cosang = std::cos(angle);
         if (std::abs(cosang) < T { 0.99 }) {
-            const auto vt = vectormath::peturb(vec, cosang, std::cos(state.randomUniform<T>(2 * std::numbers::pi_v<T>)));
+            const auto vt = vectormath::peturb(vec, angle, state.randomUniform<T>(2 * std::numbers::pi_v<T>));
             const auto res = dxmc::vectormath::angleBetween(vec, vt);
             success = success && equal(res, std::abs(angle), T { 1E-2 });
             const auto vt_lenght = vectormath::length(vt);
@@ -83,9 +84,9 @@ bool testPeturb()
     std::array<T, 3> vec = { 0, 0, 1 };
     for (std::size_t i = 0; i < 1E2; ++i) {
         const auto angle = state.randomUniform<T>(2 * std::numbers::pi_v<T>) - std::numbers::pi_v<T>;
-        const auto cosang = std::cos(angle);
-        const auto cosphi = std::cos(state.randomUniform<T>(2 * std::numbers::pi_v<T>));
-        vec = vectormath::peturb(vec, cosang, cosphi);
+
+        const auto phi = state.randomUniform<T>(2 * std::numbers::pi_v<T>);
+        vec = vectormath::peturb(vec, angle, phi);
         const auto lenght = vectormath::length(vec);
         success = success && equal(lenght, T { 1 }, T { 1E-3 });
         if (!success) {
@@ -103,6 +104,13 @@ bool tests()
     bool success = true;
     success = success && testRotate<T>();
     success = success && testPeturb<T>();
+
+    std::cout << "Test vectormat floting point size of " << sizeof(T);
+    if (success)
+        std::cout << " SUCCESS\n";
+    else
+        std::cout << " FAILURE\n";
+
     return success;
 }
 

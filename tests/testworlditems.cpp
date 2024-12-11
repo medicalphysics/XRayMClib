@@ -139,9 +139,15 @@ bool basicTestAllItems()
 
 int main(int argc, char* argv[])
 {
+    std::cout << "Test world items ";
     auto success = true;
 
     success = success && basicTestAllItems();
+
+    if (success)
+        std::cout << "SUCCESS\n";
+    else
+        std::cout << "FAILURE\n";
 
     if (success)
         return EXIT_SUCCESS;

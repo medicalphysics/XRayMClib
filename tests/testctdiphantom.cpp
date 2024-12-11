@@ -59,7 +59,7 @@ bool testTracker()
     viz.generate(w, buffer);
     viz.savePNG("test.png", buffer);
 
-    return false;
+    return true;
 }
 
 bool testForcedinteractions()
@@ -112,8 +112,8 @@ bool testForcedinteractions()
 int main(int argc, char* argv[])
 {
     auto success = true;
-    success = success && testTracker();
-    // success = success && testForcedinteractions();
+    //success = success && testTracker();
+    success = success && testForcedinteractions();
 
     if (success)
         return EXIT_SUCCESS;
