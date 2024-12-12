@@ -88,7 +88,7 @@ class ResultPrint {
 public:
     ResultPrint()
     {
-        m_myfile.open("validationScatterTable.txt", std::ios::out);
+        m_myfile.open("validationScatterTable.txt", std::ios::trunc);
     }
     ResultPrint(const std::string& fname)
     {
@@ -175,11 +175,10 @@ Histogram rayleightScatterAngle(const dxmc::Material<5>& material, double energy
 }
 
 template <int I = 0>
-void saveHist(ResultPrint& p, const dxmc::Material<5>& material, double energy, const std::string& matname)
+void saveHist(ResultPrint& p, const dxmc::Material<5>& material, double energy, const std::string& matname, std::size_t N = 1E6)
 {
-    constexpr std::size_t N = 1E8;
-    auto h_ang = comptonScatterAngle<I>(material, energy, N);
     auto h_en = comptonScatterEnergy<I>(material, energy, N);
+    auto h_ang = comptonScatterAngle<I>(material, energy, N);
     auto hr_ang = rayleightScatterAngle<I>(material, energy, N);
     std::string model = "NoneLC";
     if (I == 1)
@@ -195,20 +194,22 @@ void saveHist(ResultPrint& p, const dxmc::Material<5>& material, double energy, 
 int main()
 {
 
+    constexpr std::size_t N = 1E6;
+
     ResultPrint p;
     p.header();
 
-    std::array<double, 3> energies = { 15, 30, 90 };
-    std::array<std::string, 3> material_names = {
-        "Water, Liquid",
-        "Polymethyl Methacralate (Lucite, Perspex)",
-        "Lead"
-    };
-    std::array<dxmc::Material<5>, 3> materials = {
-        dxmc::Material<5>::byNistName("Water, Liquid").value(),
-        dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value(),
-        dxmc::Material<5>::byZ(82).value()
-    };
+    std::vector<double> energies = { 15, 30, 90 };
+
+    std::vector<std::string> material_names;
+    material_names.push_back("Water, Liquid");
+    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
+    material_names.push_back("Gold");
+
+    std::vector<dxmc::Material<5>> materials;
+    materials.push_back(dxmc::Material<5>::byNistName("Water, Liquid").value());
+    materials.push_back(dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    materials.push_back(dxmc::Material<5>::byZ(79).value());
 
     std::vector<std::jthread> threads;
     threads.reserve(materials.size() * energies.size());
@@ -217,9 +218,9 @@ int main()
         const auto& material_name = material_names[i];
         const auto& material = materials[i];
         for (auto energy : energies) {
-            threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name));
-            threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name));
-            threads.emplace_back(saveHist<2>, std::ref(p), std::cref(material), energy, std::cref(material_name));
+            threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+            threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+            threads.emplace_back(saveHist<2>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
         }
     }
 
