@@ -194,21 +194,24 @@ void saveHist(ResultPrint& p, const dxmc::Material<5>& material, double energy, 
 int main()
 {
 
-    constexpr std::size_t N = 1E6;
+    constexpr std::size_t N = 1E7;
 
     ResultPrint p;
     p.header();
 
-    std::vector<double> energies = { 15, 30, 90 };
+    std::vector<double> energies;
+    // energies.push_back(15);
+    // energies.push_back(30);
+    energies.push_back(50);
 
     std::vector<std::string> material_names;
-    material_names.push_back("Water, Liquid");
-    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
+    // material_names.push_back("Water, Liquid");
+    // material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
     material_names.push_back("Gold");
 
     std::vector<dxmc::Material<5>> materials;
-    materials.push_back(dxmc::Material<5>::byNistName("Water, Liquid").value());
-    materials.push_back(dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    // materials.push_back(dxmc::Material<5>::byNistName("Water, Liquid").value());
+    // materials.push_back(dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
     materials.push_back(dxmc::Material<5>::byZ(79).value());
 
     std::vector<std::jthread> threads;
@@ -218,8 +221,8 @@ int main()
         const auto& material_name = material_names[i];
         const auto& material = materials[i];
         for (auto energy : energies) {
-            threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
-            threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+           // threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+           // threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
             threads.emplace_back(saveHist<2>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
         }
     }
