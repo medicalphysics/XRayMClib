@@ -393,7 +393,8 @@ namespace interactions {
             alpha = qc / k + kc * (kc - k * cosTheta) / (k * qc);
             const auto b_part = (1 + 2 * J0 * std::abs(pi));
             expb = std::exp(-(0.5 * b_part * b_part - 0.5));
-            p = std::sqrt(U * U + 2 * U);
+
+            p = std::sqrt((U + 1) * (U + 1) - 1);
 
             if (pi < -p) {
                 S = (1 - 2 * alpha * p) * expb * 0.5;
