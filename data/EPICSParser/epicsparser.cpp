@@ -85,7 +85,7 @@ EPICSparser::EPICSparser(std::vector<char>& data)
     deserializeElements(data);
 }
 
-std::vector<double> split( std::string& s)
+std::vector<double> split(std::string& s)
 {
     // For some reason the exponent indicated is 'D' not 'E' for EPICS 2023 data (sigh).
     std::replace(s.begin(), s.end(), 'D', 'E');
@@ -97,6 +97,31 @@ std::vector<double> split( std::string& s)
         data[i] = std::stod(s.substr(i * sublen, sublen));
     }
     return data;
+}
+
+std::vector<double> split_spaces(const std::string& s)
+{
+    const auto n = s.size();
+    auto start = s.data();
+    auto end = s.data() + n;
+
+    std::vector<double> values;
+
+    while (start != end) {
+        while (*start == ' ' && start != end)
+            ++start;
+        double val;
+        auto [ptr, ec] = std::from_chars(start, end, val);
+        if (ec == std::errc()) {
+            values.push_back(val);
+            start = ptr;
+        } else if (ec == std::errc::invalid_argument)
+            ++start;
+        else if (ec == std::errc::result_out_of_range)
+            throw std::errc::result_out_of_range;
+    }
+
+    return values;
 }
 
 void processSegments(const std::vector<DataSegment>& segments, std::map<std::uint64_t, AtomicElementHandler>& elements)
@@ -247,6 +272,71 @@ void EPICSparser::readHartreeFockProfiles(const std::string& path)
                 }
             }
             linenumber++;
+        }
+    }
+}
+void EPICSparser::readComptonProfiles(const std::string& path)
+{
+    std::ifstream stream;
+    stream.open(std::string(path));
+
+    std::map<std::size_t, std::vector<double>> data;
+
+    if (stream.is_open()) {
+        std::string line;
+        std::size_t linenumber = 0;
+        std::size_t Z = 0;
+        while (std::getline(stream, line)) {
+            if (line.size() > 2) {
+                if (line[0] == '#' && line[1] == 'S') {
+                    int start_int = 2;
+                    while (line[start_int] == ' ')
+                        ++start_int;
+
+                    auto [ptr, ec] = std::from_chars(&line[start_int], line.data() + line.size(), Z);
+                    if (ec == std::errc::invalid_argument)
+                        Z = 0;
+                    else if (ec == std::errc::result_out_of_range)
+                        throw std::errc::result_out_of_range;
+                } else if (line[0] == ' ' && Z > 0) {
+                    auto values = split_spaces(line);
+                    if (values.size() < 2) {
+                        Z = 0;
+                    } else {
+                        values.erase(values.begin(), values.begin() + 2);
+                        data[Z] = values;
+                        Z = 0;
+                    }
+                }
+            }
+            linenumber++;
+        }
+    }
+
+    // constant to convert pz momentum from atomic to naturel units
+    constexpr double finestructure = 1; // 0.007297;
+
+    for (const auto& [Z, v] : data) {
+        if (m_elements.contains(Z)) {
+            auto& shells = m_elements.at(Z).getShells();
+            if (shells.size() >= v.size()) {
+                auto b = shells.begin();
+                for (std::size_t i = 0; i < v.size(); ++i) {
+                    b->second.HartreeFockOrbital_0 = v[i] / finestructure;
+                    ++b;
+                }
+                // handling electrons jumping over last shells
+                while (b != shells.end()) {
+                    b->second.HartreeFockOrbital_0 = v.back() / finestructure;
+                    ++b;
+                }
+            } else {
+                auto b = shells.begin();
+                for (std::size_t i = 0; i < shells.size(); ++i) {
+                    b->second.HartreeFockOrbital_0 = v[i] / finestructure;
+                    ++b;
+                }
+            }
         }
     }
 }

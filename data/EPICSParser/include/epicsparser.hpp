@@ -30,6 +30,7 @@ public:
     EPICSparser(std::vector<char>& data);
     void read(const std::string& path);
     void readHartreeFockProfiles(const std::string& path);
+    void readComptonProfiles(const std::string& path);
     void readStandardDensities(const std::string& path);
 
     std::map<std::uint64_t, AtomicElementHandler>& getElements() { return m_elements; }

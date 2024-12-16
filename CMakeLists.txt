@@ -4,8 +4,6 @@
 # you pick up the best policies.
 cmake_minimum_required(VERSION 3.19)
 
-# This is your project statement. You should always list languages;
-# Listing the version is nice here since it sets lots of useful variables
 project(dxmclib VERSION 0.7.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -177,7 +175,7 @@ add_subdirectory(data)
 
 # Thirdparty libraries
 # Including lodePNGwrapper for dxmc
-option(DXMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" ON)
+option(DXMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" OFF)
 add_subdirectory(thirdparty)
 
 # Testing

@@ -194,7 +194,7 @@ void saveHist(ResultPrint& p, const dxmc::Material<5>& material, double energy, 
 int main()
 {
 
-    constexpr std::size_t N = 1E7;
+    constexpr std::size_t N = 2E6;
 
     ResultPrint p;
     p.header();
@@ -221,8 +221,8 @@ int main()
         const auto& material_name = material_names[i];
         const auto& material = materials[i];
         for (auto energy : energies) {
-           // threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
-           // threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+            threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+            threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
             threads.emplace_back(saveHist<2>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
         }
     }

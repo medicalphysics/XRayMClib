@@ -78,8 +78,8 @@ namespace interactions {
         }
     }
 
-    /*template <std::size_t Nshells>
-    double comptonScatterIA_NRC(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
+    template <std::size_t Nshells>
+    double comptonScatterIA_NRC2(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
 
         // sample shell_idx
@@ -118,7 +118,7 @@ namespace interactions {
 
         // calculate upper limit for electron momentum p_i
         const auto U = material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS();
-        const double p_i = (k * (k - U) * (1 - cosTheta) - U ) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
+        const double p_i = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
 
         // calculate S_i, scatter function for shell i
         const auto p = std::sqrt((U + 1) * (U + 1) - 1);
@@ -202,10 +202,10 @@ namespace interactions {
         const auto E = particle.energy;
         particle.energy = k_post * ELECTRON_REST_MASS();
         return (E - particle.energy) * particle.weight;
-    }*/
+    }
 
     template <std::size_t Nshells>
-    double comptonScatterIA_NRC(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
+    double comptonScatterIA_NRC3(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
 
         // analytical compton profiles
@@ -222,11 +222,9 @@ namespace interactions {
             constexpr auto d2 = std::numbers::sqrt2;
             constexpr auto d1 = 1 / d2;
             if (A < 0.5) {
-                // return (d1 - std::sqrt(d1 * d1 - std::numbers::ln2 * A)) / (d2 * J0);
-                return (d1 - std::sqrt(d1 * d1 - std::log(2 * A))) / (d2 * J0);
+                return (d1 - std::sqrt(d1 * d1 - std::numbers::ln2 * A)) / (d2 * J0);
             } else {
-                // return (std::sqrt(d1 * d1 - std::numbers::ln2 * (1 - A)) - d1) / (d2 * J0);
-                return (std::sqrt(d1 * d1 - std::log(2 * (1 - A))) - d1) / (d2 * J0);
+                return (std::sqrt(d1 * d1 - std::numbers::ln2 * (1 - A)) - d1) / (d2 * J0);
             }
         };
 
@@ -245,8 +243,8 @@ namespace interactions {
         const auto k = particle.energy / ELECTRON_REST_MASS();
 
         // precompute binding energiens in units of electron rest mass
-        std::array<double, Nshells + 1> U, S_reverse;
-        for (std::size_t i = 0; i < Nshells + 1; ++i) {
+        std::array<double, Nshells + 1> U, S_reverse, S;
+        for (std::size_t i = 0; i < U.size(); ++i) {
             const auto& shell = material.shells()[i];
             U[i] = shell.bindingEnergy / ELECTRON_REST_MASS();
             if (U[i] <= k) {
@@ -260,7 +258,6 @@ namespace interactions {
 
         // sample cosTheta
         double cosTheta, S_sum, kc, e;
-        std::array<double, Nshells + 1> S;
         {
             const auto emin = 1 / (1 + 2 * k);
             const auto gmaxInv = emin / (1 + emin * emin);
@@ -278,7 +275,7 @@ namespace interactions {
 
                 // we have an angle, lets sample p
 
-                for (std::size_t i = 0; i < Nshells + 1; ++i) {
+                for (std::size_t i = 0; i < U.size(); ++i) {
                     const auto& shell = material.shells()[i];
                     if (U[i] <= k) {
                         double pi_max = pi_max_func(k, U[i], cosTheta);
@@ -290,7 +287,9 @@ namespace interactions {
                 S_sum = std::reduce(std::execution::unseq, S.cbegin(), S.cend(), 0.0);
 
                 const auto T = (S_sum / S_reverse_sum) * (1 - ((1 - e) * ((2 * k + 1) * e - 1) / (k * k * e * (1 + e * e))));
+                // const auto T = (S_sum / S_reverse_sum);
                 rejected = state.randomUniform() > T;
+
             } while (rejected);
             kc = k * e;
         }
@@ -300,7 +299,7 @@ namespace interactions {
         {
             const double qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
             const double alpha = qc * (1 + kc * (kc - k * cosTheta) / (qc * qc)) / k;
-            double Fmax = std::max(1 + alpha * 0.2, 1 - alpha * 0.2); // can be better, see egsnrc
+            double Fmax = std::max(1 + alpha, 1 - alpha); // can be better, see egsnrc
 
             bool rejected;
             do {
@@ -324,9 +323,7 @@ namespace interactions {
                 rejected = state.randomUniform() * Fmax > F;
             } while (rejected);
         }
-
-        // const auto kbar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
-        // const auto kbar = kc * (1 - pz * pz * e * cosTheta + s * std::sqrt(kbar_part)) / (1 - pz * pz * e * e);
+        
         const double s = pz >= 0 ? 1 : -1;
         const double kbar_part = 1 - pz * pz * e * cosTheta;
         const double ebar = e * (kbar_part - s * std::sqrt(kbar_part * kbar_part - (1 - pz * pz * e * e) * (1 - pz * pz))) / (1 - pz * pz * e * e);
@@ -340,6 +337,63 @@ namespace interactions {
         return Ei;
     }
 
+    template <std::size_t Nshells>
+    int comptonScatterIA_NRC_sample_shell(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
+    {
+
+        // Binding energy og last shell should be set to zero
+        const auto& shells = material.shells();
+        int shell_idx;
+        do {
+            shell_idx = 0;
+            const auto r = state.randomUniform();
+            double acc = shells[0].numberOfElectronsFraction;
+            while (acc < r) {
+                ++shell_idx;
+                acc += shells[shell_idx].numberOfElectronsFraction;
+            }
+        } while (shells[shell_idx].bindingEnergy > particle.energy && shell_idx != Nshells + 1);
+        return shell_idx;
+    }
+    template <std::size_t Nshells>
+    double comptonScatterIA_NRC(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
+    {
+
+        const auto shell_idx = comptonScatterIA_NRC_sample_shell(particle, material, state);
+
+        // sample cosTheta
+        double cosTheta;
+        const auto k = particle.energy / ELECTRON_REST_MASS();
+        const auto e_min = 1 / (1 + 2 * k);
+        const auto g_max = 1 / e_min + e_min;
+        double g, e;
+        do {
+            const double r1 = state.randomUniform();
+            e = r1 + (1 - r1) * e_min;
+            cosTheta = 1 - (1 - e) / (e * k);
+            const double sinThetaSqr = 1 - cosTheta * cosTheta;
+            g = 1 / e + e - sinThetaSqr;
+        } while (state.randomUniform(g_max) > g);
+
+
+        //calculate pz max value; pi
+        const auto U = material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS();
+        const auto pi = (k*(k-U)*(1-cosTheta)-U)/std::sqrt(2*k*(k-U)*(1-cosTheta)+U*U);
+
+        //Calculate S
+        const auto kc = k * e;
+        const auto qc = std::sqrt(k*k+kc*kc-2*k*kc*cosTheta);
+        const auto alpha = qc/k +kc*(kc-k*cosTheta)/(k*qc);
+
+
+            const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
+        const auto theta = std::acos(cosTheta);
+        particle.dir = vectormath::peturb(particle.dir, theta, phi);
+
+        const auto E = particle.energy;
+        particle.energy *= e;
+        return (E - particle.energy) * particle.weight;
+    }
     template <std::size_t Nshells>
     auto comptonScatterIA(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
