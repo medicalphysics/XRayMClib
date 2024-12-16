@@ -24,7 +24,6 @@ Copyright 2022 Erlend Andersen
 #include <utility>
 #include <vector>
 
-
 class AtomicElementHandler {
 public:
     AtomicElementHandler() {};
@@ -62,7 +61,7 @@ public:
     void setShellHartreeFockProfile_0(std::uint64_t shell, double J);
     void setStandardDensity(double dens);
 
-    const auto& getShells() const { return m_atom.shells; }
+    auto& getShells() { return m_atom.shells; }
 
     static constexpr double momentumTransferMax();
     static double momentumTransfer(double energy, double angle);

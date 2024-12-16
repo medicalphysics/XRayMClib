@@ -323,7 +323,7 @@ namespace interactions {
                 rejected = state.randomUniform() * Fmax > F;
             } while (rejected);
         }
-        
+
         const double s = pz >= 0 ? 1 : -1;
         const double kbar_part = 1 - pz * pz * e * cosTheta;
         const double ebar = e * (kbar_part - s * std::sqrt(kbar_part * kbar_part - (1 - pz * pz * e * e) * (1 - pz * pz))) / (1 - pz * pz * e * e);
@@ -340,7 +340,6 @@ namespace interactions {
     template <std::size_t Nshells>
     int comptonScatterIA_NRC_sample_shell(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
-
         // Binding energy og last shell should be set to zero
         const auto& shells = material.shells();
         int shell_idx;
@@ -355,43 +354,105 @@ namespace interactions {
         } while (shells[shell_idx].bindingEnergy > particle.energy && shell_idx != Nshells + 1);
         return shell_idx;
     }
+
     template <std::size_t Nshells>
     double comptonScatterIA_NRC(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
 
-        const auto shell_idx = comptonScatterIA_NRC_sample_shell(particle, material, state);
-
-        // sample cosTheta
-        double cosTheta;
         const auto k = particle.energy / ELECTRON_REST_MASS();
-        const auto e_min = 1 / (1 + 2 * k);
-        const auto g_max = 1 / e_min + e_min;
-        double g, e;
+        double S;
+        double cosTheta;
+        double e;
+        double alpha;
+        double p;
+        double expb;
+        double pi;
+        double J0;
         do {
-            const double r1 = state.randomUniform();
-            e = r1 + (1 - r1) * e_min;
-            cosTheta = 1 - (1 - e) / (e * k);
-            const double sinThetaSqr = 1 - cosTheta * cosTheta;
-            g = 1 / e + e - sinThetaSqr;
-        } while (state.randomUniform(g_max) > g);
+            // sample cosTheta
+            const auto shell_idx = comptonScatterIA_NRC_sample_shell(particle, material, state);
+            const auto e_min = 1 / (1 + 2 * k);
+            const auto g_max = 1 / e_min + e_min;
+            double g;
+            do {
+                const double r1 = state.randomUniform();
+                e = r1 + (1 - r1) * e_min;
+                cosTheta = 1 - (1 - e) / (e * k);
+                const double sinThetaSqr = 1 - cosTheta * cosTheta;
+                g = 1 / e + e - sinThetaSqr;
+            } while (state.randomUniform(g_max) > g);
 
+            // calculate pz max value; pi
+            const auto U = material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS();
+            pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
 
-        //calculate pz max value; pi
-        const auto U = material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS();
-        const auto pi = (k*(k-U)*(1-cosTheta)-U)/std::sqrt(2*k*(k-U)*(1-cosTheta)+U*U);
+            // Calculate S
+            J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
+            const auto kc = k * e;
+            const auto qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
+            alpha = qc / k + kc * (kc - k * cosTheta) / (k * qc);
+            const auto b_part = (1 + 2 * J0 * std::abs(pi));
+            expb = std::exp(-(0.5 * b_part * b_part - 0.5));
+            p = std::sqrt(U * U + 2 * U);
 
-        //Calculate S
-        const auto kc = k * e;
-        const auto qc = std::sqrt(k*k+kc*kc-2*k*kc*cosTheta);
-        const auto alpha = qc/k +kc*(kc-k*cosTheta)/(k*qc);
+            if (pi < -p) {
+                S = (1 - 2 * alpha * p) * expb * 0.5;
+            } else if (pi <= 0) {
+                const double pik = std::exp(0.5) / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
+                const auto S1 = (1 - 2 * alpha * pi) * expb * 0.5;
+                const auto S2 = -alpha / (4 * J0) * pik;
+                const auto errf1 = std::erf((1 + 2 * J0 * p) / std::numbers::sqrt2);
+                const auto errf2 = std::erf((1 + 2 * J0 * std::abs(pi)) / std::numbers::sqrt2);
+                S = S1 + S2 * (errf1 - errf2);
+            } else if (pi < p) {
+                const double pik = std::exp(0.5) / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
+                const auto S1 = (1 - 2 * alpha * pi) * expb * 0.5;
+                const auto S2 = -alpha / (4 * J0) * pik;
+                const auto errf1 = std::erf((1 + 2 * J0 * p) / std::numbers::sqrt2);
+                const auto errf2 = std::erf((1 + 2 * J0 * std::abs(pi)) / std::numbers::sqrt2);
+                S = 1 - S1 + S2 * (errf1 - errf2);
+            } else {
+                S = 1 - (1 + alpha * p) * expb * 0.5;
+            }
+        } while (state.randomUniform() > S);
 
+        // sample pz
+        double pz;
 
-            const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
+        double Fmax, F;
+        if (pi < -p) {
+            Fmax = 1 - alpha * p;
+        } else if (pi < p) {
+            Fmax = 1 + alpha * pi;
+        } else {
+            Fmax = 1 + alpha * p;
+        }
+        do {
+            const auto r = state.randomUniform(expb);
+            if (r < 0.5) {
+                pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0 * 137);
+            } else {
+                pz = (std::sqrt(1 - 2 * std::log(2 * (1 - r))) - 1) / (2 * J0 * 137);
+            }
+            if (pz < -p) {
+                F = 1 - alpha * p;
+            } else if (pz < p) {
+                F = 1 + alpha * pz;
+            } else {
+                F = 1 + alpha * p;
+            }
+        } while (state.randomUniform(Fmax) > F);
+
+        const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
         const auto theta = std::acos(cosTheta);
         particle.dir = vectormath::peturb(particle.dir, theta, phi);
 
+        // calkulating kbar
+        const auto ebar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
+        const auto ebar = e * (1 - pz * pz * e * cosTheta + pz * std::sqrt(ebar_part)) / (1 - pz * pz * e * e);
+
         const auto E = particle.energy;
-        particle.energy *= e;
+        particle.energy *= ebar;
         return (E - particle.energy) * particle.weight;
     }
     template <std::size_t Nshells>
