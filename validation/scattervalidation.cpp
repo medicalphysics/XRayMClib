@@ -25,6 +25,8 @@ Copyright 2024 Erlend Andersen
 #include <iostream>
 #include <thread>
 
+constexpr int NSHELLS = 10;
+
 struct Histogram {
     double start = 0;
     double stop = 1;
@@ -134,13 +136,13 @@ private:
 };
 
 template <int Model = 1>
-Histogram comptonScatterAngle(const dxmc::Material<5>& material, double energy, std::size_t N = 1e6)
+Histogram comptonScatterAngle(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     dxmc::RandomState state;
     Histogram h(180, 0, 180);
     for (std::size_t i = 0; i < N; ++i) {
         dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        dxmc::interactions::comptonScatter<5, Model>(p, material, state);
+        dxmc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
         const auto angle = dxmc::vectormath::angleBetween({ 0, 0, 1 }, p.dir) * dxmc::RAD_TO_DEG<>();
         h(angle);
     }
@@ -148,26 +150,26 @@ Histogram comptonScatterAngle(const dxmc::Material<5>& material, double energy, 
 }
 
 template <int Model = 1>
-Histogram comptonScatterEnergy(const dxmc::Material<5>& material, double energy, std::size_t N = 1e6)
+Histogram comptonScatterEnergy(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     dxmc::RandomState state;
     Histogram h(1000, .9 / (1 + energy / dxmc::ELECTRON_REST_MASS() * 2), 1);
     for (std::size_t i = 0; i < N; ++i) {
         dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        dxmc::interactions::comptonScatter<5, Model>(p, material, state);
+        dxmc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
         h(p.energy / energy);
     }
     return h;
 }
 
 template <int Model = 1>
-Histogram rayleightScatterAngle(const dxmc::Material<5>& material, double energy, std::size_t N = 1e6)
+Histogram rayleightScatterAngle(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     dxmc::RandomState state;
     Histogram h(180, 0, 180);
     for (std::size_t i = 0; i < N; ++i) {
         dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        dxmc::interactions::rayleightScatter<5, Model>(p, material, state);
+        dxmc::interactions::rayleightScatter<NSHELLS, Model>(p, material, state);
         const auto angle = dxmc::vectormath::angleBetween({ 0, 0, 1 }, p.dir) * dxmc::RAD_TO_DEG<>();
         h(angle);
     }
@@ -175,7 +177,7 @@ Histogram rayleightScatterAngle(const dxmc::Material<5>& material, double energy
 }
 
 template <int I = 0>
-void saveHist(ResultPrint& p, const dxmc::Material<5>& material, double energy, const std::string& matname, std::size_t N = 1E6)
+void saveHist(ResultPrint& p, const dxmc::Material<NSHELLS>& material, double energy, const std::string& matname, std::size_t N = 1E6)
 {
     auto h_en = comptonScatterEnergy<I>(material, energy, N);
     auto h_ang = comptonScatterAngle<I>(material, energy, N);
@@ -209,10 +211,10 @@ int main()
     // material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
     material_names.push_back("Gold");
 
-    std::vector<dxmc::Material<5>> materials;
-    // materials.push_back(dxmc::Material<5>::byNistName("Water, Liquid").value());
-    // materials.push_back(dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
-    materials.push_back(dxmc::Material<5>::byZ(79).value());
+    std::vector<dxmc::Material<NSHELLS>> materials;
+    // materials.push_back(dxmc::Material<NSHELLS>::byNistName("Water, Liquid").value());
+    // materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    materials.push_back(dxmc::Material<NSHELLS>::byZ(79).value());
 
     std::vector<std::jthread> threads;
     threads.reserve(materials.size() * energies.size());

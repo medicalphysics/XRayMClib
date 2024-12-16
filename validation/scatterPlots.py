@@ -23,8 +23,8 @@ import numpy as np
 import os
 
 
-HUE = "Material"
-ROW = "Model"
+ROW = "Material"
+HUE = "Model"
 COL = "Energy"
 
 
