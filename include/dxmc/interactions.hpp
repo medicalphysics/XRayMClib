@@ -95,6 +95,8 @@ namespace interactions {
             }
         }
 
+        constexpr double fine_structure = 0.007297;
+        constexpr double mec = 1 / fine_structure;
         // calculate scatter angle
         const auto k = particle.energy / ELECTRON_REST_MASS();
         double cosTheta;
@@ -126,7 +128,7 @@ namespace interactions {
         const auto qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
         const auto alpha = (qc / k) * (1 + (kc * kc - kc * k * cosTheta) / (qc * qc));
 
-        const auto J = material.shells()[shell_idx].HartreeFockOrbital_0;
+        const auto J = material.shells()[shell_idx].HartreeFockOrbital_0 * mec;
         const auto b_part = 1 + 2 * J * std::abs(p_i);
         const auto b = 0.5 * (b_part * b_part) - 0.5;
 
@@ -385,17 +387,17 @@ namespace interactions {
 
             // calculate pz max value; pi
             const auto U = material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS();
-            pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
+            pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U) *mec;
 
             // Calculate S
-            J0 = material.shells()[shell_idx].HartreeFockOrbital_0 * mec;
+            J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
             const auto kc = k * e;
             const auto qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
             alpha = qc / k + kc * (kc - k * cosTheta) / (k * qc);
             const auto b_part = (1 + 2 * J0 * std::abs(pi));
             expb = std::exp(-(0.5 * b_part * b_part - 0.5));
 
-            p = std::sqrt((U + 1) * (U + 1) - 1);
+            p = std::sqrt((U + 1) * (U + 1) - 1) * mec;
 
             if (pi < -p) {
                 S = (1 - 2 * alpha * p) * expb * 0.5;
@@ -420,8 +422,8 @@ namespace interactions {
 
         // sample pz
         double pz;
-
-        double Fmax, F;
+        /*
+                double Fmax, F;
 
         if (pi < -p) {
             Fmax = 1 - alpha * p;
@@ -470,12 +472,15 @@ namespace interactions {
         const auto theta = std::acos(cosTheta);
         particle.dir = vectormath::peturb(particle.dir, theta, phi);
 
-        // calkulating kbar
-        const auto ebar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
-        const auto ebar = e * (1 - pz * pz * e * cosTheta + pz * std::sqrt(ebar_part)) / (1 - pz * pz * e * e);
-
         const auto E = particle.energy;
-        particle.energy *= ebar;
+        // calkulating kbar
+        // const auto ebar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
+        // const auto ebar = e * (1 - pz * pz * e * cosTheta + pz * std::sqrt(ebar_part)) / (1 - pz * pz * e * e);
+        const auto t = pz * pz;
+        const double sign = pz >= 0 ? 1 : 0;
+        const auto Ebar = E * e * ((1 - t * e * cosTheta) + sign * std::sqrt((1 - t * e * cosTheta) * (1 - t * e * cosTheta) - (1 - t * e * e) * (1 - t))) / (1 - t * e * e);
+
+        particle.energy = Ebar;
         return (E - particle.energy) * particle.weight;
     }
 
