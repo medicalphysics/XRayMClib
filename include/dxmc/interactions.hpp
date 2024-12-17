@@ -359,6 +359,7 @@ namespace interactions {
     double comptonScatterIA_NRC(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
         constexpr double fine_structure = 0.007297;
+        constexpr double mec = 1 / fine_structure;
         const auto k = particle.energy / ELECTRON_REST_MASS();
         double S;
         double cosTheta;
@@ -387,7 +388,7 @@ namespace interactions {
             pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
 
             // Calculate S
-            J0 = material.shells()[shell_idx].HartreeFockOrbital_0 / fine_structure;
+            J0 = material.shells()[shell_idx].HartreeFockOrbital_0 * mec;
             const auto kc = k * e;
             const auto qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
             alpha = qc / k + kc * (kc - k * cosTheta) / (k * qc);
@@ -421,6 +422,7 @@ namespace interactions {
         double pz;
 
         double Fmax, F;
+
         if (pi < -p) {
             Fmax = 1 - alpha * p;
         } else if (pi < p) {
@@ -431,9 +433,9 @@ namespace interactions {
         do {
             const auto r = state.randomUniform(expb);
             if (r < 0.5) {
-                pz = fine_structure * (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
+                pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
             } else {
-                pz = fine_structure * (std::sqrt(1 - 2 * std::log(2 * (1 - r))) - 1) / (2 * J0);
+                pz = (std::sqrt(1 - 2 * std::log(2 * (1 - r))) - 1) / (2 * J0);
             }
             if (pz < -p) {
                 F = 1 - alpha * p;
@@ -443,8 +445,27 @@ namespace interactions {
                 F = 1 + alpha * p;
             }
 
-        } while (state.randomUniform(Fmax) > F);
-        // pz = 0;
+        } while (state.randomUniform() > F / Fmax);
+        /*
+                double nia;
+                constexpr double d2 = std::numbers::sqrt2;
+                constexpr double d1 = 1 / d2;
+                if (pi < 0) {
+                    nia = 0.5 * std::exp(d1 * d1 - (d1 - d2 * J0 * pi) * (d1 - d2 * J0 * pi));
+                } else {
+                    nia = 1 - 0.5 * std::exp(d1 * d1 - (d1 - d2 * J0 * pi) * (d1 - d2 * J0 * pi));
+                }
+
+                const auto A = nia * state.randomUniform();
+                if (A < 0.5) {
+                    pz = (d1 - std::sqrt(d1 * d1 - std::numbers::ln2 * A)) / (d2 * J0);
+                    // pz = (d1 - std::sqrt(d1 * d1 - std::log(2 * A))) / (d2 * J0);
+                } else {
+                    pz = (std::sqrt(d1 * d1 - std::numbers::ln2 * (1 - A)) - d1) / (d2 * J0);
+                    // pz = (std::sqrt(d1 * d1 - std::log(2 * (1 - A))) - d1) / (d2 * J0);
+                }
+                */
+        // pz /=mec;
         const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
         const auto theta = std::acos(cosTheta);
         particle.dir = vectormath::peturb(particle.dir, theta, phi);
@@ -457,6 +478,7 @@ namespace interactions {
         particle.energy *= ebar;
         return (E - particle.energy) * particle.weight;
     }
+
     template <std::size_t Nshells>
     auto comptonScatterIA(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
