@@ -25,7 +25,7 @@ Copyright 2024 Erlend Andersen
 #include <iostream>
 #include <thread>
 
-constexpr int NSHELLS = 10;
+constexpr int NSHELLS = 15;
 
 struct Histogram {
     double start = 0;
@@ -196,7 +196,7 @@ void saveHist(ResultPrint& p, const dxmc::Material<NSHELLS>& material, double en
 int main()
 {
 
-    constexpr std::size_t N = 2E6;
+    constexpr std::size_t N = 5E6;
 
     ResultPrint p;
     p.header();
