@@ -26,7 +26,7 @@ Copyright 2024 Erlend Andersen
 #include <thread>
 
 constexpr int NSHELLS = 15;
-constexpr std::size_t N = 1E7;
+constexpr std::size_t N = 10E7;
 
 struct Histogram {
     double start = 0;
@@ -154,7 +154,7 @@ template <int Model = 1>
 Histogram comptonScatterEnergy(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     dxmc::RandomState state;
-    Histogram h(1000, .9 / (1 + energy / dxmc::ELECTRON_REST_MASS() * 2), 1);
+    Histogram h(1000, .8 / (1 + energy / dxmc::ELECTRON_REST_MASS() * 2), 1);
     for (std::size_t i = 0; i < N; ++i) {
         dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
         dxmc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
