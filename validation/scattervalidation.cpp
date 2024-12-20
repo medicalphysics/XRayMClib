@@ -26,7 +26,7 @@ Copyright 2024 Erlend Andersen
 #include <thread>
 
 constexpr int NSHELLS = 15;
-constexpr std::size_t N = 10E7;
+constexpr std::size_t N = 5E7;
 
 struct Histogram {
     double start = 0;
@@ -197,24 +197,24 @@ void saveHist(ResultPrint& p, const dxmc::Material<NSHELLS>& material, double en
 int main()
 {
 
-   
-
     ResultPrint p;
     p.header();
 
     std::vector<double> energies;
-    // energies.push_back(15);
-    // energies.push_back(30);
+    energies.push_back(15);
+    energies.push_back(30);
     energies.push_back(50);
 
     std::vector<std::string> material_names;
-    // material_names.push_back("Water, Liquid");
-    // material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
+    material_names.push_back("Water, Liquid");
+    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
+    // material_names.push_back("Au");
     material_names.push_back("Gold");
 
     std::vector<dxmc::Material<NSHELLS>> materials;
-    // materials.push_back(dxmc::Material<NSHELLS>::byNistName("Water, Liquid").value());
-    // materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    materials.push_back(dxmc::Material<NSHELLS>::byNistName("Water, Liquid").value());
+    materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    // materials.push_back(dxmc::Material<NSHELLS>::byZ(13).value());
     materials.push_back(dxmc::Material<NSHELLS>::byZ(79).value());
 
     std::vector<std::jthread> threads;

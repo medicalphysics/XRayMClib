@@ -28,16 +28,14 @@ int main()
     const std::string eadl(DXMCLIB_EADLPATH);
     const std::string epdl(DXMCLIB_EPDLPATH);
     const std::string outpath(DXMCLIB_PHYSICSLISTSPATH);
-    const std::string hartreefock("hartreeFockProfiles_0.csv");
+    const std::string hartreefock("ComptonProfiles.dat");
     const std::string standardensities("standarddensities.csv");
-    const std::string comptonprofiles("ComptonProfiles.dat");
 
     auto file_exists = std::filesystem::exists(outpath);
     if (!file_exists) {
         EPICSparser parser(eadl);
         parser.read(epdl);
         parser.readHartreeFockProfiles(hartreefock);
-        parser.readComptonProfiles(comptonprofiles);
         parser.readStandardDensities(standardensities);
 
         auto data = parser.serializeElements();
@@ -47,6 +45,5 @@ int main()
         of.write(data.data(), data.size());
         of.close();
     }
-
     return EXIT_SUCCESS;
 }

@@ -47,14 +47,6 @@ target_compile_definitions(EPICSparser PUBLIC DXMCLIB_PHYSICSLISTSPATH="${DXMCLI
 target_include_directories(EPICSparser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/include)     
 target_link_libraries(EPICSparser PRIVATE material )
 
-## Copying Hartree-Fock profiles for pz=0 since this data is lacking from EPICS data
-add_custom_command(TARGET EPICSparser PRE_BUILD
-    COMMENT "Copying hartreeFockProfiles_0.csv to ${CMAKE_CURRENT_BINARY_DIR}/hartreeFockProfiles_0.csv"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/hartreeFockProfiles_0.csv
-            ${CMAKE_CURRENT_BINARY_DIR}/hartreeFockProfiles_0.csv
-)
-
 ## Copying standard densities for all elements up to 92
 add_custom_command(TARGET EPICSparser PRE_BUILD
     COMMENT "Copying standarddensities.csv to ${CMAKE_CURRENT_BINARY_DIR}/standarddensities.csv"
@@ -63,7 +55,7 @@ add_custom_command(TARGET EPICSparser PRE_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/standarddensities.csv
 )
 
-## Copying Compton profiles for pz=0 since this data is lacking from EPICS data
+## Copying Compton profiles since this data is lacking from EPICS data
 add_custom_command(TARGET EPICSparser PRE_BUILD
     COMMENT "Copying ComptonProfiles.dat to ${CMAKE_CURRENT_BINARY_DIR}/ComptonProfiles.dat"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

@@ -250,36 +250,6 @@ void EPICSparser::readHartreeFockProfiles(const std::string& path)
     std::ifstream stream;
     stream.open(std::string(path));
 
-    if (stream.is_open()) {
-        std::string line;
-        std::size_t linenumber = 0;
-        while (std::getline(stream, line)) {
-            if (linenumber > 0) { // we dont read the header
-                auto start = line.data();
-                auto end = start + line.size();
-                int Z = 0;
-                int shell = 0;
-                double J = 0.0;
-                auto [ptrZ, errZ] = std::from_chars(start, end, Z);
-                if (errZ == std::errc {}) {
-                    auto [ptrS, errS] = std::from_chars(ptrZ + 1, end, shell);
-                    if (errS == std::errc {}) {
-                        auto [ptrJ, errJ] = std::from_chars(ptrS + 1, end, J);
-                        if (errJ == std::errc {}) {
-                            m_elements[Z].setShellHartreeFockProfile_0(shell, J);
-                        }
-                    }
-                }
-            }
-            linenumber++;
-        }
-    }
-}
-void EPICSparser::readComptonProfiles(const std::string& path)
-{
-    std::ifstream stream;
-    stream.open(std::string(path));
-
     std::map<std::size_t, std::vector<double>> data;
 
     if (stream.is_open()) {
@@ -313,8 +283,9 @@ void EPICSparser::readComptonProfiles(const std::string& path)
         }
     }
 
-    // constant to convert pz momentum from atomic to naturel units
-    constexpr double finestructure = 1; // 0.007297;
+    // constant to convert pz momentum from atomic to natural units
+    constexpr double fine_structure = 0.0072973525649;
+    constexpr double fine_structure_inv = 1 / fine_structure;
 
     for (const auto& [Z, v] : data) {
         if (m_elements.contains(Z)) {
@@ -322,18 +293,18 @@ void EPICSparser::readComptonProfiles(const std::string& path)
             if (shells.size() >= v.size()) {
                 auto b = shells.begin();
                 for (std::size_t i = 0; i < v.size(); ++i) {
-                    b->second.HartreeFockOrbital_0 = v[i] / finestructure;
+                    b->second.HartreeFockOrbital_0 = v[i] * fine_structure_inv;
                     ++b;
                 }
                 // handling electrons jumping over last shells
                 while (b != shells.end()) {
-                    b->second.HartreeFockOrbital_0 = v.back() / finestructure;
+                    b->second.HartreeFockOrbital_0 = v.back() * fine_structure_inv;
                     ++b;
                 }
             } else {
                 auto b = shells.begin();
                 for (std::size_t i = 0; i < shells.size(); ++i) {
-                    b->second.HartreeFockOrbital_0 = v[i] / finestructure;
+                    b->second.HartreeFockOrbital_0 = v[i] * fine_structure_inv;
                     ++b;
                 }
             }
