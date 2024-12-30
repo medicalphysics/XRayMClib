@@ -41,6 +41,7 @@ using namespace dxmc;
 
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
+constexpr std::size_t NShells = 5;
 
 struct ResultKeys {
     std::string rCase = "unknown";
@@ -341,10 +342,9 @@ bool TG195Case1Fluence(bool mammo = false)
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
     constexpr std::uint64_t TOTAL_HIST = N_EXPOSURES * N_HISTORIES;
 
-    constexpr std::size_t NShells = 5;
     using Filter = WorldCylinder<NShells, LOWENERGYCORRECTION>;
     using Scoring = FluenceScore;
-    using Mat = Material<NShells>;
+    using Mat = dxmc::Material<NShells>;
 
     ResultKeys res;
     res.rCase = "Case 1";
@@ -479,7 +479,6 @@ bool TG195Case2AbsorbedEnergy(bool tomo = false)
     constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1024;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    constexpr std::size_t NShells = 5;
     using SimpleBox = dxmc::WorldBox<NShells, LOWENERGYCORRECTION>;
     using Box = WorldBoxGrid<NShells, LOWENERGYCORRECTION>;
     using Material = Material<NShells>;
@@ -666,7 +665,6 @@ bool TG195Case3AbsorbedEnergy(bool tomo = false)
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    constexpr int NShells = 5;
     using Box = WorldBox<NShells, LOWENERGYCORRECTION>;
     using Breast = TG195World3Breast<NShells, LOWENERGYCORRECTION>;
     using World = World<Box, Breast>;
@@ -828,10 +826,9 @@ bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = fa
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 100000 : 1000000;
 
-    constexpr int materialShells = 5;
-    using Cylindar = DepthDose<materialShells, LOWENERGYCORRECTION>;
+    using Cylindar = DepthDose<NShells, LOWENERGYCORRECTION>;
     using World = World<Cylindar>;
-    using Material = Material<materialShells>;
+    using Material = Material<NShells>;
 
     auto [mat_dens, mat_weights] = TG195_pmma();
 
@@ -962,10 +959,9 @@ bool TG195Case42AbsorbedEnergy(bool large_collimation = false)
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 1000000;
 
-    constexpr int materialShells = 5;
-    using Cylindar = TG195World42<materialShells, LOWENERGYCORRECTION>;
+    using Cylindar = TG195World42<NShells, LOWENERGYCORRECTION>;
     using World = World<Cylindar>;
-    using Material = Material<materialShells>;
+    using Material = Material<NShells>;
     auto [mat_dens, mat_weights] = TG195_pmma();
     auto mat = Material::byWeight(mat_weights).value();
 
@@ -1170,7 +1166,7 @@ bool TG195Case5AbsorbedEnergy()
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     using World = World<AAVoxelGrid<5, LOWENERGYCORRECTION, 255>>;
-    auto [grid_object, matInf] = generateTG195World5<5, LOWENERGYCORRECTION, 255>();
+    auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, 255>();
 
     World world;
     auto& grid = world.addItem(grid_object);
