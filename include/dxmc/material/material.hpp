@@ -34,7 +34,6 @@ namespace dxmc {
 
 struct MaterialShell {
     double numberOfElectronsFraction = 0;
-    double numberOfElectrons = 0;
     double bindingEnergy = 0;
     double HartreeFockOrbital_0 = 0;
     double numberOfPhotonsPerInitVacancy = 0;
@@ -618,7 +617,6 @@ protected:
             auto& materialshell = material.m_shells[i];
 
             materialshell.numberOfElectronsFraction = shells[i].weight * shell.numberOfElectrons / sum_weight;
-            materialshell.numberOfElectrons = shell.numberOfElectrons;
             materialshell.bindingEnergy = shell.bindingEnergy;
             materialshell.HartreeFockOrbital_0 = shell.HartreeFockOrbital_0;
             materialshell.numberOfPhotonsPerInitVacancy = shell.numberOfPhotonsPerInitVacancy;
@@ -635,7 +633,6 @@ protected:
 
                 materialshell.bindingEnergy += shell.bindingEnergy * mean_fac;
                 materialshell.numberOfElectronsFraction += shell.numberOfElectrons * w / sum_weight;
-                materialshell.numberOfElectrons += shell.numberOfElectrons;
                 materialshell.HartreeFockOrbital_0 += shell.HartreeFockOrbital_0 * mean_fac;
                 materialshell.numberOfPhotonsPerInitVacancy += shell.numberOfPhotonsPerInitVacancy * mean_fac;
                 materialshell.energyOfPhotonsPerInitVacancy += shell.energyOfPhotonsPerInitVacancy * mean_fac;
