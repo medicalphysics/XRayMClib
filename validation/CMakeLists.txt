@@ -25,24 +25,21 @@ if(EXISTS "${DATA_PATH}/${CASE5WORLD_BINARY}")
 endif()
 
 add_custom_command(TARGET validation POST_BUILD
-	COMMENT "Extracting case 5 world ${DATA_PATH}/${CASE5WORLD_COMPRESSED}."
-	DEPENDS ${CASE5WORLDFILE}
+	COMMENT "Extracting case 5 world ${DATA_PATH}/${CASE5WORLD_COMPRESSED}."	
 	COMMAND ${CMAKE_COMMAND} -E tar -xvzf "${DATA_PATH}/${CASE5WORLD_COMPRESSED}" ${CASE5WORLD_BINARY}
 	WORKING_DIRECTORY $<TARGET_FILE_DIR:validation>
 	)
 
 set(PLOTSCRIPT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/validationPlots.py")
 add_custom_command(TARGET validation POST_BUILD
-	COMMENT "Copying plotting script ${PLOTSCRIPT_PATH}."
-	DEPENDS ${PLOTSCRIPT_PATH}
+	COMMENT "Copying plotting script ${PLOTSCRIPT_PATH}."	
     COMMAND ${CMAKE_COMMAND} -E copy ${PLOTSCRIPT_PATH} validationPlots.py
 	WORKING_DIRECTORY $<TARGET_FILE_DIR:validation>
 	)
 
 set(PLOTSCRIPTSCATTER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/scatterPlots.py")
 add_custom_command(TARGET scattervalidation POST_BUILD
-	COMMENT "Copying plotting script ${PLOTSCRIPTSCATTER_PATH}."
-	DEPENDS ${PLOTSCRIPTSCATTER_PATH}
+	COMMENT "Copying plotting script ${PLOTSCRIPTSCATTER_PATH}."	
     COMMAND ${CMAKE_COMMAND} -E copy ${PLOTSCRIPTSCATTER_PATH} scatterPlots.py
 	WORKING_DIRECTORY $<TARGET_FILE_DIR:scattervalidation>
 	)

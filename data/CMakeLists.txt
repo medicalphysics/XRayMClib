@@ -88,8 +88,7 @@ function(dxmclib_add_physics_list func_target)
             TARGET ${func_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${DXMCLIB_EPICS_PHYSICSLISTS}"
-                "$<TARGET_FILE_DIR:${func_target}>/physicslist.bin"
-            DEPENDS libdxmc_physics                 
+                "$<TARGET_FILE_DIR:${func_target}>/physicslist.bin"                         
         )        
 endfunction()
 
