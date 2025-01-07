@@ -21,33 +21,28 @@ set(CARM_CSHIELD_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data/carmCeilingShield.stl")
 set(CARM_BLANKET_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data/blanket.stl")
 
 add_custom_command(TARGET carm POST_BUILD
-			COMMENT "Copying carmCarm.stl for C-arm example"
-			DEPENDS ${CARM_ARM_PATH}
+			COMMENT "Copying carmCarm.stl for C-arm example"			
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CARM_ARM_PATH} carm.stl
 			WORKING_DIRECTORY $<TARGET_FILE_DIR:carm>
 			)
 add_custom_command(TARGET carm POST_BUILD
 			COMMENT "Copying carmTable.stl for C-arm example"
-			DEPENDS ${CARM_TABLE_PATH}
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CARM_TABLE_PATH} table.stl
 			WORKING_DIRECTORY $<TARGET_FILE_DIR:carm>
 			)
 add_custom_command(TARGET carm POST_BUILD
 			COMMENT "Copying blanket.stl for C-arm example"
-			DEPENDS ${CARM_BLANKET_PATH}
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CARM_BLANKET_PATH} blanket.stl
 			WORKING_DIRECTORY $<TARGET_FILE_DIR:carm>
 			)
 add_custom_command(TARGET carm POST_BUILD
 			COMMENT "Copying ceilingshield.stl for C-arm example"
-			DEPENDS ${CARM_CSHIELD_PATH}
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CARM_CSHIELD_PATH} ceilingshield.stl
 			WORKING_DIRECTORY $<TARGET_FILE_DIR:carm>
 			)
 
 add_custom_command(TARGET carm POST_BUILD
 			COMMENT "Copying icrp145 organdata for C-arm example"
-			DEPENDS ${CMAKE_SOURCE_DIR}/data/phantomdata/icrp145/icrp145organs.csv
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/data/phantomdata/icrp145/icrp145organs.csv icrp145organs.csv
 			WORKING_DIRECTORY $<TARGET_FILE_DIR:carm>
 			)

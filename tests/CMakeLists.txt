@@ -24,17 +24,4 @@ foreach(sourcefile ${TEST_SOURCES})
     
     #Adding interaction binary data to example 
     dxmclib_add_physics_list(${filename})
-
-    ## Spesific tools for testmaterial 
-    if("${filename}" STREQUAL "testmaterial")
-        add_custom_command(
-        TARGET ${filename} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/testmaterialAtomCoeffVis.py
-                ${CMAKE_CURRENT_BINARY_DIR}/testmaterialAtomCoeffVis.py
-        )
-        add_custom_target(materialtestvis ALL
-        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/testmaterialAtomCoeffVis.py")
-        add_dependencies(${filename} materialtestvis)
-    endif()
 endforeach()
