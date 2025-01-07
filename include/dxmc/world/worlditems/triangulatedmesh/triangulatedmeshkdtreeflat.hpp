@@ -54,7 +54,7 @@ public:
     void translate(const std::array<double, 3>& dist)
     {
         for (auto& node : m_nodes) {
-            if (node.isLeaf()) {
+            if (!node.isLeaf()) {
                 const auto dim = node.dim();
                 node.split_nelements.split += dist[dim];
             }
@@ -63,7 +63,7 @@ public:
     void scale(double s)
     {
         for (auto& node : m_nodes) {
-            if (node.isLeaf()) {
+            if (!node.isLeaf()) {
                 node.split_nelements.split *= s;
             }
         }
@@ -71,7 +71,7 @@ public:
     void mirror(const std::array<double, 3>& point)
     {
         for (auto& node : m_nodes) {
-            if (node.isLeaf()) {
+            if (!node.isLeaf()) {
                 const auto dim = node.dim();
                 node.split_nelements.split += -2 * (node.split_nelements.split - point[dim]);
             }
@@ -80,7 +80,7 @@ public:
     void mirror(const double value, const std::uint32_t dim_mirror)
     {
         for (auto& node : m_nodes) {
-            if (node.isLeaf()) {
+            if (!node.isLeaf()) {
                 const auto dim = node.dim();
                 if (dim == dim_mirror)
                     node.split_nelements.split += -2 * (node.split_nelements.split - value);
