@@ -139,7 +139,7 @@ public:
 
     double energy() const { return m_energy; }
 
-    const std::array<double, 4>& collimationAngles() const { return m_collimationHalfAngles; }
+    const std::array<double, 4>& collimationHalfAngles() const { return m_collimationHalfAngles; }
 
     void setCollimationHalfAngles(const std::array<double, 4>& angles) { m_collimationHalfAngles = angles; }
     void setCollimationHalfAngles(double minX, double minY, double maxX, double maxY)

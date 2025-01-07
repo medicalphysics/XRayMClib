@@ -265,7 +265,7 @@ public:
                 obj.directionCosines()
             } -> std::convertible_to<std::array<std::array<double, 3>, 2>>;
 
-            obj.collimationAngles();
+            obj.collimationHalfAngles();
         }
     void addLineProp(const B& obj, double length = -1, double radii = 1)
     {
@@ -275,20 +275,20 @@ public:
 
         constexpr bool has_advanced_collimation = requires(B obj) {
             {
-                obj.collimationAngles()
+                obj.collimationHalfAngles()
             } -> std::convertible_to<std::array<double, 4>>;
         };
         constexpr bool has_simple_collimation = requires(B obj) {
             {
-                obj.collimationAngles()
+                obj.collimationHalfAngles()
             } -> std::convertible_to<std::array<double, 2>>;
         };
 
         std::array<double, 4> angs;
         if constexpr (has_advanced_collimation) {
-            angs = obj.collimationAngles();
+            angs = obj.collimationHalfAngles();
         } else if constexpr (has_simple_collimation) {
-            auto sang = obj.collimationAngles();
+            auto sang = obj.collimationHalfAngles();
             angs = { -sang[0], -sang[1], sang[0], sang[1] };
         } else {
             return;
