@@ -13,6 +13,7 @@ set(TEST_SOURCES
     "testvectormath.cpp"
     "testworldsphere.cpp"
     "testmassenergytransfer.cpp"
+    "testtriangulatedmesh.cpp"
 )
 
 

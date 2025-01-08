@@ -190,7 +190,17 @@ public:
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         const auto res = m_kdtree.intersect(p, m_triangles, m_aabb);
-        return WorldIntersectionResult { .intersection = res.intersection, .rayOriginIsInsideItem = false, .intersectionValid = res.item != nullptr };
+        WorldIntersectionResult wres;
+        if (res.valid()) {
+            const auto normal = res.item->planeVector();
+            const auto length_scale = std::abs(vectormath::dot(p.dir, normal));
+            const auto length = m_thickness / (2 * length_scale);
+
+            wres.intersection = res.intersection - length;
+            wres.rayOriginIsInsideItem = false;
+            wres.intersectionValid = res.item != nullptr;
+        }
+        return wres;
     }
 
     template <typename U>
@@ -200,9 +210,11 @@ public:
         VisualizationIntersectionResult<U> res_int;
         if (res.valid()) {
             res_int.normal = res.item->planeVector();
-            if (vectormath::dot(p.dir, res_int.normal) > 0.0) // fix normal vector
+            const auto length_scale = vectormath::dot(p.dir, res_int.normal);
+            if (length_scale > 0.0) // fix normal vector
                 res_int.normal = vectormath::scale(res_int.normal, -1.0);
-            res_int.intersection = res.intersection;
+            const auto length = m_thickness / (2 * std::abs(length_scale));
+            res_int.intersection = res.intersection - length;
             res_int.rayOriginIsInsideItem = false;
             res_int.intersectionValid = true;
             res_int.value = m_dose.dose();
@@ -212,25 +224,29 @@ public:
 
     void transport(ParticleType auto& p, RandomState& state)
     {
-        const auto att = m_material.attenuationValues(p.energy);
-        const auto attSumInv = 1 / (att.sum() * m_materialDensity);
-        const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
-
-        // The particle is transported right behind this plane, we correct this
-        p.translate(-2 * GEOMETRIC_ERROR());
 
         const auto intersection = m_kdtree.intersect(p, m_triangles, m_aabb);
         const auto normal = intersection.item->planeVector();
+        // do loop here
+        /*const auto att = m_material.attenuationValues(p.energy);
+        const auto attSumInv = 1 / (att.sum() * m_materialDensity);
+        const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+
+
         const auto length_scale = std::abs(vectormath::dot(p.dir, normal));
         const auto length = m_thickness / length_scale;
 
         if (stepLen < length) {
+            // we have an intersection
+            // find intersection position
+            p.translate(stepLen - intersection.intersection - length * 0.5);
             const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_material, state);
             if (intRes.particleEnergyChanged) {
                 m_energyScored.scoreEnergy(intRes.energyImparted);
             }
         }
         p.border_translate(length * 0.5);
+        */
     }
 
     const EnergyScore& energyScored(std::size_t index = 0) const

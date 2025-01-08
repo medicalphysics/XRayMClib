@@ -1,6 +1,7 @@
 
 
 #include "dxmc/beams/isotropicmonoenergybeam.hpp"
+#include "dxmc/beams/pencilbeam.hpp"
 #include "dxmc/transport.hpp"
 #include "dxmc/world/visualization/visualizeworld.hpp"
 #include "dxmc/world/world.hpp"
@@ -295,8 +296,19 @@ bool testOpenSurface()
 
     dxmc::World<dxmc::TriangulatedOpenSurface<>> world;
 
-    world.template addItem<dxmc::TriangulatedOpenSurface<>>(tris);
+    auto& surf = world.template addItem<dxmc::TriangulatedOpenSurface<>>(tris);
     world.build(0);
+
+    dxmc::PencilBeam<false> beam;
+    beam.setPosition({ -10, 0, 0 });
+    beam.setDirection({ 1, 0, 0 });
+    beam.setNumberOfExposures(1);
+    beam.setNumberOfParticlesPerExposure(100);
+
+    dxmc::Transport transport;
+    //transport.runConsole(world, beam, 1);
+
+    //return surf.getTriangles().size() > 0;
 
     dxmc::VisualizeWorld viz(world);
     auto buffer = viz.createBuffer();
@@ -318,10 +330,11 @@ bool testOpenSurface()
 int main(int argc, char* argv[])
 {
     std::cout << "Testing triangulated mesh\n";
-    // testOpenSurface();
-    testScoring();
-    testMeshPlaneVisualization();
-    testMeshVisualization();
+    bool success = true;
+    success = success && testOpenSurface();
+    // testScoring();
+    // testMeshPlaneVisualization();
+    // testMeshVisualization();
 
     /*
         std::cout << "Testing dose scoring of mesh\n";
