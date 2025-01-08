@@ -132,7 +132,7 @@ namespace interactions {
             } while (state.randomUniform(g_max) > g);
 
             // calculate pz max value; pi
-            U = shell_idx < material.numberOfShells() - 1 ? material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS() : 0.0;            
+            U = shell_idx < material.numberOfShells() - 1 ? material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS() : 0.0;
             pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
 
             // Calculate S
@@ -401,6 +401,7 @@ namespace interactions {
             if (s.energyOfPhotonsPerInitVacancy > MIN_ENERGY()) {
                 particle.energy = s.energyOfPhotonsPerInitVacancy;
                 E -= particle.energy * particle.weight;
+                particle.weight *= s.numberOfPhotonsPerInitVacancy;
                 const auto theta = state.randomUniform(PI_VAL());
                 const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
                 particle.dir = vectormath::peturb(particle.dir, theta, phi);
