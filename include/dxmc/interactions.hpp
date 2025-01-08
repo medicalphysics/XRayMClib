@@ -328,6 +328,7 @@ namespace interactions {
             const auto Ei = interactions::photoelectricEffect<Nshells, LOWENERGYCORRECTION>(attenuation.photoelectric, particle, material, state);
             res.energyImparted = Ei;
             res.particleEnergyChanged = true;
+            res.particleDirectionChanged = true;
         } else if (r2 < (attenuation.photoelectric + attenuation.incoherent)) {
             const auto Ei = interactions::comptonScatter<Nshells, LOWENERGYCORRECTION>(particle, material, state);
             res.energyImparted = Ei;
