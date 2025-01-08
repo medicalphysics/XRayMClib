@@ -97,13 +97,8 @@ namespace interactions {
     }
 
     template <std::size_t Nshells>
-    double comptonScatterIA_NRC(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
+    double comptonScatterIA(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
-        constexpr double fine_structure = 0.007297;
-        constexpr double mec = 1 / fine_structure;
-        constexpr double keV_2_Eh = 36.74932539730762; // kev to energy in atomic units
-        constexpr double mec2_to_Eh = keV_2_Eh / ELECTRON_REST_MASS(); // energy in mec2 in atomic units
-
         const auto k = particle.energy / ELECTRON_REST_MASS();
         const auto E = particle.energy;
         double S;
@@ -188,7 +183,6 @@ namespace interactions {
                 Fmax = 1 + alpha * p;
             }
             do {
-                // const auto r = state.randomUniform(expb);
                 const auto r = state.randomUniform(S);
                 if (r < 0.5) {
                     pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
@@ -202,7 +196,7 @@ namespace interactions {
                 } else {
                     F = 1 + alpha * p;
                 }
-            } while (state.randomUniform(Fmax) > F || pz > pi); // remove pz > pi condition?
+            } while (state.randomUniform(Fmax) > F);
         }
 
         const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
@@ -214,115 +208,7 @@ namespace interactions {
         const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
         particle.energy = kbar * ELECTRON_REST_MASS();
 
-        // const auto t = pz * pz;
-        // const double sign = pz >= 0 ? 1 : -1;
-        // const auto kbar = k * e * ((1 - t * e * cosTheta) + sign * std::sqrt((1 - t * e * cosTheta) * (1 - t * e * cosTheta) - (1 - t * e * e) * (1 - t))) / (1 - t * e * e);
-        // particle.energy = kbar * ELECTRON_REST_MASS();
-
         return (E - particle.energy) * particle.weight;
-    }
-
-    template <std::size_t Nshells>
-    auto comptonScatterIA(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
-    {
-        // Penelope model for compton scattering. Note spelling error in manual for sampling of pz.
-        // In addition we use hartree scatter factors instead of integrating all compton profiles when sampling cosTheta
-        const auto k = particle.energy / ELECTRON_REST_MASS();
-
-        // sample cosangle and e
-        double e, cosTheta;
-        {
-            const auto emin = 1 / (1 + 2 * k);
-            bool rejected;
-            const auto gmaxInv = emin / (1 + emin * emin);
-            do {
-                const auto r1 = state.randomUniform();
-                e = r1 + (1 - r1) * emin;
-                const auto t = std::min((1 - e) / (k * e), 2.0); // to prevent rounding errors with t > 2 (better way?)
-                cosTheta = 1 - t;
-                const auto sinThetaSqr = 1 - cosTheta * cosTheta;
-                const auto g = (1 / e + e - sinThetaSqr) * gmaxInv;
-                const auto q = material.momentumTransferCosAngle(particle.energy, cosTheta);
-                const auto scatterFactor = material.scatterFactor(q);
-                rejected = state.randomUniform(material.effectiveZ()) > (g * scatterFactor);
-            } while (rejected);
-        }
-        const auto kc = k * e;
-        const auto qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
-        // sample shell and pz
-        const auto nia = [](const auto pz, const auto J0) -> double {
-            constexpr auto d1 = 1 / std::numbers::sqrt2_v<double>;
-            constexpr auto d2 = std::numbers::sqrt2_v<double>;
-            const auto p1 = d1 + d2 * J0 * std::abs(pz);
-            const auto p2 = 0.5 * std::exp(std::max(0.5 - p1 * p1, 0.0));
-            return pz > 0 ? 1 - p2 : p2;
-        };
-        std::uint_fast16_t shellIdx;
-        double pz;
-        {
-            std::array<double, Nshells + 1> shell_nia;
-            std::transform(std::execution::unseq, material.shells().cbegin(), material.shells().cend(), shell_nia.begin(), [&nia, cosTheta, k](const auto& shell) -> double {
-                const auto U = shell.bindingEnergy / ELECTRON_REST_MASS();
-                if (U > k)
-                    return 0.0;
-                const auto pi_max = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
-                const auto ni = nia(pi_max, shell.HartreeFockOrbital_0);
-                return ni;
-            });
-            std::array<double, Nshells + 1> shell_probs;
-            std::transform(shell_nia.cbegin(), shell_nia.cend(), material.shells().cbegin(), shell_probs.begin(), [](const auto n, const auto& shell) -> double {
-                return n * shell.numberOfElectrons;
-            });
-            const auto shell_probs_sum = std::reduce(std::execution::unseq, shell_probs.cbegin(), shell_probs.cend(), 0.0);
-            bool rejected;
-            do {
-                do {
-                    const auto shell_probs_r = state.randomUniform(shell_probs_sum);
-                    shellIdx = 0;
-                    auto accum = shell_probs[shellIdx];
-                    while (shell_probs_r > accum) {
-                        ++shellIdx;
-                        accum += shell_probs[shellIdx];
-                    }
-
-                    const auto nia_shell = shell_nia[shellIdx];
-                    const auto A = state.randomUniform(nia_shell);
-                    constexpr auto d1 = 1 / std::numbers::sqrt2_v<double>;
-                    constexpr auto d2 = std::numbers::sqrt2_v<double>;
-                    const auto J0 = material.shell(shellIdx).HartreeFockOrbital_0;
-                    if (A < 0.5) {
-                        pz = (d1 - std::sqrt(0.5 - std::log(2 * A))) / (d2 * J0);
-                    } else {
-                        pz = (std::sqrt(0.5 - std::log(2 * (1 - A))) - d1) / (d2 * J0);
-                    }
-                } while (pz < -1);
-
-                const auto F_eval = [k, kc, qc, cosTheta](const auto p) {
-                    const auto pn = std::clamp(p, -0.2, 0.2);
-                    const auto f = 1 + qc * pn * (1 + kc * (kc - k * cosTheta) / (qc * qc)) / k;
-                    return std::max(f, 0.0);
-                };
-                const auto Fmax = std::max(F_eval(0.2), F_eval(-0.2));
-                const auto F = F_eval(pz);
-                rejected = state.randomUniform(Fmax) > F;
-            } while (rejected);
-        }
-        const auto t = pz * pz;
-        const auto eb1 = 1 - t * e * e;
-        const auto eb2 = 1 - t * e * cosTheta;
-        const auto sign = pz > 0 ? 1 : -1;
-
-        const auto sqrt_factor = std::max(eb2 * eb2 - eb1 * (1 - t), 0.0); // may have small negative facors, fix
-
-        const auto eb = e / eb1 * (eb2 + sign * std::sqrt(sqrt_factor));
-
-        const auto E = particle.energy;
-        particle.energy *= eb;
-        const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
-        const auto theta = std::acos(cosTheta);
-        particle.dir = vectormath::peturb(particle.dir, theta, phi);
-        auto Ei = (E - particle.energy) * particle.weight;
-        return Ei;
     }
 
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2, ParticleType P = Particle>
@@ -336,7 +222,7 @@ namespace interactions {
         }
 
         if constexpr (LOWENERGYCORRECTION == 2) {
-            return comptonScatterIA_NRC(particle, material, state);
+            return comptonScatterIA(particle, material, state);
         } else {
             const auto k = particle.energy / ELECTRON_REST_MASS();
             const auto emin = 1 / (1 + 2 * k);
