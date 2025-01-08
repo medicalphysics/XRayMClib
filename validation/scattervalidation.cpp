@@ -25,7 +25,7 @@ Copyright 2024 Erlend Andersen
 #include <iostream>
 #include <thread>
 
-constexpr int NSHELLS = 15;
+constexpr int NSHELLS = 12;
 constexpr std::size_t N = 5E7;
 
 struct Histogram {
@@ -69,9 +69,10 @@ struct Histogram {
     }
     std::vector<double> getValues() const
     {
-        std::vector<double> vals(N);
+        std::vector<double> vals(N, 0.0);
         const auto sum = static_cast<double>(std::accumulate(intensity.cbegin(), intensity.cend(), std::size_t { 0 }));
-        std::transform(intensity.cbegin(), intensity.cend(), vals.begin(), [=](auto i) { return i / sum; });
+        if (sum > 0)
+            std::transform(intensity.cbegin(), intensity.cend(), vals.begin(), [=](auto i) { return i / sum; });
         return vals;
     }
     void save(const std::string& fname) const
@@ -164,6 +165,27 @@ Histogram comptonScatterEnergy(const dxmc::Material<NSHELLS>& material, double e
 }
 
 template <int Model = 1>
+Histogram photoElectricEnergyIA(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
+{
+    dxmc::RandomState state;
+    double max_en = 0;
+    for (const auto& shell : material.shells()) {
+        max_en = std::max(max_en, shell.energyOfPhotonsPerInitVacancy);
+    }
+    Histogram h(1000, 0, max_en + 0.1);
+
+    const auto att = material.attenuationPhotoeletric(energy);
+
+    for (std::size_t i = 0; i < N; ++i) {
+        dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
+        const auto E = dxmc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
+        if (p.energy > 0)
+            h(p.energy);
+    }
+    return h;
+}
+
+template <int Model = 1>
 Histogram rayleightScatterAngle(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     dxmc::RandomState state;
@@ -192,6 +214,10 @@ void saveHist(ResultPrint& p, const dxmc::Material<NSHELLS>& material, double en
     p(h_ang, model, "ComptonAngle", energy, matname);
     p(h_en, model, "ComptonEnergy", energy, matname);
     p(hr_ang, model, "RayleighAngle", energy, matname);
+    if constexpr (I == 2) {
+        auto h_photo = photoElectricEnergyIA<I>(material, energy, N);
+        p(h_photo, model, "PhotoElectricIA", energy, matname);
+    }
 }
 
 int main()
@@ -201,20 +227,19 @@ int main()
     p.header();
 
     std::vector<double> energies;
-    energies.push_back(15);
+    //energies.push_back(15);
     energies.push_back(30);
     energies.push_back(50);
+    energies.push_back(120);
 
     std::vector<std::string> material_names;
     material_names.push_back("Water, Liquid");
-    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
-    // material_names.push_back("Au");
+    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");    
     material_names.push_back("Gold");
 
     std::vector<dxmc::Material<NSHELLS>> materials;
     materials.push_back(dxmc::Material<NSHELLS>::byNistName("Water, Liquid").value());
-    materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
-    // materials.push_back(dxmc::Material<NSHELLS>::byZ(13).value());
+    materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());    
     materials.push_back(dxmc::Material<NSHELLS>::byZ(79).value());
 
     std::vector<std::jthread> threads;

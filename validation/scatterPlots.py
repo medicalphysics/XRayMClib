@@ -103,6 +103,26 @@ def plotRayleightScatter(dtt, show=True):
         plt.show()
 
 
+def plotPhotoElectricEnergyIA(dtt, show=True):
+
+    dt = dtt[dtt["InteractionType"] == "PhotoElectricIA"]
+    
+    g = sns.relplot(
+        x="x",
+        y="y",
+        hue=HUE,
+        col=COL,
+        row=ROW,
+        kind="line",
+        data=dt,
+    )
+    g.set_axis_labels(y_var="Intensity [A.U]", x_var="Energy")
+    plt.tight_layout()
+    plt.savefig("PhotoElectricIAEnergy.png", dpi=300)
+    if show:
+        plt.show()
+
+
 if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -112,3 +132,4 @@ if __name__ == "__main__":
     plotComptonScatter(dt, show=False)
     plotComptonEnergy(dt, show=False)
     plotRayleightScatter(dt, show=False)
+    plotPhotoElectricEnergyIA(dt, show=False)
