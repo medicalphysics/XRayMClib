@@ -224,9 +224,29 @@ public:
 
     void transport(ParticleType auto& p, RandomState& state)
     {
+        const auto intersection = m_kdtree.intersect(p, m_triangles, m_aabb);
+        const auto normal = intersection.item->planeVector();
+        const auto& surface_point = intersection.item->vertices()[0];
+        const auto plane_dist = vectormath::scale(normal, m_thickness * 0.5);
+
+        const auto plane0 = vectormath::add(surface_point, plane_dist);
+        const auto plane1 = vectormath::add(surface_point, vectormath::scale(plane_dist, -1));
+
+        bool inside = false;
+        do {
+
+            const auto att = m_material.attenuationValues(p.energy);
+            const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
+            const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+
+            const auto length_scale = std::abs(vectormath::dot(p.dir, normal));
+            const auto length = m_thickness / length_scale;
+
+        } while (inside);
 
         const auto intersection = m_kdtree.intersect(p, m_triangles, m_aabb);
         const auto normal = intersection.item->planeVector();
+
         // do loop here
         /*const auto att = m_material.attenuationValues(p.energy);
         const auto attSumInv = 1 / (att.sum() * m_materialDensity);
@@ -249,7 +269,8 @@ public:
         */
     }
 
-    const EnergyScore& energyScored(std::size_t index = 0) const
+    const EnergyScore&
+    energyScored(std::size_t index = 0) const
     {
         return m_energyScored;
     }
