@@ -306,9 +306,9 @@ bool testOpenSurface()
     beam.setNumberOfParticlesPerExposure(100);
 
     dxmc::Transport transport;
-    //transport.runConsole(world, beam, 1);
+    transport.runConsole(world, beam, 1);
 
-    //return surf.getTriangles().size() > 0;
+    // return surf.getTriangles().size() > 0;
 
     dxmc::VisualizeWorld viz(world);
     auto buffer = viz.createBuffer();

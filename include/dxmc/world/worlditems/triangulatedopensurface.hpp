@@ -189,6 +189,7 @@ public:
 
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
+        // Not to be used for internal intersections
         const auto res = m_kdtree.intersect(p, m_triangles, m_aabb);
         WorldIntersectionResult wres;
         if (res.valid()) {
@@ -198,7 +199,7 @@ public:
 
             wres.intersection = res.intersection - length;
             wres.rayOriginIsInsideItem = false;
-            wres.intersectionValid = res.item != nullptr;
+            wres.intersectionValid = true;
         }
         return wres;
     }
@@ -225,48 +226,63 @@ public:
     void transport(ParticleType auto& p, RandomState& state)
     {
         const auto intersection = m_kdtree.intersect(p, m_triangles, m_aabb);
+
         const auto normal = intersection.item->planeVector();
-        const auto& surface_point = intersection.item->vertices()[0];
-        const auto plane_dist = vectormath::scale(normal, m_thickness * 0.5);
 
-        const auto plane0 = vectormath::add(surface_point, plane_dist);
-        const auto plane1 = vectormath::add(surface_point, vectormath::scale(plane_dist, -1));
+        const auto plane_point_plus = vectormath::add(intersection.item->vertices()[0], vectormath::scale(normal, -m_thickness * 0.5));
+        const auto plane_point_minus = vectormath::add(intersection.item->vertices()[0], vectormath::scale(normal, m_thickness * 0.5));
 
-        bool inside = false;
+        bool inside;
         do {
+            const auto nd = vectormath::dot(p.dir, normal);
+            if (nd > GEOMETRIC_ERROR<double>()) {
+                const auto pv = vectormath::subtract(p.pos, plane_point_plus);
+                const auto lenght = vectormath::dot(pv, normal) / nd;
 
-            const auto att = m_material.attenuationValues(p.energy);
-            const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
-            const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+                const auto att = m_material.attenuationValues(p.energy);
+                const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
+                const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+                if (stepLen > lenght) {
+                    p.border_translate(lenght);
+                    inside = false;
+                } else {
+                    // interact
+                    p.translate(stepLen);
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_material, state);
+                    if (intRes.particleEnergyChanged) {
+                        m_energyScored.scoreEnergy(intRes.energyImparted);
+                    }
+                    inside = intRes.particleAlive;
+                }
+            } else if (nd < GEOMETRIC_ERROR<double>()) {
+                const auto pv = vectormath::subtract(p.pos, plane_point_minus);
+                const auto lenght = vectormath::dot(pv, normal) / nd;
 
-            const auto length_scale = std::abs(vectormath::dot(p.dir, normal));
-            const auto length = m_thickness / length_scale;
-
-        } while (inside);
-
-        const auto intersection = m_kdtree.intersect(p, m_triangles, m_aabb);
-        const auto normal = intersection.item->planeVector();
-
-        // do loop here
-        /*const auto att = m_material.attenuationValues(p.energy);
-        const auto attSumInv = 1 / (att.sum() * m_materialDensity);
-        const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
-
-
-        const auto length_scale = std::abs(vectormath::dot(p.dir, normal));
-        const auto length = m_thickness / length_scale;
-
-        if (stepLen < length) {
-            // we have an intersection
-            // find intersection position
-            p.translate(stepLen - intersection.intersection - length * 0.5);
-            const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_material, state);
-            if (intRes.particleEnergyChanged) {
-                m_energyScored.scoreEnergy(intRes.energyImparted);
+                const auto att = m_material.attenuationValues(p.energy);
+                const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
+                const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+                if (stepLen > lenght) {
+                    p.border_translate(lenght);
+                    inside = false;
+                } else {
+                    // interact
+                    p.translate(stepLen);
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_material, state);
+                    if (intRes.particleEnergyChanged) {
+                        m_energyScored.scoreEnergy(intRes.energyImparted);
+                    }
+                    inside = intRes.particleAlive;
+                }
+            } else {
+                // we do an interaction if in plane
+                const auto att = m_material.attenuationValues(p.energy);
+                const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_material, state);
+                if (intRes.particleEnergyChanged) {
+                    m_energyScored.scoreEnergy(intRes.energyImparted);
+                }
+                inside = intRes.particleAlive;
             }
-        }
-        p.border_translate(length * 0.5);
-        */
+        } while (inside);
     }
 
     const EnergyScore&
@@ -331,6 +347,62 @@ protected:
         }
         m_aabb = aabb;
     }
+
+    /*std::optional<double> intersectOffsetTriangle(const ParticleType auto& p const Triangle* tri)
+    {
+        Triangle off = *tri;
+        const auto dist = vectormath::scale(off.planeVector(), m_thickness);
+        off.translate(dist);
+        return off.intersect(p)
+    }
+
+    std::optional<double> intersectPrismPlanes(const ParticleType auto& p, const Triangle* tri)
+    {
+        const auto& verts = tri->vertices();
+        const auto v_norm = tri->planeVector();
+
+        double min_inter = -1;
+        // first plane
+        {
+            const auto n = vectormath::cross(v_norm, vectormath::subtract(verts[0], verts[1]));
+            const auto dn = vectormath::dot(p.dir, n);
+            if (std::abs(dn) > GEOMETRIC_ERROR<double>()) {
+                const auto p = vectormath::subtract(p.pos, verts[0]);
+                min_inter = vectormath::dot(p, b) / dn;
+            }
+        }
+        // second plane
+        {
+            const auto n = vectormath::cross(v_norm, vectormath::subtract(verts[1], verts[2]));
+            const auto dn = vectormath::dot(p.dir, n);
+            if (std::abs(dn) > GEOMETRIC_ERROR<double>()) {
+                const auto p = vectormath::subtract(p.pos, verts[1]);
+                const auto cand = vectormath::dot(p, b) / dn;
+                if (cand > 0) {
+                    if (min_inter > 0)
+                        min_inter = std::min(cand, min_inter);
+                    else
+                        min_inter = cand;
+                }
+            }
+        }
+        // third plane
+        {
+            const auto n = vectormath::cross(v_norm, vectormath::subtract(verts[2], verts[0]));
+            const auto dn = vectormath::dot(p.dir, n);
+            if (std::abs(dn) > GEOMETRIC_ERROR<double>()) {
+                const auto p = vectormath::subtract(p.pos, verts[2]);
+                const auto cand = vectormath::dot(p, b) / dn;
+                if (cand > 0) {
+                    if (min_inter > 0)
+                        min_inter = std::min(cand, min_inter);
+                    else
+                        min_inter = cand;
+                }
+            }
+        }
+        return min_inter < 0 ? std::nullopt : min_inter;
+    }*/
 
     static double calculateVolume(const std::vector<Triangle>& triangles, double thickness)
     {
