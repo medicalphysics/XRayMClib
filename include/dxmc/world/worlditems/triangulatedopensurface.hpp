@@ -229,15 +229,15 @@ public:
 
         const auto normal = intersection.item->planeVector();
 
-        const auto plane_point_plus = vectormath::add(intersection.item->vertices()[0], vectormath::scale(normal, -m_thickness * 0.5));
-        const auto plane_point_minus = vectormath::add(intersection.item->vertices()[0], vectormath::scale(normal, m_thickness * 0.5));
+        const auto plane_point_plus = vectormath::add(intersection.item->vertices()[0], vectormath::scale(normal, m_thickness * 0.5));
+        const auto plane_point_minus = vectormath::add(intersection.item->vertices()[0], vectormath::scale(normal, -m_thickness * 0.5));
 
         bool inside;
         do {
             const auto nd = vectormath::dot(p.dir, normal);
             if (nd > GEOMETRIC_ERROR<double>()) {
                 const auto pv = vectormath::subtract(p.pos, plane_point_plus);
-                const auto lenght = vectormath::dot(pv, normal) / nd;
+                const auto lenght = -vectormath::dot(pv, normal) / nd;
 
                 const auto att = m_material.attenuationValues(p.energy);
                 const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
@@ -256,7 +256,7 @@ public:
                 }
             } else if (nd < GEOMETRIC_ERROR<double>()) {
                 const auto pv = vectormath::subtract(p.pos, plane_point_minus);
-                const auto lenght = vectormath::dot(pv, normal) / nd;
+                const auto lenght = -vectormath::dot(pv, normal) / nd;
 
                 const auto att = m_material.attenuationValues(p.energy);
                 const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
@@ -285,8 +285,7 @@ public:
         } while (inside);
     }
 
-    const EnergyScore&
-    energyScored(std::size_t index = 0) const
+    const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScored;
     }

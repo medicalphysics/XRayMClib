@@ -267,7 +267,7 @@ double testScoring()
 
 bool testOpenSurface()
 {
-    std::vector<dxmc::Triangle> tris;
+    /*std::vector<dxmc::Triangle> tris;
     tris.push_back({ { -0.3333333, -1, 0.5743564 },
         { 0.33333337, -1, 0 },
         { 0.33333337, 0, -0.5099079 } });
@@ -293,38 +293,68 @@ bool testOpenSurface()
     tris.push_back({ { 0.33333337, 0, -0.5099079 },
         { 1, 1, 0.63710684 },
         { 0.33333337, 1, 0 } });
+*/
 
-    dxmc::World<dxmc::TriangulatedOpenSurface<>> world;
+    constexpr int NSHELL = 12;
+    constexpr int MODEL = 1;
 
-    auto& surf = world.template addItem<dxmc::TriangulatedOpenSurface<>>(tris);
-    world.build(0);
+    std::cout << "Test surface mesh\n";
+
+    dxmc::World<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>> w1;
+    dxmc::World<dxmc::WorldBox<NSHELL, MODEL>> w2;
+
+    auto lead = dxmc::Material<NSHELL>::byZ(82).value();
+    double lead_dens = 11.34;
+
+    auto tris = getPlane();
+
+    auto& mesh = w1.template addItem<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>>(getPlane());
+    auto& box = w2.template addItem<dxmc::WorldBox<NSHELL, MODEL>>();
+
+    mesh.setMaterial(lead, lead_dens);
+    mesh.setSurfaceThickness(0.05);
+
+    box.setAABB({ -1, -1, 0, 1, 1, 0.05 });
+    box.setMaterial(lead, lead_dens);
+
+    w1.build();
+    w2.build();
 
     dxmc::PencilBeam<false> beam;
-    beam.setPosition({ -10, 0, 0 });
-    beam.setDirection({ 1, 0, 0 });
-    beam.setNumberOfExposures(1);
-    beam.setNumberOfParticlesPerExposure(100);
+    beam.setPosition({ 0, -10, -10 });
+    beam.setDirection({ 0, 1, 1 });
+    beam.setNumberOfExposures(16);
+    beam.setNumberOfParticlesPerExposure(1000000);
 
     dxmc::Transport transport;
-    transport.runConsole(world, beam, 1);
+    transport.runConsole(w1, beam, 1);
+    transport.runConsole(w2, beam, 1);
 
-    // return surf.getTriangles().size() > 0;
+    std::cout << "Mesh: " << mesh.doseScored(0).dose() << std::endl;
+    std::cout << "Box: " << box.doseScored(0).dose() << std::endl;
 
-    dxmc::VisualizeWorld viz(world);
-    auto buffer = viz.createBuffer();
-
-    for (std::size_t i = 0; i < 180; i += 30) {
-        viz.setDistance(500);
-        viz.setPolarAngleDeg(60);
-        viz.setAzimuthalAngleDeg(i);
-
-        viz.suggestFOV();
-        viz.generate(world, buffer);
-        std::string name = "surf_" + std::to_string(i) + ".png";
-        viz.savePNG(name, buffer);
-        // writeImage(buffer, name);
+    if (std::abs(mesh.doseScored(0).dose() - box.doseScored(0).dose()) < 0.01) {
+        std::cout << "SUCCESS\n";
+        return true;
+    } else {
+        std::cout << "FAILURE\n";
+        return false;
     }
-    return false;
+
+    /*dxmc::VisualizeWorld viz(w1);
+     auto buffer = viz.createBuffer();
+
+     for (std::size_t i = 0; i < 180; i += 30) {
+         viz.setDistance(500);
+         viz.setPolarAngleDeg(60);
+         viz.setAzimuthalAngleDeg(i);
+
+         viz.suggestFOV();
+         viz.generate(w1, buffer);
+         std::string name = "surf_" + std::to_string(i) + ".png";
+         viz.savePNG(name, buffer);
+         // writeImage(buffer, name);
+     }*/
 }
 
 int main(int argc, char* argv[])
