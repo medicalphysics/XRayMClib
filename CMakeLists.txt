@@ -2,7 +2,7 @@
 # You should always specify a range with the newest
 # and oldest tested versions of CMake. This will ensure
 # you pick up the best policies.
-cmake_minimum_required(VERSION 3.31)
+cmake_minimum_required(VERSION 3.20)
 
 project(dxmclib VERSION 0.7.0 LANGUAGES CXX)
 
