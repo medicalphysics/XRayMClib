@@ -39,6 +39,13 @@ add_executable(EPICSparser
     EPICSParser/epicsparsermain.cpp        
 )
 
+OPTION(DXMCLIB_ALWAYS_REBUILD_PHYSICSLISTS "Rebuild physicslists on compile" OFF)
+if(${DXMCLIB_ALWAYS_REBUILD_PHYSICSLISTS})
+    target_compile_definitions(EPICSparser PUBLIC DXMCLIB_REBUILD_PHYSICSLISTS=1)
+else()
+    target_compile_definitions(EPICSparser PUBLIC DXMCLIB_REBUILD_PHYSICSLISTS=0)
+endif()
+
 target_compile_definitions(EPICSparser PUBLIC DXMCLIB_MAXENERGY="${DXMCLIB_MAX_ENERGY_KEV}")
 target_compile_definitions(EPICSparser PUBLIC DXMCLIB_MINTABLEENERGY="${DXMCLIB_MIN_TABLE_ENERGY_KEV}")
 target_compile_definitions(EPICSparser PUBLIC DXMCLIB_EADLPATH="${DXMCLIB_EPICS_DATA_EADLPATH}")
@@ -66,17 +73,13 @@ add_custom_command(TARGET EPICSparser PRE_BUILD
 ## make parsed EPICS data available to all binaries consuming dxmc on build machine
 target_compile_definitions(libdxmc INTERFACE DXMCLIB_PHYSICSLISTSPATH="${DXMCLIB_EPICS_PHYSICSLISTS}")
 
-## make max energy exposed to libdxmc
+## make max and min energy exposed to libdxmc
 target_compile_definitions(libdxmc INTERFACE DXMCLIB_MAXENERGY=${DXMCLIB_MAX_ENERGY_KEV})
 target_compile_definitions(libdxmc INTERFACE DXMCLIB_MINENERGY=${DXMCLIB_MIN_ENERGY_KEV})
 
 ## Generating physicslist
-add_custom_command(OUTPUT "${DXMCLIB_EPICS_PHYSICSLISTS}"        
-    COMMAND $<TARGET_FILE_DIR:EPICSparser>/EPICSparser
-    DEPENDS EPICSparser)
+add_custom_target(libdxmc_physics BYPRODUCTS "${DXMCLIB_EPICS_PHYSICSLISTS}" COMMAND EPICSparser COMMENT "Generating physicslist.bin")
 
-add_custom_target(libdxmc_physics ALL
-    DEPENDS "${DXMCLIB_EPICS_PHYSICSLISTS}")
 add_dependencies(libdxmc libdxmc_physics)
 # Adding physics data to install folder
 install(FILES ${DXMCLIB_EPICS_PHYSICSLISTS} DESTINATION ${CMAKE_INSTALL_BINDIR})

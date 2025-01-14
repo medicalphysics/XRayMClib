@@ -25,6 +25,9 @@ Copyright 2022 Erlend Andersen
 
 int main()
 {
+
+    const bool always_rebuild = DXMCLIB_REBUILD_PHYSICSLISTS;
+
     const std::string eadl(DXMCLIB_EADLPATH);
     const std::string epdl(DXMCLIB_EPDLPATH);
     const std::string outpath(DXMCLIB_PHYSICSLISTSPATH);
@@ -32,7 +35,7 @@ int main()
     const std::string standardensities("standarddensities.csv");
 
     auto file_exists = std::filesystem::exists(outpath);
-    if (!file_exists) {
+    if (!file_exists || always_rebuild) {
         EPICSparser parser(eadl);
         parser.read(epdl);
         parser.readHartreeFockProfiles(hartreefock);
@@ -44,6 +47,9 @@ int main()
         of.open(outpath, std::ios::binary);
         of.write(data.data(), data.size());
         of.close();
+        std::cout << "Done generating physicslists.bin\n";
+    } else {
+        std::cout << "Used previously generated physicslists.bin\n";
     }
     return EXIT_SUCCESS;
 }
