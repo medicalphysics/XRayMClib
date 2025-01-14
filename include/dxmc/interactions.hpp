@@ -126,8 +126,10 @@ namespace interactions {
                 g = 1 / e + e - sinThetaSqr;
             } while (state.randomUniform(g_max) > g);
 
-            // calculate pz max value; pi
+            //Binding energy in units of mec2
             U = shell_idx < material.numberOfShells() - 1 ? material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS() : 0.0;
+
+            // calculate pz max value; pi
             pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
 
             // Calculate S
