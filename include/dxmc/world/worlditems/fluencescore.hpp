@@ -229,9 +229,8 @@ protected:
         // distance from center
         const auto c_dist = vectormath::subtract(m_center, p_int);
         // check if distance from center is less than radius
-        if (vectormath::dot(c_dist, c_dist) <= m_radius * m_radius) {
-            res.intersectionValid = true;
-        }
+        res.intersectionValid = vectormath::dot(c_dist, c_dist) <= m_radius * m_radius;
+
         return res;
     }
 
