@@ -54,11 +54,13 @@ public:
     void setCenter(const std::array<double, 3>& c)
     {
         m_center = c;
+        calculateAABB();
     }
 
     void setRadius(double r)
     {
         m_radius = std::max(std::abs(r), 0.00001);
+        calculateAABB();
     }
 
     double area() const
