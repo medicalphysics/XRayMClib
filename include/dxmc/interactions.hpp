@@ -126,7 +126,7 @@ namespace interactions {
                 g = 1 / e + e - sinThetaSqr;
             } while (state.randomUniform(g_max) > g);
 
-            //Binding energy in units of mec2
+            // Binding energy in units of mec2
             U = shell_idx < material.numberOfShells() - 1 ? material.shells()[shell_idx].bindingEnergy / ELECTRON_REST_MASS() : 0.0;
 
             // calculate pz max value; pi
@@ -174,7 +174,9 @@ namespace interactions {
 
         // sample pz
         double pz;
-        {
+
+        constexpr bool F_CORRECTION = false;
+        if constexpr (F_CORRECTION) {
             const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
             double Fmax, F;
             if (pi < -p) {
@@ -199,6 +201,14 @@ namespace interactions {
                     F = 1 + alpha * p;
                 }
             } while (state.randomUniform(Fmax) > F);
+        } else {
+            const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
+            const auto r = state.randomUniform(S);
+            if (r < 0.5) {
+                pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
+            } else {
+                pz = (std::sqrt(1 - 2 * std::log(2 * (1 - r))) - 1) / (2 * J0);
+            }
         }
 
         const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
