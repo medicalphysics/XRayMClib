@@ -13,28 +13,6 @@
 #include <fstream>
 #include <iostream>
 
-template <typename T, typename W, typename B>
-auto runDispatcher(T& transport, W& world, const B& beam)
-{
-    dxmc::TransportProgress progress;
-
-    bool running = true;
-    std::thread job([&]() {
-        transport(world, beam, &progress);
-        running = false;
-    });
-    std::string message;
-    while (running) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        std::cout << std::string(message.length(), ' ') << "\r";
-        message = progress.message();
-        std::cout << message << "\r";
-    }
-    job.join();
-    std::cout << std::string(message.length(), ' ') << "\r";
-    return progress.totalTime();
-}
-
 std::vector<dxmc::Triangle> getPyramid()
 {
     std::vector<std::array<double, 3>> p;
@@ -241,15 +219,11 @@ double testScoring()
     {
         World world;
         auto tri = getBox();
-        /*std::string path = R"(C:\Users\ander\Downloads\carm.stl)";
-        const std::size_t max_tree_dept = 4;
-        auto& item = world.addItem<Mesh>(Mesh(path, max_tree_dept));
-        */
         auto& item = world.addItem<Mesh>({ tri });
         item.setMaterial(water, 1);
         world.build();
         dxmc::Transport transport;
-        auto milli = runDispatcher(transport, world, beam);
+        auto milli = transport.runConsole(world, beam, 1);        
         std::cout << "mesh: " << item.doseScored().dose() << " time: " << milli << std::endl;
     }
     {
@@ -258,7 +232,7 @@ double testScoring()
         item.setMaterial(water, 1);
         world.build();
         dxmc::Transport transport;
-        auto milli = runDispatcher(transport, world, beam);
+        auto milli = transport.runConsole(world, beam, 1);
         std::cout << "box: " << item.doseScored().dose() << " time: " << milli << std::endl;
     }
 
