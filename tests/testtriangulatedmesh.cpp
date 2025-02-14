@@ -8,6 +8,7 @@
 #include "dxmc/world/worlditems/triangulatedmesh.hpp"
 #include "dxmc/world/worlditems/triangulatedopensurface.hpp"
 #include "dxmc/world/worlditems/worldbox.hpp"
+#include "dxmc/world/worlditems/worldsphere.hpp"
 
 #include <chrono>
 #include <fstream>
@@ -152,55 +153,6 @@ void testMeshVisualization()
     }
 }
 
-template <std::size_t N = 5, int L = 2>
-void testMeshPlaneVisualization()
-{
-
-    using Plane = dxmc::TriangulatedOpenSurface<N, L>;
-    using World = dxmc::World<Plane>;
-    using Material = dxmc::Material<N>;
-
-    World world;
-
-    const auto waterComp = dxmc::NISTMaterials::Composition("Water, Liquid");
-    auto water = Material::byWeight(waterComp).value();
-
-    const auto tri = getPlane(5);
-    world.reserveNumberOfItems(1);
-    auto& plane = world.template addItem<Plane>({ tri });
-    plane.setMaterial(water);
-
-    world.build();
-
-    dxmc::VisualizeWorld viz(world);
-
-    dxmc::IsotropicMonoEnergyBeam<true> beam;
-    beam.setPosition({ 0, 0, 10 });
-    beam.setDirectionCosines({ -1, 0, 0, 0, 1, 0 });
-    beam.setNumberOfExposures(24);
-    beam.setNumberOfParticlesPerExposure(100);
-    beam.setCollimationHalfAngles({ 0.1, 0.1 });
-
-    dxmc::Transport transport;
-    transport.setNumberOfThreads(1);
-    transport(world, beam);
-    viz.addLineProp(beam, 100, 1);
-
-    auto buffer = viz.createBuffer();
-
-    for (std::size_t i = 0; i < 12; ++i) {
-        viz.setDistance(500);
-        viz.setPolarAngle(std::numbers::pi_v<double> / 3.0);
-        viz.setAzimuthalAngle(std::numbers::pi_v<double> * i / 6.0);
-        // viz.setCameraPosition({ -60, -30, -10 });
-        viz.suggestFOV();
-        viz.generate(world, buffer);
-        std::string name = "color_" + std::to_string(i) + ".png";
-        viz.savePNG(name, buffer);
-        // writeImage(buffer, name);
-    }
-}
-
 double testScoring()
 {
     using Mesh = dxmc::TriangulatedMesh<5, 2>;
@@ -270,20 +222,26 @@ bool testOpenSurface()
 */
 
     constexpr int NSHELL = 12;
-    constexpr int MODEL = 1;
+    constexpr int MODEL = 2;
+
+    using Sphere = dxmc::WorldSphere<NSHELL, MODEL>;
 
     std::cout << "Test surface mesh\n";
 
-    dxmc::World<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>> w1;
-    dxmc::World<dxmc::WorldBox<NSHELL, MODEL>> w2;
+    dxmc::World<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>, Sphere> w1;
+    dxmc::World<dxmc::WorldBox<NSHELL, MODEL>, Sphere> w2;
+
+    w1.reserveNumberOfItems(2);
+    w2.reserveNumberOfItems(2);
 
     auto lead = dxmc::Material<NSHELL>::byZ(82).value();
     double lead_dens = 11.34;
 
-    auto tris = getPlane();
-
     auto& mesh = w1.template addItem<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>>(getPlane());
     auto& box = w2.template addItem<dxmc::WorldBox<NSHELL, MODEL>>();
+
+    auto& sphere_mesh = w1.template addItem<Sphere>({ 1, { 2, 2, -2 } });
+    auto& sphere_box = w2.template addItem<Sphere>({ 1, { 2, 2, -2 } });
 
     mesh.setMaterial(lead, lead_dens);
     mesh.setSurfaceThickness(0.05);
@@ -295,17 +253,17 @@ bool testOpenSurface()
     w2.build();
 
     dxmc::PencilBeam<false> beam;
-    beam.setPosition({ 0, -10, -10 });
-    beam.setDirection({ 0, 1, 1 });
-    beam.setNumberOfExposures(16);
+    beam.setPosition({ 0, 0, -10 });
+    beam.setDirection({ 0, 0, 1 });
+    beam.setNumberOfExposures(160);
     beam.setNumberOfParticlesPerExposure(1000000);
 
     dxmc::Transport transport;
     transport.runConsole(w1, beam, 1);
     transport.runConsole(w2, beam, 1);
 
-    std::cout << "Mesh: " << mesh.doseScored(0).dose() << std::endl;
-    std::cout << "Box: " << box.doseScored(0).dose() << std::endl;
+    std::cout << "Mesh: " << mesh.doseScored(0).dose() << ", Scatter: " << sphere_mesh.doseScored(0).dose() << ", Events: " << sphere_mesh.doseScored(0).numberOfEvents() << std::endl;
+    std::cout << "Box: " << box.doseScored(0).dose() << ", Scatter: " << sphere_box.doseScored(0).dose() << ", Events: " << sphere_box.doseScored(0).numberOfEvents() << std::endl;
 
     if (std::abs(mesh.doseScored(0).dose() - box.doseScored(0).dose()) < 0.01) {
         std::cout << "SUCCESS\n";

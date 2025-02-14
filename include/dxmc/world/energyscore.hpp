@@ -54,10 +54,20 @@ public:
 
     double variance() const
     {
-        if (numberOfEvents() > 0) {
-            const auto e_exp = energyImparted() / numberOfEvents();
-            const auto e2_exp = energyImpartedSquared() / numberOfEvents();
-            return (e2_exp - e_exp * e_exp) * numberOfEvents();
+        if (numberOfEvents() > 1) {
+
+            // expected energy per event
+            const auto e = energyImparted() / numberOfEvents();
+
+            // expected squared energy per event
+            const auto e2 = energyImpartedSquared() / numberOfEvents();
+
+            // variance of dose per event
+            const auto var_per_event = (e2 - e * e) / (numberOfEvents() - 1);
+
+            // variance of sum of events
+            auto var = var_per_event * numberOfEvents() * numberOfEvents();
+            return var;
         }
 
         return 0;
