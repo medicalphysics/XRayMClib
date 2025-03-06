@@ -69,8 +69,17 @@ public:
     {
         m_myfile.close();
     }
-    void header()
+    void header(bool print_only_if_empty = true)
     {
+        if (print_only_if_empty) {
+            m_myfile.close();
+            std::ifstream file("validationTable.txt", std::ios::binary | std::ios::ate);
+            bool empty = file.tellg() == 0;
+            file.close();
+            m_myfile.open("validationTable.txt", std::ios::out | std::ios::app);
+            if (!empty)
+                return;
+        }
         m_myfile << "Case, Volume, Specter, Model, Mode, TG195Result, Result, Stddev, nEvents, SimulationTime\n";
     }
 
@@ -336,7 +345,7 @@ auto runDispatcher(T& transport, W& world, const B& beam)
 
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeamCircle<>> || std::same_as<Beam, IsotropicMonoEnergyBeamCircle<>>)
-bool TG195Case1Fluence(bool mammo = false)
+bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 {
     constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 256;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
@@ -415,6 +424,7 @@ bool TG195Case1Fluence(bool mammo = false)
 
     ResultPrint print;
     Transport transport;
+    transport.setNumberOfThreads(N_threads);
 
     // None Filter
     auto time_elapsed1 = runDispatcher(transport, world, beam);
@@ -474,7 +484,7 @@ bool TG195Case1Fluence(bool mammo = false)
 
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
-bool TG195Case2AbsorbedEnergy(bool tomo = false)
+bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
     constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1024;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
@@ -570,6 +580,7 @@ bool TG195Case2AbsorbedEnergy(bool tomo = false)
     }
 
     Transport transport;
+    transport.setNumberOfThreads(N_threads);
     auto time_elapsed = runDispatcher(transport, world, beam);
 
     const auto total_hist = static_cast<double>(N_EXPOSURES * N_HISTORIES);
@@ -648,7 +659,7 @@ bool TG195Case2AbsorbedEnergy(bool tomo = false)
 
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
-bool TG195Case3AbsorbedEnergy(bool tomo = false)
+bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
     ResultKeys res;
     res.rCase = "Case 3";
@@ -752,6 +763,7 @@ bool TG195Case3AbsorbedEnergy(bool tomo = false)
     }
 
     Transport transport;
+    transport.setNumberOfThreads(N_threads);
     auto time_elapsed = runDispatcher(transport, world, beam);
 
     ResultPrint print;
@@ -802,7 +814,7 @@ bool TG195Case3AbsorbedEnergy(bool tomo = false)
 }
 
 template <int LOWENERGYCORRECTION = 2>
-bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = false)
+bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bool large_collimation = false)
 {
     std::string model;
     if (LOWENERGYCORRECTION == 0)
@@ -852,6 +864,7 @@ bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = fa
         beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 
         Transport transport;
+        transport.setNumberOfThreads(N_threads);
         time_elapsed = runDispatcher(transport, world, beam);
     } else {
         using Beam = IsotropicMonoEnergyBeam<>;
@@ -878,6 +891,7 @@ bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = fa
         }
 
         Transport transport;
+        transport.setNumberOfThreads(N_threads);
         time_elapsed = runDispatcher(transport, world, beam);
     }
     const std::array<double, 4> voi_locations = { 0, 1, 2, 3 };
@@ -935,7 +949,7 @@ bool TG195Case41AbsorbedEnergy(bool specter = false, bool large_collimation = fa
 
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
-bool TG195Case42AbsorbedEnergy(bool large_collimation = false)
+bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation = false)
 {
     std::string model;
     if (LOWENERGYCORRECTION == 0)
@@ -1017,6 +1031,8 @@ bool TG195Case42AbsorbedEnergy(bool large_collimation = false)
     }
 
     Transport transport;
+    transport.setNumberOfThreads(N_threads);
+
     const std::array<double, 3> co_x = { 0, 1, 0 };
     const std::array<double, 3> co_y = { 0, 0, 1 };
     const std::array<double, 3> pos = { -60, 0, 0 };
@@ -1160,7 +1176,7 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
 
 template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
-bool TG195Case5AbsorbedEnergy()
+bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 {
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
@@ -1220,6 +1236,7 @@ bool TG195Case5AbsorbedEnergy()
     beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 
     Transport transport;
+    transport.setNumberOfThreads(N_threads);
     const std::array<double, 3> co_x = { -1, 0, 0 };
     const std::array<double, 3> co_y = { 0, 0, 1 };
     const std::array<double, 3> pos = { 0, -60, 0 };
@@ -1283,37 +1300,37 @@ bool TG195Case5AbsorbedEnergy()
 }
 
 template <int LOWENERGYCORRECTION>
-bool runAll()
+bool runAll(std::uint32_t N_threads)
 {
     auto success = true;
 
-    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(true);
-    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(true);
+    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(true);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(true);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(true);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(true);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(false, false);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(false, true);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(true, false);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(true, true);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
 
-    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(true);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(true);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>();
-    success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>();
+    success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
+    success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
 
     return success;
 }
@@ -1324,15 +1341,88 @@ void printStart()
     resPrint.header();
 }
 
+struct Arguments {
+    std::uint32_t N_threads = 0;
+    enum class LECorrection {
+        All,
+        None,
+        Livermore,
+        IA
+    };
+    LECorrection correction = LECorrection::All;
+    bool exit = false;
+};
+
+Arguments argparse(int argc, char* argv[])
+{
+    Arguments args;
+    const std::vector<std::string_view> args_str(argv + 1, argv + argc);
+
+    std::size_t i = 0;
+    while (i < args_str.size()) {
+        auto arg = args_str[i];
+        if (arg == "-h" || arg == "--help") {
+            std::cout << "Help for validation run of dxmclib\n";
+            std::cout << "-j or --jobs [N] where N is number of threads, default all available threads\n";
+            std::cout << "-b or --binding [All | None | Livermore | IA]  where options is number of electron binding energy correction type\n";
+            args.exit = true;
+            return args;
+        } else if (arg == "-j" || arg == "--jobs") {
+            i++;
+            arg = args_str[i];
+            if (std::from_chars(arg.data(), arg.data() + arg.size(), args.N_threads).ec != std::errc {}) {
+                std::cout << "Number of jobs must be specified, see --help\n";
+                args.exit = true;
+                return args;
+            }
+        } else if (arg == "-b" || arg == "--binding") {
+            i++;
+            arg = args_str[i];
+            std::string arg_str(arg);
+            std::transform(arg.begin(), arg.end(), arg_str.begin(), [](auto& c) { return std::tolower(c); });
+            if (arg_str == "all")
+                args.correction = Arguments::LECorrection::All;
+            else if (arg_str == "ia")
+                args.correction = Arguments::LECorrection::IA;
+            else if (arg_str == "livermore")
+                args.correction = Arguments::LECorrection::Livermore;
+            else if (arg_str == "none")
+                args.correction = Arguments::LECorrection::None;
+            else {
+                args.exit = true;
+                std::cout << "Binding correction type must be specified, see --help\n";
+                return args;
+            }
+        }
+        i++;
+    }
+    return args;
+}
+
 int main(int argc, char* argv[])
 {
-    printStart();
+    auto args = argparse(argc, argv);
+
+    if (args.exit) {
+        return EXIT_SUCCESS;
+    }
+
+    if (args.N_threads == 0)
+        args.N_threads = std::thread::hardware_concurrency();
 
     auto success = true;
-
-    success = runAll<1>();
-    success = runAll<2>();
-    success = runAll<0>();
+    printStart();
+    if (args.correction == Arguments::LECorrection::None) {
+        success = runAll<0>(args.N_threads);
+    } else if (args.correction == Arguments::LECorrection::Livermore) {
+        success = runAll<1>(args.N_threads);
+    } else if (args.correction == Arguments::LECorrection::IA) {
+        success = runAll<2>(args.N_threads);
+    } else {
+        success = runAll<0>(args.N_threads);
+        success = runAll<1>(args.N_threads);
+        success = runAll<2>(args.N_threads);
+    }
 
     if (success)
         return EXIT_SUCCESS;
