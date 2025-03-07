@@ -20,9 +20,10 @@ import seaborn as sns
 import pandas as pd
 from matplotlib import pylab as plt
 import numpy as np
+from pathlib import Path
 import os
 import sys
-
+import re
 
 HUE_ORDER = list(["NoneLC", "Livermore", "IA", "TG195"])
 
@@ -353,11 +354,24 @@ def merge_files(filenames: list, output="validationTable.txt"):
                 print("No file named {}, skipping".format(fname))
 
 
+def expand_filenames(filenames: list):
+    expanded = list()
+    files_in_path = os.listdir(os.path.dirname(os.path.abspath(__file__)))
+    for fname in filenames:
+        if "*" in fname:
+            for p in Path(".").glob(fname):
+                expanded.append(str(p))
+        else:
+            expanded.append(fname)
+
+    return list(set(expanded))
+
+
 if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     if len(sys.argv) > 1:
-        dt = readAllData(sys.argv[1:])
+        dt = readAllData(expand_filenames(sys.argv[1:]))
     else:
         dt = readData()
 
