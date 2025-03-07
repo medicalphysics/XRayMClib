@@ -59,11 +59,22 @@ struct ResultKeys {
 class ResultPrint {
 private:
     std::ofstream m_myfile;
+    static std::string m_filename;
 
 public:
     ResultPrint()
     {
-        m_myfile.open("validationTable.txt", std::ios::out | std::ios::app);
+        if (m_filename.empty())
+            m_filename = "validationTable.txt";
+        m_myfile.open(m_filename, std::ios::out | std::ios::app);
+    }
+    ResultPrint(std::string_view fname)
+    {
+        if (fname.empty())
+            m_filename = "validationTable.txt";
+        else
+            m_filename = std::string(fname);
+        m_myfile.open(m_filename, std::ios::out | std::ios::app);
     }
     ~ResultPrint()
     {
@@ -73,10 +84,10 @@ public:
     {
         if (print_only_if_empty) {
             m_myfile.close();
-            std::ifstream file("validationTable.txt", std::ios::binary | std::ios::ate);
+            std::ifstream file(m_filename, std::ios::binary | std::ios::ate);
             bool empty = file.tellg() == 0;
             file.close();
-            m_myfile.open("validationTable.txt", std::ios::out | std::ios::app);
+            m_myfile.open(m_filename, std::ios::out | std::ios::app);
             if (!empty)
                 return;
         }
@@ -110,6 +121,8 @@ public:
         }
     }
 };
+// static initialization
+std::string ResultPrint::m_filename;
 
 template <typename W, typename B>
 void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAngle = 90, double azimuthAngle = 90, double dist = 100, double zoom = 1, double linelenght = 250, double linethick = 0.2)
@@ -1335,12 +1348,6 @@ bool runAll(std::uint32_t N_threads)
     return success;
 }
 
-void printStart()
-{
-    ResultPrint resPrint;
-    resPrint.header();
-}
-
 struct Arguments {
     std::uint32_t N_threads = 0;
     enum class LECorrection {
@@ -1351,6 +1358,20 @@ struct Arguments {
     };
     LECorrection correction = LECorrection::All;
     bool exit = false;
+    std::string filename = "validationTable.txt";
+
+    std::string correctionString() const
+    {
+        switch (correction) {
+        case LECorrection::None:
+            return "None";
+        case LECorrection::Livermore:
+            return "Livermore";
+        case LECorrection::IA:
+            return "IA";
+        }
+        return "All";
+    }
 };
 
 Arguments argparse(int argc, char* argv[])
@@ -1365,6 +1386,7 @@ Arguments argparse(int argc, char* argv[])
             std::cout << "Help for validation run of dxmclib\n";
             std::cout << "-j or --jobs [N] where N is number of threads, default all available threads\n";
             std::cout << "-b or --binding [All | None | Livermore | IA]  where options is number of electron binding energy correction type\n";
+            std::cout << "-f or --filename [filename]  specify output filename, default validationTable.txt\n";
             args.exit = true;
             return args;
         } else if (arg == "-j" || arg == "--jobs") {
@@ -1393,10 +1415,31 @@ Arguments argparse(int argc, char* argv[])
                 std::cout << "Binding correction type must be specified, see --help\n";
                 return args;
             }
+        } else if (arg == "-f" || arg == "--filename") {
+            i++;
+            arg = args_str[i];
+            if (!arg.empty()) {
+                args.filename = arg;
+            } else {
+                args.exit = true;
+                std::cout << "Binding correction type must be specified, see --help\n";
+                return args;
+            }
         }
         i++;
     }
     return args;
+}
+
+void printStart(const Arguments& args)
+{
+    std::cout << "Validation run of dxmclib\n";
+    std::cout << "Number of threads: " << args.N_threads << std::endl;
+    std::cout << "Binding correction: " << args.correctionString() << std::endl;
+    std::cout << "Output file: " << args.filename << std::endl;
+
+    ResultPrint resPrint(args.filename);
+    resPrint.header();
 }
 
 int main(int argc, char* argv[])
@@ -1411,7 +1454,8 @@ int main(int argc, char* argv[])
         args.N_threads = std::thread::hardware_concurrency();
 
     auto success = true;
-    printStart();
+    printStart(args);
+
     if (args.correction == Arguments::LECorrection::None) {
         success = runAll<0>(args.N_threads);
     } else if (args.correction == Arguments::LECorrection::Livermore) {

@@ -21,9 +21,10 @@ import pandas as pd
 from matplotlib import pylab as plt
 import numpy as np
 import os
+import sys
 
 
-HUE_ORDER = ["NoneLC", "Livermore", "IA", "TG195"]
+HUE_ORDER = list(["NoneLC", "Livermore", "IA", "TG195"])
 
 
 def readData():
@@ -48,6 +49,10 @@ def readData():
         dm[key] = [0 for _ in dm[key]]
 
     df = pd.concat([dt, dm], ignore_index=True)
+    present_models = list([m for m in df["Model"].unique()])
+    for model in HUE_ORDER:
+        if model not in present_models:
+            HUE_ORDER.remove(model)
 
     # adding errors for seaborn
     df_max = df[df["Model"] != "TG195"][df["Case"] != "Case 4.2"].copy()
@@ -325,15 +330,33 @@ def plotRuntimes(dt, kind="strip", show=False):
         plt.close()
 
 
+def merge_files(filenames: list, output="validationTable.txt"):
+    have_header = os.path.isfile(output)
+    with open(output, "a") as out:
+        for fname in filenames:
+            if os.path.isfile(fname) and fname != output:
+                with open(fname, "r") as f:
+                    if have_header:
+                        lines = f.readlines()
+                        if len(lines) > 1:
+                            out.writelines(lines[1:])
+                    else:
+                        out.write(f.read())
+                        have_header = True
+            else:
+                print("No file named {}, skipping".format(fname))
+
+
 if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    if len(sys.argv) > 1:
+        merge_files(sys.argv[1:])
 
     dt = readData()
-
     try:
         os.mkdir("plots")
-    except Exception:
+    except FileExistsError:
         pass
 
     kind = "bar"
