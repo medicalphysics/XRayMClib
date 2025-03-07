@@ -27,11 +27,9 @@ import sys
 HUE_ORDER = list(["NoneLC", "Livermore", "IA", "TG195"])
 
 
-def readData():
+def readData(filename="validationTable.txt"):
     converters = {"Result": float, "Stddev": float, "SimulationTime": float}
-    dt = pd.read_csv(
-        "validationTable.txt", sep=", ", engine="python", converters=converters
-    )
+    dt = pd.read_csv(filename, sep=", ", engine="python", converters=converters)
     nNaN = dt.isnull().sum().sum()
     if nNaN > 0:
         print(
@@ -54,12 +52,20 @@ def readData():
         if model not in present_models:
             HUE_ORDER.remove(model)
 
+    return df
     # adding errors for seaborn
-    df_max = df[df["Model"] != "TG195"][df["Case"] != "Case 4.2"].copy()
-    df_max["Result"] += 1.96 * df_max["Stddev"]
-    df_min = df[df["Model"] != "TG195"].copy()
-    df_min["Result"] -= 1.96 * df_max["Stddev"]
-    return pd.concat([df, df_min, df_max], ignore_index=True)
+    # df_max = df[df["Model"] != "TG195"][df["Case"] != "Case 4.2"].copy()
+    # df_max["Result"] += 1.96 * df_max["Stddev"]
+    # df_min = df[df["Model"] != "TG195"].copy()
+    # df_min["Result"] -= 1.96 * df_max["Stddev"]
+    # return pd.concat([df, df_min, df_max], ignore_index=True)
+
+
+def readAllData(filelist: list):
+    dfs = []
+    for file in filelist:
+        dfs.append(readData(file))
+    return pd.concat(dfs, ignore_index=True)
 
 
 def fix_axis(fg, rotate_labels=True, ylabel="Energy [eV/history]", set_y0=True):
@@ -351,9 +357,10 @@ if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     if len(sys.argv) > 1:
-        merge_files(sys.argv[1:])
+        dt = readAllData(sys.argv[1:])
+    else:
+        dt = readData()
 
-    dt = readData()
     try:
         os.mkdir("plots")
     except FileExistsError:
