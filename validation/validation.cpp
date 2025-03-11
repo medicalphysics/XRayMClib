@@ -41,7 +41,7 @@ using namespace dxmc;
 
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
-constexpr std::size_t NShells = 5;
+constexpr std::size_t NShells = 12;
 
 struct ResultKeys {
     std::string rCase = "unknown";
@@ -50,6 +50,8 @@ struct ResultKeys {
     std::string modus = "unknown";
     std::string model = "unknown";
     double TG195Result = 0;
+    double TG195Result_min = 0;
+    double TG195Result_max = 0;
     double result = 0;
     double result_std = 0;
     std::uint64_t nEvents = 0;
@@ -91,7 +93,7 @@ public:
             if (!empty)
                 return;
         }
-        m_myfile << "Case, Volume, Specter, Model, Mode, TG195Result, Result, Stddev, nEvents, SimulationTime\n";
+        m_myfile << "Case, Volume, Specter, Model, Mode, TG195Result_min, TG195Result, TG195Result_max, Result, Stddev, nEvents, SimulationTime\n";
     }
 
     void operator()(const ResultKeys& r, bool terminal = true, const std::string& units = "ev/hist")
@@ -106,7 +108,9 @@ public:
         m_myfile << r.specter << ", ";
         m_myfile << r.model << ", ";
         m_myfile << r.modus << ", ";
+        m_myfile << r.TG195Result_min << ", ";
         m_myfile << r.TG195Result << ", ";
+        m_myfile << r.TG195Result_max << ", ";
         m_myfile << r.result << ", ";
         m_myfile << r.result_std << ", ";
         m_myfile << r.nEvents << ", ";
@@ -398,6 +402,8 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 
     std::array<double, 2> filter_thickness = { 0, 0 };
     std::array<double, 3> TG195result = { 0, 0, 0 };
+    std::array<double, 3> TG195result_min = { 0, 0, 0 };
+    std::array<double, 3> TG195result_max = { 0, 0, 0 };
     if constexpr (std::same_as<Beam, IsotropicBeamCircle<>>) { // we have a specter
         res.modus = "polyenergetic";
         if (mammo) {
@@ -406,12 +412,16 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
             res.specter = "30kVp";
             filter_thickness = { 0.03431, 0.07663 };
             TG195result = { 1.858E-01, 9.282E-02, 4.642E-02 };
+            TG195result_min = { 1.857E-01, 9.282E-02, 4.64E-02 };
+            TG195result_max = { 1.860E-01, 9.29E-02, 4.65E-02 };
         } else {
             const auto specter = TG195_100KV();
             beam.setEnergySpecter(specter);
             res.specter = "100kVp";
             filter_thickness = { 0.3950, 0.9840 };
             TG195result = { 3.452E-02, 1.725E-02, 8.621E-03 };
+            TG195result_min = { 3.452E-02, 1.725E-02, 8.621E-03 };
+            TG195result_max = { 3.452E-02, 1.725E-02, 8.621E-03 };
         }
     } else {
         res.modus = "monoenergetic";
@@ -420,11 +430,15 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
             res.specter = "30keV";
             filter_thickness = { 0.2273, 0.4546 };
             TG195result = { 5.733E-02, 2.868E-02, 1.436E-02 };
+            TG195result_min = { 5.733E-02, 2.868E-02, 1.436E-02 };
+            TG195result_max = { 5.733E-02, 2.868E-02, 1.436E-02 };
         } else {
             beam.setEnergy(99.99);
             res.specter = "100keV";
             filter_thickness = { 1.511, 3.022 };
             TG195result = { 2.902E-02, 1.448E-02, 7.227E-03 };
+            TG195result_min = { 2.902E-02, 1.448E-02, 7.227E-03 };
+            TG195result_max = { 2.902E-02, 1.448E-02, 7.227E-03 };
         }
     }
 
@@ -451,6 +465,8 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.result = AirKerma(fluenceNone);
     res.result_std = 0;
     res.TG195Result = TG195result[0];
+    res.TG195Result_min = TG195result_min[0];
+    res.TG195Result_max = TG195result_max[0];
     res.nEvents = scoring.energyScored().numberOfEvents();
     res.nMilliseconds = time_elapsed1.count();
     world.clearDoseScored();
@@ -472,6 +488,8 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.result = AirKerma(fluenceHVL);
     res.result_std = 0;
     res.TG195Result = TG195result[1];
+    res.TG195Result_min = TG195result_min[1];
+    res.TG195Result_max = TG195result_max[1];
     res.nEvents = scoring.energyScored().numberOfEvents();
     res.nMilliseconds = time_elapsed2.count();
     world.clearDoseScored();
@@ -487,6 +505,8 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.result = AirKerma(fluenceQVL);
     res.result_std = 0;
     res.TG195Result = TG195result[2];
+    res.TG195Result_min = TG195result_min[2];
+    res.TG195Result_max = TG195result_max[2];
     res.nEvents = scoring.energyScored().numberOfEvents();
     res.nMilliseconds = time_elapsed3.count();
     world.clearDoseScored();
@@ -570,23 +590,39 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     std::cout << "TG195 Case 2 for " << res.modus << " orientation and " << res.specter << " photons with low en model: " << res.model << std::endl;
 
-    double TG195_value;
-    std::array<double, 9> TG195_voi_values;
+    double TG195_value, TG195_value_min, TG195_value_max;
+    std::array<double, 9> TG195_voi_values, TG195_voi_values_min, TG195_voi_values_max;
     if constexpr (std::same_as<Beam, IsotropicBeam<>>) {
         if (tomo) {
             TG195_value = 30923.13;
+            TG195_value_min = 30896.40;
+            TG195_value_max = 30967.00;
             TG195_voi_values = { 30.35, 23.52, 31.64, 23.52, 8.90, 70.53, 47.74, 20.31, 12.51 };
+            TG195_voi_values_min = { 30.27, 23.44, 31.31, 23.44, 8.85, 70.21, 46.87, 20.21, 12.37 };
+            TG195_voi_values_max = { 30.43, 23.57, 31.82, 23.57, 8.96, 71.28, 48.18, 20.41, 12.79 };
         } else {
             TG195_value = 33125.98;
+            TG195_value_min = 33078.00;
+            TG195_value_max = 33189.00;
             TG195_voi_values = { 24.97, 24.95, 33.52, 24.96, 24.97, 72.70, 49.99, 21.73, 13.48 };
+            TG195_voi_values_min = { 24.90, 24.88, 33.18, 24.89, 24.89, 72.33, 49.09, 21.64, 13.37 };
+            TG195_voi_values_max = { 25.03, 25.03, 33.74, 25.03, 25.02, 73.55, 50.46, 21.84, 13.75 };
         }
     } else {
         if (tomo) {
             TG195_value = 30883.83;
+            TG195_value_min = 30870.00;
+            TG195_value_max = 30912.80;
             TG195_voi_values = { 33.08, 25.48, 34.63, 25.51, 9.79, 70.80, 51.06, 22.28, 13.54 };
+            TG195_voi_values_min = { 33.02, 25.45, 34.48, 25.45, 9.76, 70.51, 50.36, 22.25, 13.44 };
+            TG195_voi_values_max = { 33.14, 25.54, 34.71, 25.56, 9.83, 71.50, 51.33, 22.33, 13.76 };
         } else {
             TG195_value = 33171.40;
+            TG195_value_min = 33134.90;
+            TG195_value_max = 33205.40;
             TG195_voi_values = { 27.01, 27.00, 36.67, 27.01, 27.01, 72.86, 53.35, 23.83, 14.60 };
+            TG195_voi_values_min = { 26.98, 26.94, 36.44, 26.97, 26.96, 72.44, 52.62, 23.80, 14.49 };
+            TG195_voi_values_max = { 27.01, 27.08, 36.76, 27.08, 27.09, 73.68, 53.63, 23.89, 14.80 };
         }
     }
 
@@ -621,6 +657,8 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     res.volume = "Total body";
     res.TG195Result = TG195_value;
+    res.TG195Result_min = TG195_value_min;
+    res.TG195Result_max = TG195_value_max;
     res.result = total_ev / (total_hist / 1000);
     res.result_std = std::sqrt(total_ev_var) / (total_hist / 1000);
     res.nEvents = total_number_events;
@@ -666,8 +704,9 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
                 }
             }
         }
-        const auto TG195_sub_value = TG195_voi_values[ind - 1];
-        res.TG195Result = TG195_sub_value;
+        res.TG195Result = TG195_voi_values[ind - 1];
+        res.TG195Result_min = TG195_voi_values_min[ind - 1];
+        res.TG195Result_max = TG195_voi_values_max[ind - 1];
         res.result /= (total_hist / 1000);
         res.result_std = std::sqrt(res.result_std) / (total_hist / 1000);
         print(res, true);
@@ -786,24 +825,40 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     ResultPrint print;
 
-    double sim_ev;
-    std::array<double, 7> sim_subvol;
+    double sim_ev, sim_ev_min, sim_ev_max;
+    std::array<double, 7> sim_subvol, sim_subvol_min, sim_subvol_max;
     if constexpr (std::same_as<Beam, IsotropicBeam<>>) {
         // specter
         if (tomo) {
             sim_ev = 4188.833;
+            sim_ev_min = 4176.5;
+            sim_ev_max = 4198.2;
             sim_subvol = { 14.390, 15.825, 15.972, 15.445, 17.171, 5.619, 49.022 };
+            sim_subvol_min = { 14.346, 15.786, 15.944, 15.402, 17.124, 5.597, 48.883 };
+            sim_subvol_max = { 14.432, 15.875, 16.007, 15.490, 17.219, 5.646, 49.154 };
         } else {
             sim_ev = 4293.433;
+            sim_ev_min = 4287.4;
+            sim_ev_max = 4296.8;
             sim_subvol = { 16.502, 16.658, 16.814, 16.249, 16.521, 6.041, 50.041 };
+            sim_subvol_min = { 16.471, 16.635, 16.779, 16.227, 16.475, 6.023, 49.981 };
+            sim_subvol_max = { 16.528, 16.691, 16.839, 16.271, 16.548, 6.051, 50.075 };
         }
     } else {
         if (tomo) {
             sim_ev = 4577.743;
+            sim_ev_min = 4565.2;
+            sim_ev_max = 4588.2;
             sim_subvol = { 15.217, 16.836, 16.943, 16.431, 18.370, 5.043, 54.974 };
+            sim_subvol_min = { 14.965, 16.574, 16.651, 16.158, 18.031, 4.970, 53.898 };
+            sim_subvol_max = { 15.351, 16.994, 17.074, 16.569, 18.595, 5.086, 55.480 };
         } else {
             sim_ev = 4697.333;
+            sim_ev_min = 4691.0;
+            sim_ev_max = 4700.5;
             sim_subvol = { 17.692, 18.070, 17.865, 17.262, 17.768, 5.417, 56.017 };
+            sim_subvol_min = { 17.462, 17.931, 17.303, 16.472, 17.727, 4.965, 55.232 };
+            sim_subvol_max = { 17.794, 18.329, 18.074, 17.550, 17.801, 5.587, 56.299 };
         }
     }
 
@@ -813,6 +868,8 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     res.volume = "Total body";
     res.TG195Result = sim_ev;
+    res.TG195Result_max = sim_ev_max;
+    res.TG195Result_min = sim_ev_min;
     res.result = breast.energyScored(8).energyImparted() * evNormal;
     res.result_std = breast.energyScored(8).standardDeviation() * evNormal;
     res.nEvents = breast.energyScored(8).numberOfEvents();
@@ -822,6 +879,8 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     for (int i = 0; i < 7; ++i) {
         res.volume = "VOI " + std::to_string(i + 1);
         res.TG195Result = sim_subvol[i];
+        res.TG195Result_min = sim_subvol_max[i];
+        res.TG195Result_max = sim_subvol_min[i];
         res.result = breast.energyScored(i).energyImparted() * evNormal;
         res.result_std = breast.energyScored(i).standardDeviation() * evNormal;
         res.nEvents = breast.energyScored(i).numberOfEvents();
@@ -947,19 +1006,33 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
     res.modus = large_collimation ? "80mm collimation" : "10mm collimation";
     res.nMilliseconds = time_elapsed.count();
 
-    std::array<double, 4> tg195;
-    if (specter && large_collimation)
+    std::array<double, 4> tg195, tg195_min, tg195_max;
+    if (specter && large_collimation) {
         tg195 = { 3586.59, 3537.84, 3378.99, 2672.21 };
-    if (specter && !large_collimation)
+        tg195_min = { 3576.06, 3518.80, 3359.52, 2640.62 };
+        tg195_max = { 3596.06, 3554.34, 3394.30, 2687.50 };
+    }
+    if (specter && !large_collimation) {
         tg195 = { 13137.02, 2585.47, 1706.86, 1250.61 };
-    if (!specter && large_collimation)
+        tg195_min = { 13115.77, 2568.81, 1702.05, 1244.18 };
+        tg195_max = { 13159.30, 2594.24, 1712.09, 1255.70 };
+    }
+    if (!specter && large_collimation) {
         tg195 = { 3380.39, 3332.64, 3176.44, 2559.58 };
-    if (!specter && !large_collimation)
+        tg195_min = { 3370.58, 3326.68, 3159.20, 2531.15 };
+        tg195_max = { 3388.13, 3335.66, 3186.53, 2573.84 };
+    }
+    if (!specter && !large_collimation) {
         tg195 = { 11592.27, 2576.72, 1766.85, 1330.53 };
+        tg195_min = { 11581.99, 2564.74, 1769.77, 1329.80 };
+        tg195_max = { 11618.30, 2581.85, 1774.79, 1331.27 };
+    }
 
     for (std::size_t i = 0; i < voi_locations.size(); ++i) {
         res.volume = "VOI " + std::to_string(i + 1);
         res.TG195Result = tg195[i];
+        res.TG195Result_max = tg195_max[i];
+        res.TG195Result_min = tg195_min[i];
         res.result = ev_history[i];
         res.result_std = ev_history_var[i];
         res.nEvents = ev_events[i];
@@ -1037,22 +1110,38 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     beam.setNumberOfParticlesPerExposure(N_HISTORIES);
 
     // setting up benchmarking values
-    std::array<double, 36> sim_ev_center, sim_ev_pher;
+    std::array<double, 36> sim_ev_center, sim_ev_center_max, sim_ev_center_min, sim_ev_pher, sim_ev_pher_min, sim_ev_pher_max;
     if constexpr (std::same_as<Beam, IsotropicBeam<>>) {
         if (large_collimation) {
             sim_ev_center = { 10.878025, 10.9243, 10.884625, 10.89795, 10.87265, 10.902675, 10.8994, 10.880875, 10.875475, 10.8862, 10.895975, 10.88105, 10.8996, 10.886225, 10.8934, 10.8942, 10.879025, 10.8855, 10.894125, 10.8898, 10.8916, 10.895875, 10.889525, 10.889775, 10.89365, 10.901875, 10.894475, 10.906975, 10.888025, 10.877475, 10.883325, 10.875925, 10.8881, 10.886775, 10.88975, 10.900075 };
+            sim_ev_center_min = { 10.79, 10.87, 10.77, 10.85, 10.77, 10.87, 10.85, 10.80, 10.82, 10.80, 10.86, 10.82, 10.87, 10.83, 10.85, 10.83, 10.82, 10.84, 10.84, 10.83, 10.83, 10.84, 10.84, 10.83, 10.84, 10.86, 10.83, 10.88, 10.84, 10.80, 10.84, 10.82, 10.82, 10.78, 10.83, 10.83 };
+            sim_ev_center_max = { 10.95, 10.96, 10.98, 10.96, 10.94, 10.95, 10.96, 10.94, 10.94, 10.95, 10.94, 10.94, 10.94, 10.97, 10.95, 10.96, 10.95, 10.92, 10.95, 10.97, 10.95, 10.98, 10.95, 10.96, 10.93, 10.97, 10.95, 10.95, 10.93, 10.96, 10.94, 10.94, 10.95, 10.98, 10.94, 10.96 };
             sim_ev_pher = { 115.34325, 113.76275, 109.16925, 101.706, 91.562975, 78.39105, 61.388325, 40.08625, 22.471075, 11.781725, 6.14551, 3.42218, 2.05605, 1.35319, 0.96088275, 0.743808, 0.61922025, 0.55457575, 0.5309405, 0.55428325, 0.6219885, 0.74445025, 0.96480125, 1.3481875, 2.0611025, 3.4154, 6.15532, 11.7854, 22.461525, 40.13715, 61.42595, 78.328975, 91.481375, 101.61325, 109.10425, 113.8365 };
+            sim_ev_pher_min = { 115.22, 113.59, 109, 101.62, 91.4, 78.32, 61.34, 39.98, 22.43, 11.7, 6.12, 3.41, 2.04, 1.35, 0.95, 0.74, 0.61, 0.55, 0.53, 0.55, 0.61, 0.73, 0.96, 1.34, 2.04, 3.4, 6.14, 11.73, 22.36, 40.08, 61.36, 78.13, 91.4, 101.54, 108.92, 113.64 };
+            sim_ev_pher_max = { 115.53, 113.99, 109.35, 101.89, 91.91, 78.49, 61.46, 40.15, 22.52, 11.87, 6.16, 3.43, 2.06, 1.36, 0.97, 0.75, 0.63, 0.56, 0.53, 0.56, 0.63, 0.75, 0.97, 1.37, 2.08, 3.44, 6.17, 11.86, 22.56, 40.18, 61.58, 78.41, 91.59, 101.66, 109.23, 114.13 };
         } else {
             sim_ev_center = { 11.35475, 11.399475, 11.38755, 11.402175, 11.400225, 11.370625, 11.402625, 11.37715, 11.385375, 11.4096, 11.399825, 11.376675, 11.3698, 11.3613, 11.38865, 11.377925, 11.3692, 11.371525, 11.3807, 11.36, 11.37645, 11.379075, 11.379975, 11.368975, 11.377675, 11.38375, 11.3871, 11.3844, 11.37395, 11.3821, 11.371825, 11.395575, 11.379075, 11.372125, 11.4001, 11.39895 };
+            sim_ev_center_min = { 11.27, 11.35, 11.29, 11.34, 11.37, 11.28, 11.37, 11.29, 11.33, 11.38, 11.38, 11.30, 11.30, 11.26, 11.34, 11.31, 11.31, 11.32, 11.31, 11.30, 11.32, 11.34, 11.31, 11.29, 11.32, 11.31, 11.35, 11.28, 11.26, 11.28, 11.28, 11.35, 11.32, 11.26, 11.35, 11.33 };
+            sim_ev_center_max = { 11.43, 11.45, 11.45, 11.45, 11.46, 11.43, 11.43, 11.41, 11.42, 11.44, 11.42, 11.45, 11.41, 11.41, 11.44, 11.42, 11.44, 11.46, 11.45, 11.41, 11.43, 11.44, 11.47, 11.44, 11.46, 11.44, 11.43, 11.44, 11.43, 11.44, 11.42, 11.42, 11.40, 11.42, 11.45, 11.45 };
             sim_ev_pher = { 116.7915, 115.31075, 110.532, 103.1535, 92.9892, 79.7158, 62.57135, 40.92065, 22.966025, 12.169, 6.4216075, 3.5657225, 2.1609475, 1.418235, 1.014725, 0.780394, 0.64618, 0.5763575, 0.559597, 0.5776625, 0.648646, 0.7762825, 1.008508, 1.412125, 2.1584, 3.577945, 6.4296425, 12.1714, 23.039025, 40.926825, 62.451325, 79.759575, 93.074725, 103.269, 110.595, 115.27 };
+            sim_ev_pher_min = { 116.7, 115.25, 110.33, 102.99, 92.92, 79.49, 62.51, 40.67, 22.77, 12.09, 6.39, 3.55, 2.13, 1.41, 1.01, 0.77, 0.64, 0.57, 0.55, 0.57, 0.64, 0.77, 1, 1.39, 2.14, 3.56, 6.42, 12.07, 22.9, 40.69, 62.35, 79.65, 92.78, 103, 110.31, 115.14 };
+            sim_ev_pher_max = { 116.94, 115.4, 110.64, 103.46, 93.14, 80.03, 62.65, 41.06, 23.14, 12.27, 6.45, 3.59, 2.18, 1.42, 1.02, 0.79, 0.65, 0.58, 0.57, 0.58, 0.66, 0.79, 1.02, 1.42, 2.17, 3.61, 6.46, 12.26, 23.13, 41.04, 62.55, 79.85, 93.45, 103.6, 110.98, 115.42 };
         }
     } else {
         if (large_collimation) {
             sim_ev_center = { 11.630625, 11.632925, 11.617175, 11.624825, 11.633075, 11.600225, 11.61655, 11.6235, 11.592875, 11.6258, 11.612, 11.612775, 11.608675, 11.623975, 11.611325, 11.6174, 11.6234, 11.627975, 11.60745, 11.632875, 11.628275, 11.6239, 11.61645, 11.617375, 11.621775, 11.6178, 11.6444, 11.61515, 11.626375, 11.64605, 11.63335, 11.628425, 11.622, 11.6198, 11.59835, 11.609925 };
+            sim_ev_center_min = { 11.61, 11.60, 11.55, 11.60, 11.61, 11.55, 11.57, 11.59, 11.51, 11.58, 11.57, 11.60, 11.59, 11.62, 11.60, 11.59, 11.60, 11.60, 11.57, 11.61, 11.61, 11.61, 11.59, 11.60, 11.61, 11.59, 11.62, 11.58, 11.59, 11.60, 11.61, 11.62, 11.61, 11.61, 11.56, 11.54 };
+            sim_ev_center_max = { 11.64, 11.68, 11.66, 11.65, 11.66, 11.63, 11.66, 11.65, 11.65, 11.68, 11.65, 11.63, 11.63, 11.64, 11.63, 11.64, 11.64, 11.68, 11.64, 11.66, 11.67, 11.65, 11.64, 11.63, 11.64, 11.63, 11.66, 11.64, 11.67, 11.68, 11.65, 11.65, 11.64, 11.64, 11.62, 11.65 };
             sim_ev_pher = { 99.665175, 98.300175, 94.509325, 88.48595, 80.1113, 69.261125, 55.124425, 37.2351, 21.754, 11.767, 6.269845, 3.460205, 2.073845, 1.3435025, 0.94542875, 0.71714775, 0.58643225, 0.52293525, 0.49996925, 0.5225535, 0.5875545, 0.719903, 0.94029425, 1.3461175, 2.07283, 3.4740625, 6.2371725, 11.79715, 21.73405, 37.28175, 55.1853, 69.2588, 80.036275, 88.397, 94.640025, 98.332825 };
+            sim_ev_pher_min = { 99.57, 98.13, 94.39, 88.29, 79.95, 69.17, 55, 37.18, 21.71, 11.67, 6.23, 3.42, 2.06, 1.33, 0.93, 0.71, 0.58, 0.52, 0.5, 0.52, 0.58, 0.71, 0.93, 1.33, 2.06, 3.46, 6.21, 11.75, 21.66, 37.25, 55.14, 69.19, 79.95, 88.36, 94.51, 98.28 };
+            sim_ev_pher_max = { 99.8, 98.44, 94.57, 88.74, 80.36, 69.32, 55.18, 37.29, 21.80, 11.83, 6.29, 3.49, 2.09, 1.35, 0.96, 0.72, 0.59, 0.53, 0.5, 0.53, 0.59, 0.73, 0.95, 1.36, 2.09, 3.49, 6.26, 11.83, 21.79, 37.3, 55.24, 69.33, 80.09, 88.47, 94.79, 98.41 };
         } else {
             sim_ev_center = { 12.168675, 12.11255, 12.163, 12.1358, 12.0881, 12.10275, 12.135925, 12.12425, 12.14915, 12.149575, 12.1482, 12.15955, 12.130775, 12.148475, 12.153925, 12.1383, 12.13475, 12.148675, 12.1576, 12.1452, 12.15665, 12.16225, 12.156625, 12.156875, 12.13905, 12.1561, 12.159325, 12.137025, 12.149725, 12.09575, 12.1471, 12.1231, 12.1211, 12.1368, 12.134825, 12.13955 };
+            sim_ev_center_min = { 12.13, 12.08, 12.12, 12.12, 12.00, 12.02, 12.11, 12.11, 12.11, 12.12, 12.13, 12.13, 12.10, 12.10, 12.12, 12.12, 12.10, 12.12, 12.13, 12.11, 12.13, 12.13, 12.13, 12.12, 12.10, 12.12, 12.12, 12.11, 12.12, 12.02, 12.13, 12.10, 12.09, 12.10, 12.12, 12.12 };
+            sim_ev_center_max = { 12.24, 12.15, 12.20, 12.15, 12.14, 12.16, 12.20, 12.14, 12.21, 12.18, 12.17, 12.21, 12.17, 12.20, 12.19, 12.18, 12.19, 12.18, 12.19, 12.19, 12.19, 12.19, 12.19, 12.20, 12.19, 12.19, 12.20, 12.18, 12.19, 12.14, 12.18, 12.14, 12.17, 12.19, 12.16, 12.18 };
             sim_ev_pher = { 101.29375, 99.802475, 96.108725, 89.966275, 81.369475, 70.5424, 56.2835, 38.1283, 22.348775, 12.166625, 6.515755, 3.643485, 2.180365, 1.41379, 0.984371, 0.7510235, 0.6165785, 0.54522075, 0.52163, 0.54515775, 0.61643625, 0.750186, 0.9914865, 1.4138375, 2.174915, 3.6299975, 6.5142425, 12.200725, 22.2865, 38.146275, 56.287325, 70.64165, 81.424625, 89.82015, 96.16995, 99.92435 };
+            sim_ev_pher_min = { 101.17, 99.69, 95.98, 89.89, 81.24, 70.38, 56.08, 37.96, 22.30, 12.06, 6.49, 3.63, 2.17, 1.41, 0.98, 0.75, 0.61, 0.54, 0.52, 0.54, 0.61, 0.74, 0.98, 1.40, 2.16, 3.62, 6.49, 12.17, 22.09, 38.11, 56.11, 70.60, 81.08, 89.64, 96.05, 99.79 };
+            sim_ev_pher_max = { 101.39, 99.95, 96.29, 90.05, 81.51, 70.68, 56.41, 38.23, 22.42, 12.28, 6.54, 3.66, 2.20, 1.43, 0.99, 0.76, 0.63, 0.55, 0.52, 0.55, 0.63, 0.76, 1.01, 1.43, 2.19, 3.66, 6.54, 12.25, 22.41, 38.17, 56.40, 70.70, 81.68, 89.97, 96.43, 99.99 };
         }
     }
 
@@ -1077,6 +1166,8 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         res.modus = large_collimation ? "Pherifery 80mm collimation" : "Pherifery 10mm collimation";
         res.volume = std::to_string(angInt);
         res.TG195Result = sim_ev_pher[i];
+        res.TG195Result_min = sim_ev_pher_min[i];
+        res.TG195Result_max = sim_ev_pher_max[i];
         res.result = cylinder.energyScoredPeriferyCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
         res.result_std = cylinder.energyScoredPeriferyCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
         res.nEvents = cylinder.energyScoredPeriferyCylinder().numberOfEvents();
@@ -1085,6 +1176,8 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         res.modus = large_collimation ? "Center 80mm collimation" : "Center 10mm collimation";
         res.volume = std::to_string(angInt);
         res.TG195Result = sim_ev_center[i];
+        res.TG195Result_min = sim_ev_center_min[i];
+        res.TG195Result_max = sim_ev_center_max[i];
         res.result = cylinder.energyScoredCenterCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
         res.result_std = cylinder.energyScoredCenterCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
         res.nEvents = cylinder.energyScoredCenterCylinder().numberOfEvents();
@@ -1235,6 +1328,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     }
 
     std::array<std::array<double, 17>, 8> tg195_doses;
+    std::array<std::array<double, 17 * 2>, 8> tg195_doses_min_max;
     if constexpr (std::same_as<B, IsotropicBeam<>>) {
         tg195_doses[0] = { 12374.98, 2917.75, 1275.86, 612.31, 5.78, 16.68, 121.04, 15.16, 8.17, 0.15, 1.65, 40.66, 9.78, 33.37, 559.77, 21.49, 7727.77 };
         tg195_doses[1] = { 12594.50, 1801.82, 1007.28, 612.42, 5.74, 9.97, 76.98, 8.73, 5.86, 0.13, 1.39, 33.38, 7.12, 30.52, 538.17, 17.76, 6631.55 };
@@ -1244,6 +1338,14 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
         tg195_doses[5] = { 10069.33, 1121.22, 687.39, 243.21, 1.62, 33.91, 107.84, 11.19, 6.92, 0.15, 1.33, 8.57, 5.34, 29.45, 232.17, 2.14, 7265.83 };
         tg195_doses[6] = { 10666.10, 1503.58, 601.06, 164.33, 1.32, 30.15, 122.86, 16.10, 7.16, 0.12, 1.20, 10.51, 6.82, 22.47, 365.63, 7.18, 5072.79 };
         tg195_doses[7] = { 12488.68, 2558.90, 877.00, 375.60, 3.76, 24.31, 138.64, 18.52, 8.43, 0.13, 1.49, 26.49, 9.60, 27.68, 562.67, 18.29, 6436.26 };
+        tg195_doses_min_max[0] = { 12363.00, 12397.00, 2902.87, 2942.20, 1271.08, 1283.75, 608.27, 618.20, 5.76, 5.81, 16.52, 16.88, 120.34, 122.25, 15.05, 15.35, 8.09, 8.31, 0.15, 0.15, 1.64, 1.67, 39.95, 41.06, 9.68, 9.94, 33.23, 33.54, 557.44, 561.22, 21.24, 21.97, 7709.95, 7745.70 };
+        tg195_doses_min_max[1] = { 12523.10, 12623.00, 1796.56, 1807.00, 1004.47, 1010.00, 609.99, 615.15, 5.67, 5.80, 9.93, 10.03, 76.56, 77.33, 8.68, 8.78, 5.84, 5.89, 0.13, 0.14, 1.37, 1.41, 32.54, 33.74, 7.09, 7.16, 30.43, 30.67, 535.91, 539.85, 17.57, 18.03, 6599.30, 6664.10 };
+        tg195_doses_min_max[2] = { 10637.70, 10666.00, 731.15, 745.57, 637.07, 645.89, 444.01, 451.57, 3.65, 3.72, 6.52, 6.64, 35.77, 36.66, 3.25, 3.36, 3.16, 3.24, 0.10, 0.11, 1.03, 1.04, 15.41, 15.62, 3.34, 3.42, 21.28, 21.50, 347.40, 349.40, 6.77, 6.92, 4789.72, 4852.34 };
+        tg195_doses_min_max[3] = { 10081.40, 10159.60, 728.03, 734.45, 714.54, 718.82, 386.95, 391.16, 2.60, 2.63, 17.29, 17.48, 56.44, 57.14, 5.16, 5.22, 4.34, 4.45, 0.14, 0.15, 1.23, 1.25, 11.16, 11.41, 3.70, 3.74, 24.79, 24.97, 222.30, 224.14, 2.18, 2.20, 7394.90, 7474.50 };
+        tg195_doses_min_max[4] = { 10237.80, 10270.80, 1200.94, 1228.77, 1038.39, 1051.39, 382.82, 389.95, 2.54, 2.62, 30.87, 31.41, 101.33, 103.57, 9.67, 9.84, 6.83, 7.00, 0.17, 0.18, 1.49, 1.52, 10.62, 10.73, 5.38, 5.57, 29.96, 30.49, 143.13, 143.34, 2.94, 3.00, 9702.03, 9750.60 };
+        tg195_doses_min_max[5] = { 10021.20, 10091.30, 1116.27, 1124.20, 685.28, 688.73, 241.89, 244.32, 1.59, 1.65, 33.78, 34.07, 107.21, 108.30, 11.11, 11.26, 6.89, 6.98, 0.15, 0.16, 1.31, 1.37, 8.51, 8.64, 5.32, 5.37, 29.37, 29.54, 230.96, 233.04, 2.12, 2.16, 7225.89, 7302.00 };
+        tg195_doses_min_max[6] = { 10651.90, 10698.50, 1492.70, 1520.50, 597.92, 605.55, 163.20, 166.28, 1.30, 1.36, 29.91, 30.49, 121.78, 124.54, 15.91, 16.42, 7.10, 7.22, 0.11, 0.12, 1.19, 1.21, 10.47, 10.60, 6.73, 6.93, 22.33, 22.61, 363.87, 367.24, 7.15, 7.24, 5047.17, 5112.62 };
+        tg195_doses_min_max[7] = { 12432.60, 12514.10, 2550.60, 2564.40, 874.46, 879.88, 373.98, 377.21, 3.75, 3.78, 24.17, 24.46, 138.00, 139.15, 18.41, 18.65, 8.40, 8.48, 0.13, 0.14, 1.47, 1.50, 26.10, 26.70, 9.54, 9.66, 27.58, 27.78, 560.67, 564.63, 18.22, 18.46, 6407.19, 6466.50 };
     } else {
         tg195_doses[0] = { 11574.28, 3086.42, 1301.17, 679.47, 6.37, 17.57, 134.40, 16.73, 8.79, 0.15, 1.74, 44.22, 10.72, 36.90, 456.36, 21.68, 8761.23 };
         tg195_doses[1] = { 11761.25, 1932.04, 1045.65, 683.63, 6.33, 9.91, 82.98, 9.22, 6.18, 0.13, 1.47, 36.39, 7.64, 33.46, 437.27, 17.97, 7669.28 };
@@ -1253,6 +1355,14 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
         tg195_doses[5] = { 9487.98, 1202.94, 721.26, 251.05, 1.52, 37.44, 117.36, 12.02, 7.31, 0.16, 1.38, 8.95, 5.48, 31.53, 195.79, 2.00, 8367.44 };
         tg195_doses[6] = { 9970.40, 1625.79, 636.47, 168.17, 1.25, 33.40, 136.69, 17.88, 7.68, 0.12, 1.26, 11.26, 7.29, 24.39, 298.96, 7.18, 5876.97 };
         tg195_doses[7] = { 11649.90, 2725.15, 916.40, 409.55, 3.99, 26.54, 155.30, 20.68, 9.13, 0.13, 1.55, 28.93, 10.49, 30.43, 455.47, 18.39, 7391.31 };
+        tg195_doses_min_max[0] = { 11557.00, 11596.10, 3074.90, 3110.85, 1296.90, 1309.36, 675.87, 686.53, 6.33, 6.46, 17.5, 17.74, 133.61, 136.08, 16.61, 17, 8.74, 8.9, 0.15, 0.16, 1.72, 1.75, 43.57, 44.49, 10.63, 10.9, 36.69, 37.23, 455.85, 456.99, 21.51, 22.06, 8747.74, 8785.40 };
+        tg195_doses_min_max[1] = { 11745.00, 11783.50, 1924.80, 1946.92, 1042.10, 1051.22, 679.88, 690.8, 6.25, 6.47, 9.88, 10.01, 82.59, 83.83, 9.09, 9.39, 6.14, 6.25, 0.13, 0.13, 1.46, 1.48, 35.88, 36.66, 7.61, 7.73, 33.35, 33.63, 436.83, 437.9, 17.78, 18.4, 7652.67, 7699.95 };
+        tg195_doses_min_max[2] = { 9962.60, 9990.23, 780.87, 797.63, 676.34, 685.09, 492.74, 501.17, 3.92, 3.99, 6.22, 6.37, 35.94, 36.84, 3.13, 3.18, 3.13, 3.2, 0.1, 0.11, 1.04, 1.07, 16.79, 16.96, 3.37, 3.4, 22.9, 23.31, 285.51, 286.13, 6.77, 6.85, 5589.64, 5661.26 };
+        tg195_doses_min_max[3] = { 9526.84, 9612.64, 763.23, 768.82, 753.96, 756.73, 420.54, 423.97, 2.61, 2.64, 17.93, 18.16, 57.95, 58.3, 5.06, 5.09, 4.38, 4.39, 0.14, 0.15, 1.26, 1.27, 11.84, 12.1, 3.59, 3.63, 26.31, 26.4, 188.26, 189.99, 2.05, 2.08, 8466.28, 8528.96 };
+        tg195_doses_min_max[4] = { 9687.10, 9723.43, 1256.84, 1284.20, 1080.90, 1094.77, 408.68, 416, 2.48, 2.59, 33.6, 34.2, 108.77, 110.52, 10.1, 10.35, 7.13, 7.18, 0.18, 0.18, 1.56, 1.58, 11.16, 11.32, 5.46, 5.59, 31.96, 32.47, 129.65, 130, 2.77, 2.91, 10999.30, 11010.00 };
+        tg195_doses_min_max[5] = { 9443.60, 9513.53, 1199.17, 1206.59, 719.85, 722.48, 250, 252.77, 1.49, 1.54, 37.32, 37.62, 117.02, 117.74, 12, 12.05, 7.27, 7.34, 0.16, 0.16, 1.37, 1.38, 8.86, 9.04, 5.47, 5.51, 31.42, 31.74, 195.1, 196.14, 1.98, 2.03, 8331.94, 8383.47 };
+        tg195_doses_min_max[6] = { 9952.40, 10000.60, 1615.96, 1647.62, 633.85, 641.47, 167.26, 170.77, 1.22, 1.3, 33.23, 33.83, 136.08, 138.46, 17.73, 18.25, 7.62, 7.78, 0.12, 0.13, 1.25, 1.29, 11.24, 11.28, 7.25, 7.35, 24.27, 24.64, 298.53, 299.7, 7.1, 7.37, 5854.81, 5928.06 };
+        tg195_doses_min_max[7] = { 11596.20, 11678.40, 2719.50, 2733.11, 914.9, 918.56, 408.33, 411.42, 3.98, 4.02, 26.46, 26.78, 154.59, 156.35, 20.52, 20.85, 9.06, 9.19, 0.13, 0.14, 1.54, 1.57, 28.48, 29.11, 10.43, 10.56, 30.39, 30.45, 453.2, 456.72, 18.29, 18.61, 7363.20, 7403.80 };
     }
 
     const auto collangle_y = std::atan(25.0 / 60);
@@ -1291,7 +1401,10 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
         for (const auto& [density, material_name] : matInf) {
             if (matIdx > 2) {
                 res.volume = material_name;
-                res.TG195Result = tg195_doses[angInt][matIdx - 3];
+                const auto tg195_idx = matIdx - 3;
+                res.TG195Result = tg195_doses[angInt][tg195_idx];
+                res.TG195Result_min = tg195_doses_min_max[angInt][tg195_idx * 2];
+                res.TG195Result_max = tg195_doses_min_max[angInt][tg195_idx * 2 + 1];
                 const auto ei_tot = std::transform_reduce(std::execution::par_unseq, doseScore.cbegin(), doseScore.cend(), materialIndex.cbegin(), 0.0, std::plus<>(), [matIdx](const auto& energyScored, auto ind) -> double {
                     if (ind == matIdx)
                         return energyScored.energyImparted();
