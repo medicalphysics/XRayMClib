@@ -383,7 +383,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 
     World<Filter, Scoring> world;
     auto [air_density, air_composition] = TG195_air();
-    auto air = Material::byWeight(air_composition).value();
+    auto air = dxmc::Material<>::byWeight(air_composition).value();
     world.setMaterial(air, air_density);
 
     world.reserveNumberOfItems(2);
@@ -535,7 +535,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     World<Box, SimpleBox> world;
     auto [air_density, air_composition] = TG195_air();
-    auto air = Material::byWeight(air_composition).value();
+    auto air = dxmc::Material<>::byWeight(air_composition).value();
     world.setMaterial(air, air_density);
 
     const auto box_halfside = 39.0 / 2;
@@ -549,7 +549,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     box.setMaterialDensity(mat_dens);
 
     auto& scoring_plane = world.template addItem<SimpleBox>({ { -box_halfside, -box_halfside, 180, box_halfside, box_halfside, 180.1 } });
-    scoring_plane.setMaterial(world.fillMaterial(), world.fillMaterialDensity());
+    scoring_plane.setMaterial(dxmc::Material<NShells>::byWeight(air_composition).value(), world.fillMaterialDensity());
 
     world.build(180);
 
@@ -752,7 +752,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     auto skin = Material::byWeight(skin_w).value();
 
     World world;
-    world.setMaterial(air, air_d);
+    world.setMaterial(dxmc::Material<>::byWeight(air_w).value(), air_d);
     world.reserveNumberOfItems(5);
 
     auto& body = world.template addItem<Box>({ { -17, -15, -15, 0, 15, 15 } });
@@ -926,7 +926,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
     World world;
     auto [air_density, air_composition] = TG195_air();
     auto air = Material::byWeight(air_composition).value();
-    world.setMaterial(air, air_density);
+    world.setMaterial(dxmc::Material<>::byWeight(air_composition).value(), air_density);
 
     auto& cylinder = world.template addItem<Cylindar>({ 16, 300, 600 });
     world.build(60);
@@ -1077,7 +1077,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     World world;
     auto [air_density, air_composition] = TG195_air();
     auto air = Material::byWeight(air_composition).value();
-    world.setMaterial(air, air_density);
+    world.setMaterial(dxmc::Material<>::byWeight(air_composition).value(), air_density);
 
     auto& cylinder = world.template addItem<Cylindar>({ 16, 600 });
     world.build(90);
@@ -1300,7 +1300,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    using World = World<AAVoxelGrid<5, LOWENERGYCORRECTION, 255>>;
+    using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, 255>>;
     auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, 255>();
 
     World world;
