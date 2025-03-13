@@ -337,21 +337,43 @@ def plotRuntimes(dt, kind="strip", show=False):
         plt.close()
 
 
-def merge_files(filenames: list, output="validationTable.txt"):
+def merge_files(filenames: list, output="validationTable.txt", aggregate=True):
     have_header = os.path.isfile(output)
-    with open(output, "a") as out:
+    if not aggregate:
+        with open(output, "a") as out:
+            for fname in filenames:
+                if os.path.isfile(fname) and fname != output:
+                    with open(fname, "r") as f:
+                        if have_header:
+                            lines = f.readlines()
+                            if len(lines) > 1:
+                                out.writelines(lines[1:])
+                        else:
+                            out.write(f.read())
+                            have_header = True
+                else:
+                    print("No file named {}, skipping".format(fname))
+    else:
+        tables = list()
         for fname in filenames:
-            if os.path.isfile(fname) and fname != output:
-                with open(fname, "r") as f:
-                    if have_header:
-                        lines = f.readlines()
-                        if len(lines) > 1:
-                            out.writelines(lines[1:])
-                    else:
-                        out.write(f.read())
-                        have_header = True
+            if os.path.isfile(fname):
+                converters = {"Result": float, "Stddev": float, "SimulationTime": float}
+                dt = pd.read_csv(
+                    fname, sep=", ", engine="python", converters=converters
+                )
+                tables.append(dt)
             else:
                 print("No file named {}, skipping".format(fname))
+
+        if len(tables) == 0:
+            print("No files found, exiting.")
+            return
+
+        df = tables[0]
+        for i in range(1, len(tables)):
+            df["Result"] += tables[i]["Result"]
+        df["Result"] /= len(tables)
+        df.to_csv(output, index=False, sep=",", mode="w")
 
 
 def expand_filenames(filenames: list):
@@ -371,6 +393,7 @@ if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     if len(sys.argv) > 1:
+        merge_files(expand_filenames(sys.argv[1:]))
         dt = readAllData(expand_filenames(sys.argv[1:]))
     else:
         dt = readData()

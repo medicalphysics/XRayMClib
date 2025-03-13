@@ -1024,7 +1024,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
     }
     if (!specter && !large_collimation) {
         tg195 = { 11592.27, 2576.72, 1766.85, 1330.53 };
-        tg195_min = { 11581.99, 2564.74, 1769.77, 1329.80 };
+        tg195_min = { 11581.99, 2564.74, 1759.77, 1329.80 };
         tg195_max = { 11618.30, 2581.85, 1774.79, 1331.27 };
     }
 
