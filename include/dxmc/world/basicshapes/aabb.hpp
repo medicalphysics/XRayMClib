@@ -44,6 +44,16 @@ namespace basicshape {
             return x && y && z;
         }
 
+        static constexpr bool collide(const std::array<double, 6>& a, const std::array<double, 6>& b)
+        {
+            bool outside = true;
+            for (int i = 0; i < 3; ++i) {
+                outside = outside && a[i + 3] < b[i];
+                outside = outside && a[i] > b[i + 3];                
+            }
+            return !outside;
+        }
+
         template <bool FORWARD = true>
         std::optional<std::array<double, 2>> intersectForwardInterval(const ParticleType auto& p, const std::array<double, 6>& aabb)
         {

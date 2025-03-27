@@ -14,6 +14,7 @@ set(TEST_SOURCES
     "testworldsphere.cpp"
     "testmassenergytransfer.cpp"
     "testtriangulatedmesh.cpp"
+    "testcollision.cpp"
 )
 
 

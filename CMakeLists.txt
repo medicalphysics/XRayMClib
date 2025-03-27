@@ -104,6 +104,8 @@ set(HEADER_LIST
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtreeintersectionresult.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/visualization/visualizeworld.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/visualization/vizualizationprops.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/collisions/collisiontest.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/collisions/meshcollision.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worldintersectionresult.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/ctdiphantom.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/depthdose.hpp"
@@ -179,6 +181,7 @@ option(DXMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files
 add_subdirectory(thirdparty)
 
 # Testing
+option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING OR CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     add_subdirectory(tests)
 endif()
