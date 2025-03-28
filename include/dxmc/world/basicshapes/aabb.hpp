@@ -46,12 +46,8 @@ namespace basicshape {
 
         static constexpr bool collide(const std::array<double, 6>& a, const std::array<double, 6>& b)
         {
-            bool outside = true;
-            for (int i = 0; i < 3; ++i) {
-                outside = outside && a[i + 3] < b[i];
-                outside = outside && a[i] > b[i + 3];                
-            }
-            return !outside;
+            // Check if the AABBs are overlapping in all three dimensions
+            return !(a[0] > b[3] || a[3] < b[0] || a[1] > b[4] || a[4] < b[1] || a[2] > b[5] || a[5] < b[2]);
         }
 
         template <bool FORWARD = true>

@@ -31,10 +31,8 @@ public:
     {
         const auto aabb1 = item1.AABB();
         const auto aabb2 = item2.AABB();
-        if (!basicshape::AABB::collide(aabb1, aabb2)) {
-            return false;
-        }
-        return collision::collide(item1, item2);
+
+        return basicshape::AABB::collide(aabb1, aabb2) ? collision::collide(item1, item2) : false;
     }
 
 protected:

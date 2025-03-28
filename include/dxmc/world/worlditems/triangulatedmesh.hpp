@@ -107,7 +107,7 @@ public:
         return m_kdtree;
     }
 
-    const std::vector<Triangle>& getTriangles() const
+    const std::vector<Triangle>& triangles() const
     {
         return m_triangles;
     }
