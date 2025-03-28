@@ -108,7 +108,6 @@ namespace interactions {
         double p;
         double expb;
         double pi;
-        double J0;
         double kc;
         double U;
         int shell_idx;
