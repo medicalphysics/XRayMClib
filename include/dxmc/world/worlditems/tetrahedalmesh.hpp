@@ -27,6 +27,8 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/particle.hpp"
 #include "dxmc/particletracker.hpp"
 #include "dxmc/vectormath.hpp"
+#include "dxmc/world/dosescore.hpp"
+#include "dxmc/world/energyscore.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
 

@@ -23,6 +23,8 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/material/nistmaterials.hpp"
 #include "dxmc/particle.hpp"
 #include "dxmc/vectormath.hpp"
+#include "dxmc/world/dosescore.hpp"
+#include "dxmc/world/energyscore.hpp"
 #include "dxmc/world/worlditems/triangulatedmesh/triangle.hpp"
 #include "dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreeflat.hpp"
 #include "dxmc/world/worlditems/triangulatedmesh/triangulatedmeshstlreader.hpp"

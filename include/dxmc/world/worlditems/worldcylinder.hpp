@@ -26,6 +26,7 @@ Copyright 2022 Erlend Andersen
 #include "dxmc/world/basicshapes/aabb.hpp"
 #include "dxmc/world/basicshapes/cylinder.hpp"
 #include "dxmc/world/dosescore.hpp"
+#include "dxmc/world/energyscore.hpp"
 
 #include <limits>
 #include <optional>

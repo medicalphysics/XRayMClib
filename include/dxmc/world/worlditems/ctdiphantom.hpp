@@ -24,6 +24,8 @@ Copyright 2022 Erlend Andersen
 #include "dxmc/particle.hpp"
 #include "dxmc/vectormath.hpp"
 #include "dxmc/world/basicshapes/cylinder.hpp"
+#include "dxmc/world/dosescore.hpp"
+#include "dxmc/world/energyscore.hpp"
 #include "dxmc/world/statickdtree.hpp"
 
 #include <array>
