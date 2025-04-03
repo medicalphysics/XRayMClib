@@ -47,11 +47,26 @@ def readData(filename="validationTable.txt"):
     for key in ["Stddev", "nEvents", "SimulationTime"]:
         dm[key] = [0 for _ in dm[key]]
 
-    df = pd.concat([dt, dm], ignore_index=True)
+    dm_min = dt[dt["Model"] == model].copy()
+    dm_min["Result"] = dm["TG195Result_min"]
+    dm_min["Model"] = ["TG195" for _ in dm_min["TG195Result_min"]]
+    for key in ["Stddev", "nEvents", "SimulationTime"]:
+        dm_min[key] = [0 for _ in dm_min[key]]
+
+    dm_max = dt[dt["Model"] == model].copy()
+    dm_max["Result"] = dm_max["TG195Result"]
+    dm_max["Model"] = ["TG195" for _ in dm_max["TG195Result"]]
+    for key in ["Stddev", "nEvents", "SimulationTime"]:
+        dm_max[key] = [0 for _ in dm_max[key]]
+
+    df = pd.concat([dt, dm, dm_min, dm_max], ignore_index=True)
+
     present_models = list([m for m in df["Model"].unique()])
-    for model in HUE_ORDER:
-        if model not in present_models:
-            HUE_ORDER.remove(model)
+
+    cmodels = list([m for m in HUE_ORDER])
+    for m in cmodels:
+        if m not in present_models:
+            HUE_ORDER.remove(m)
 
     return df
     # adding errors for seaborn
@@ -69,7 +84,7 @@ def readAllData(filelist: list):
     return pd.concat(dfs, ignore_index=True)
 
 
-def fix_axis(fg, rotate_labels=True, ylabel="Energy [eV/history]", set_y0=True):
+def fix_axis(fg, rotate_labels=True, ylabel="Energy [eV/history]", set_y0=False):
     if set_y0:
         fg.set(ylim=(0, None))
     fg.set_axis_labels(y_var=ylabel)
@@ -375,6 +390,13 @@ def merge_files(filenames: list, output="validationTable.txt", aggregate=True):
         df["Result"] /= len(tables)
         df.to_csv(output, index=False, sep=",", mode="w")
 
+        ##fixing seps
+        with open(output, "r") as inn:
+            txt = inn.read()
+        txt.replace(",", ", ")
+        with open(output, "w") as out:
+            out.write(txt)
+
 
 def expand_filenames(filenames: list):
     expanded = list()
@@ -392,11 +414,15 @@ def expand_filenames(filenames: list):
 if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    if len(sys.argv) > 1:
-        merge_files(expand_filenames(sys.argv[1:]))
-        dt = readAllData(expand_filenames(sys.argv[1:]))
-    else:
-        dt = readData()
+    infile = "validationTable.txt"
+    if len(sys.argv) > 2:
+        infile = sys.argv[1]
+        merge_files(expand_filenames(sys.argv[2:]), output=infile, aggregate=False)
+        # dt = readAllData(expand_filenames(sys.argv[1:]))
+    elif len(sys.argv) == 2:
+        merge_files(expand_filenames(sys.argv[1:]), output=infile, aggregate=False)
+
+    dt = readData(infile)
 
     try:
         os.mkdir("plots")
