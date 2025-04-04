@@ -69,6 +69,15 @@ public:
     {
         m_fillMaterialDensity = std::abs(dens);
     }
+    void setMaterialByWeight(const std::map<std::size_t, double>& composition)
+    {
+        m_fillMaterial = MaterialType::byWeight(composition).value();
+    }
+    void setMaterialByWeight(const std::map<std::size_t, double>& composition, double dens)
+    {
+        m_fillMaterial = MaterialType::byWeight(composition).value();
+        m_fillMaterialDensity = std::abs(dens);
+    }
 
     const MaterialType& fillMaterial() const { return m_fillMaterial; }
     double fillMaterialDensity() const { return m_fillMaterialDensity; }
@@ -300,7 +309,7 @@ public:
                     continueSampling = p.energy > 0;
                 } else { // Free path is closer than object, we interact in the world empty space
                     p.translate(stepLength);
-                    const auto interactionResult = interactions::template interact<5, 1>(att, p, m_fillMaterial, state);
+                    const auto interactionResult = interactions::template interact<5, 2>(att, p, m_fillMaterial, state);
                     updateAttenuation = interactionResult.particleEnergyChanged;
                     continueSampling = interactionResult.particleAlive;
                     m_energyScored.scoreEnergy(interactionResult.energyImparted);
@@ -308,7 +317,7 @@ public:
             } else { // We do not intersect any object
                 p.translate(stepLength);
                 if (basicshape::AABB::pointInside(p.pos, m_aabb)) { // Are we still inside world?
-                    const auto interactionResult = interactions::template interact<5, 1>(att, p, m_fillMaterial, state);
+                    const auto interactionResult = interactions::template interact<5, 2>(att, p, m_fillMaterial, state);
                     updateAttenuation = interactionResult.particleEnergyChanged;
                     continueSampling = interactionResult.particleAlive;
                     m_energyScored.scoreEnergy(interactionResult.energyImparted);

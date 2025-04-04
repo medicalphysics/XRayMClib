@@ -383,8 +383,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 
     World<Filter, Scoring> world;
     auto [air_density, air_composition] = TG195_air();
-    auto air = dxmc::Material<>::byWeight(air_composition).value();
-    world.setMaterial(air, air_density);
+    world.setMaterialByWeight(air_composition, air_density);
 
     world.reserveNumberOfItems(2);
     auto& scoring = world.template addItem<Scoring>({ 0.5, { 0, 0, -100 }, { 0, 0, 1 } });
@@ -535,8 +534,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     World<Box, SimpleBox> world;
     auto [air_density, air_composition] = TG195_air();
-    auto air = dxmc::Material<>::byWeight(air_composition).value();
-    world.setMaterial(air, air_density);
+    world.setMaterialByWeight(air_composition, air_density);
 
     const auto box_halfside = 39.0 / 2;
     const double box_height = 20;
@@ -752,7 +750,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     auto skin = Material::byWeight(skin_w).value();
 
     World world;
-    world.setMaterial(dxmc::Material<>::byWeight(air_w).value(), air_d);
+    world.setMaterialByWeight(air_w, air_d);
     world.reserveNumberOfItems(5);
 
     auto& body = world.template addItem<Box>({ { -17, -15, -15, 0, 15, 15 } });
@@ -925,8 +923,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
 
     World world;
     auto [air_density, air_composition] = TG195_air();
-    auto air = Material::byWeight(air_composition).value();
-    world.setMaterial(dxmc::Material<>::byWeight(air_composition).value(), air_density);
+    world.setMaterialByWeight(air_composition, air_density);
 
     auto& cylinder = world.template addItem<Cylindar>({ 16, 300, 600 });
     world.build(60);
@@ -1076,8 +1073,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
 
     World world;
     auto [air_density, air_composition] = TG195_air();
-    auto air = Material::byWeight(air_composition).value();
-    world.setMaterial(dxmc::Material<>::byWeight(air_composition).value(), air_density);
+    world.setMaterialByWeight(air_composition, air_density);
 
     auto& cylinder = world.template addItem<Cylindar>({ 16, 600 });
     world.build(90);
