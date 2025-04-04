@@ -1217,28 +1217,6 @@ std::vector<T> readBinaryArray(const std::string& path, std::size_t array_size)
 template <std::size_t NMATSHELLS = 5, int LOWENERGYCORRECTION = 2, int TRANSPARENTVOXEL = 255>
 std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::vector<std::pair<double, std::string>>> generateTG195World5()
 {
-    std::vector<std::string> matFormula = {
-        "C0.015019N78.443071O21.074800Ar0.467110",
-        "H51.869709C36.108118N4.019974O8.002200",
-        "C100.000000",
-        "H63.000070C12.890598N1.165843O22.756479Na0.026307P0.039052S0.056594Cl0.034118K0.030937",
-        "H63.688796C7.143744N1.278063O27.701991Na0.026851P0.039859S0.038509Cl0.034823K0.047365",
-        "H63.731478C5.452396N1.380394O29.198156Na0.054259P0.040273S0.058363Cl0.052777K0.031904",
-        "H63.217465C7.229913N1.338082O27.958043Na0.054349P0.060510S0.058460Cl0.035243K0.047936",
-        "H63.000070C12.890598N1.165843O22.756479Na0.026307P0.039052S0.056594Cl0.034118K0.030937",
-        "H63.655092C5.860784N1.423215O28.851671Na0.027097P0.060337S0.038862Cl0.035143K0.047799",
-        "H64.343953C5.858428N0.961057O28.720940Na0.026615P0.019755S0.019085Cl0.034518K0.015650",
-        "H64.343953C5.858428N0.961057O28.720940Na0.026615P0.019755S0.019085Cl0.034518K0.015650",
-        "H63.939187C8.555183N0.955012O26.374094Na0.052895P0.039261S0.018965Cl0.034300K0.031102",
-        "H63.000070C12.890598N1.165843O22.756479Na0.026307P0.039052S0.056594Cl0.034118K0.030937",
-        "H63.845575C6.130922N1.060311O28.814466Na0.053834P0.019979S0.019302Cl0.034909K0.015827I0.004876",
-        "H63.000070C12.890598N1.165843O22.756479Na0.026307P0.039052S0.056594Cl0.034118K0.030937",
-        "H64.343953C5.858428N0.961057O28.720940Na0.026615P0.019755S0.019085Cl0.034518K0.015650",
-        "H64.343953C5.858428N0.961057O28.720940Na0.026615P0.019755S0.019085Cl0.034518K0.015650",
-        "H62.083429C10.628873N1.876505O25.228547Na0.054442P0.020204S0.039039Cl0.052955K0.016006",
-        "H61.873627C28.698524N0.675867O8.736110P0.004495S0.004342K0.003561Ca0.003473",
-        "H39.229963C15.009010N3.487490O31.621690Na0.050590Mg0.095705P3.867606S0.108832Ca6.529115",
-    };
 
     const std::vector<std::map<std::size_t, double>> matWeights = {
         {
@@ -1463,7 +1441,6 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
             { 16, 0.3 },
             { 20, 22.5 },
         },
-
     };
 
     std::vector<Material<NMATSHELLS>> materials;
@@ -1473,9 +1450,9 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
         return mat_cand.value();
     });
 
-    const std::array<std::size_t, 3> dim = { 500, 320, 260 };
-    const auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
-    const std::array<double, 3> spacing = { 0.1f, 0.1f, 0.1f };
+    constexpr std::array<std::size_t, 3> dim = { 500, 320, 260 };
+    constexpr auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
+    constexpr std::array<double, 3> spacing = { 0.1f, 0.1f, 0.1f };
 
     AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL> grid;
 
@@ -1664,32 +1641,32 @@ template <int LOWENERGYCORRECTION>
 bool runAll(std::uint32_t N_threads)
 {
     auto success = true;
-    /*
-        success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
-        success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
 
-        success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-        success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
 
-        success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-        success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
-        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
-        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
-        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-        success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-        success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-        success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    */
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
+    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
+
+    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+
     success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
 
