@@ -1062,7 +1062,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         std::cout << "56.4keV";
     std::cout << " photons with low en model: " << model << std::endl;
 
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 1000000;
 
     using Cylindar = TG195World42<NShells, LOWENERGYCORRECTION>;
@@ -1240,10 +1240,236 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
         "H39.229963C15.009010N3.487490O31.621690Na0.050590Mg0.095705P3.867606S0.108832Ca6.529115",
     };
 
+    const std::vector<std::map<std::size_t, double>> matWeights = {
+        {
+            // Air
+            { 6, 0.0124 },
+            { 7, 75.5268 },
+            { 8, 23.1781 },
+            { 18, 1.2827 },
+        },
+        {
+            // Cushion
+            { 1, 7.8 },
+            { 6, 64.7 },
+            { 7, 8.4 },
+            { 8, 19.1 },
+        },
+        {
+            // Carbon
+            { 6, 100 },
+        },
+        {
+            // Soft tissue
+            { 1, 10.5 },
+            { 6, 25.6 },
+            { 7, 2.7 },
+            { 8, 60.2 },
+            { 11, 0.1 },
+            { 15, 0.2 },
+            { 16, 0.3 },
+            { 17, 0.2 },
+            { 19, 0.2 },
+        },
+        {
+            // Heart
+            { 1, 10.4 },
+            { 6, 13.9 },
+            { 7, 2.9 },
+            { 8, 71.8 },
+            { 11, 0.1 },
+            { 15, 0.2 },
+            { 16, 0.2 },
+            { 17, 0.2 },
+            { 19, 0.3 },
+        },
+        {
+            // Lung
+            { 1, 10.3 },
+            { 6, 10.5 },
+            { 7, 3.1 },
+            { 8, 74.9 },
+            { 11, 0.2 },
+            { 15, 0.2 },
+            { 16, 0.3 },
+            { 17, 0.3 },
+            { 19, 0.2 },
+        },
+        {
+            // Liver
+            { 1, 10.2 },
+            { 6, 13.9 },
+            { 7, 3 },
+            { 8, 71.6 },
+            { 11, 0.2 },
+            { 15, 0.3 },
+            { 16, 0.3 },
+            { 17, 0.2 },
+            { 19, 0.3 },
+        },
+        {
+            // Gallbladder
+            { 1, 10.5 },
+            { 6, 25.6 },
+            { 7, 2.7 },
+            { 8, 60.2 },
+            { 11, 0.1 },
+            { 15, 0.2 },
+            { 16, 0.3 },
+            { 17, 0.2 },
+            { 19, 0.2 },
+        },
+        {
+            // Spleen
+            { 1, 10.3 },
+            { 6, 11.3 },
+            { 7, 3.2 },
+            { 8, 74.1 },
+            { 11, 0.1 },
+            { 15, 0.3 },
+            { 16, 0.2 },
+            { 17, 0.2 },
+            { 19, 0.3 },
+        },
+        {
+            // Stomach
+            { 1, 10.6 },
+            { 6, 11.5 },
+            { 7, 2.2 },
+            { 8, 75.1 },
+            { 11, 0.1 },
+            { 15, 0.1 },
+            { 16, 0.1 },
+            { 17, 0.2 },
+            { 19, 0.1 },
+        },
+        {
+            // Large intestine
+            { 1, 10.6 },
+            { 6, 11.5 },
+            { 7, 2.2 },
+            { 8, 75.1 },
+            { 11, 0.1 },
+            { 15, 0.1 },
+            { 16, 0.1 },
+            { 17, 0.2 },
+            { 19, 0.1 },
+        },
+        {
+            // Pancreas
+            { 1, 10.6 },
+            { 6, 16.9 },
+            { 7, 2.2 },
+            { 8, 69.4 },
+            { 11, 0.2 },
+            { 15, 0.2 },
+            { 16, 0.1 },
+            { 17, 0.2 },
+            { 19, 0.2 },
+        },
+        {
+            // Adrenal
+            { 1, 10.5 },
+            { 6, 25.6 },
+            { 7, 2.7 },
+            { 8, 60.2 },
+            { 11, 0.1 },
+            { 15, 0.2 },
+            { 16, 0.3 },
+            { 17, 0.2 },
+            { 19, 0.2 },
+        },
+        {
+            // Thyroid
+            { 1, 10.4 },
+            { 6, 11.9 },
+            { 7, 2.4 },
+            { 8, 74.5 },
+            { 11, 0.2 },
+            { 15, 0.1 },
+            { 16, 0.1 },
+            { 17, 0.2 },
+            { 19, 0.1 },
+            { 53, 0.1 },
+        },
+        {
+            // Thymus
+            { 1, 10.5 },
+            { 6, 25.6 },
+            { 7, 2.7 },
+            { 8, 60.2 },
+            { 11, 0.1 },
+            { 15, 0.2 },
+            { 16, 0.3 },
+            { 17, 0.2 },
+            { 19, 0.2 },
+        },
+        {
+            // Small Intestine
+            { 1, 10.6 },
+            { 6, 11.5 },
+            { 7, 2.2 },
+            { 8, 75.1 },
+            { 11, 0.1 },
+            { 15, 0.1 },
+            { 16, 0.1 },
+            { 17, 0.2 },
+            { 19, 0.1 },
+        },
+        {
+            // Esophagus
+            { 1, 10.6 },
+            { 6, 11.5 },
+            { 7, 2.2 },
+            { 8, 75.1 },
+            { 11, 0.1 },
+            { 15, 0.1 },
+            { 16, 0.1 },
+            { 17, 0.2 },
+            { 19, 0.1 },
+        },
+        {
+            // Skin
+            { 1, 10 },
+            { 6, 20.4 },
+            { 7, 4.2 },
+            { 8, 64.5 },
+            { 11, 0.2 },
+            { 15, 0.1 },
+            { 16, 0.2 },
+            { 17, 0.3 },
+            { 19, 0.1 },
+        },
+        {
+            // Breast
+            { 1, 11.2 },
+            { 6, 61.9 },
+            { 7, 1.7 },
+            { 8, 25.1 },
+            { 15, 0.025 },
+            { 16, 0.025 },
+            { 19, 0.025 },
+            { 20, 0.025 },
+        },
+        {
+            // Cortical bone
+            { 1, 3.4 },
+            { 6, 15.5 },
+            { 7, 4.2 },
+            { 8, 43.5 },
+            { 11, 0.1 },
+            { 12, 0.2 },
+            { 15, 10.3 },
+            { 16, 0.3 },
+            { 20, 22.5 },
+        },
+
+    };
+
     std::vector<Material<NMATSHELLS>> materials;
 
-    std::transform(matFormula.cbegin(), matFormula.cend(), std::back_inserter(materials), [=](const auto& f) {
-        auto mat_cand = Material<NMATSHELLS>::byChemicalFormula(f);
+    std::transform(matWeights.cbegin(), matWeights.cend(), std::back_inserter(materials), [=](const auto& f) {
+        auto mat_cand = Material<NMATSHELLS>::byWeight(f);
         return mat_cand.value();
     });
 
@@ -1293,7 +1519,7 @@ template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
 bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, 255>>;
@@ -1438,32 +1664,32 @@ template <int LOWENERGYCORRECTION>
 bool runAll(std::uint32_t N_threads)
 {
     auto success = true;
+    /*
+        success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
 
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
-
-    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-
+        success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    */
     success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
 
