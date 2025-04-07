@@ -729,7 +729,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 
     std::cout << "TG195 Case 3 for " << res.modus << " orientation and " << res.specter << " photons with low en model: " << model << std::endl;
 
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     using Box = WorldBox<NShells, LOWENERGYCORRECTION>;
@@ -910,7 +910,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
         std::cout << "56.4keV";
     std::cout << " photons with low en model: " << model << std::endl;
 
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 512;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 100000 : 1000000;
 
     using Cylindar = DepthDose<NShells, LOWENERGYCORRECTION>;
