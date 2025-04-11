@@ -1499,8 +1499,9 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, 255>>;
-    auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, 255>();
+    constexpr int TRANSPARENTVOXELS = 255;
+    using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
+    auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
 
     World world;
     auto& grid = world.addItem(grid_object);
