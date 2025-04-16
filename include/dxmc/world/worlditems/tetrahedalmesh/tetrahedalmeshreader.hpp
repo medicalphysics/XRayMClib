@@ -48,6 +48,14 @@ public:
         readICRP145Phantom(nodeFile, elementFile, matfilePath, organFilePath);
     }
 
+    TetrahedalmeshReader(
+        const std::string& nodeFile,
+        const std::string& elementFile,
+        const std::string& matorganfilePath)
+    {
+        readICRPPregnantPhantom(nodeFile, elementFile, matorganfilePath);
+    }
+
     void readICRP145Phantom(
         const std::string& nodeFile,
         const std::string& elementFile,
@@ -74,7 +82,7 @@ public:
             org_lut[key] = i;
         }
 
-        m_tets = readICRP145PhantomGeometry(nodeFile, elementFile);
+        m_tets = readICRPPhantomGeometry(nodeFile, elementFile);
 
         // updating material ond organ indices in tets
         std::for_each(std::execution::par_unseq, m_tets.begin(), m_tets.end(), [&orgs, &org_lut](auto& t) {
@@ -95,6 +103,53 @@ public:
         m_materials.reserve(mats.size());
         for (const auto& m : mats)
             m_materials.emplace_back(m.material);
+    }
+
+    void readICRPPregnantPhantom(const std::string& nodeFile, const std::string& elementFile, const std::string& matorganfilePath)
+    {
+        auto organs = readICRPPregnantOrganMaterial(matorganfilePath);
+
+        // splitting materials and setting material index
+        {
+            std::vector<std::map<std::size_t, double>> material_weights;
+            material_weights.reserve(organs.size());
+            for (std::size_t i = 0; i < organs.size(); ++i) {
+                const auto& organ = organs[i];
+                auto idx_pos = std::find(material_weights.cbegin(), material_weights.cend(), organ.material_weights);
+                if (idx_pos == material_weights.cend()) {
+                    organs[i].material_index = material_weights.size();
+                    material_weights.push_back(organ.material_weights);
+                } else {
+                    organs[i].material_index = std::distance(material_weights.cbegin(), idx_pos);
+                }
+            }
+
+            m_materials.clear();
+            for (const auto& w : material_weights)
+                m_materials.emplace_back(Material<Nshells>::byWeight(w).value());
+        }
+
+        m_densities.clear();
+        m_densities.reserve(organs.size());
+        m_organNames.clear();
+        m_organNames.reserve(organs.size());
+        for (const auto& o : organs) {
+            m_densities.push_back(o.density);
+            m_organNames.push_back(o.name);
+        }
+
+        m_tets = readICRPPhantomGeometry(nodeFile, elementFile);
+
+        // map organ to collection index
+        std::map<std::size_t, std::uint16_t> organIdx_map, materialIdx_map;
+        for (std::uint16_t i = 0; i < organs.size(); ++i) {
+            organIdx_map[organs[i].index] = i;
+            materialIdx_map[organs[i].index] = organs[i].material_index;
+        }
+        std::for_each(std::execution::par_unseq, m_tets.begin(), m_tets.end(), [&organIdx_map, &materialIdx_map](auto& tet) {
+            tet.setMaterialIndex(materialIdx_map.at(tet.collection()));
+            tet.setCollection(organIdx_map.at(tet.collection()));
+        });
     }
 
     TetrahedalMesh<Nshells, LOWENERGYCORRECTION, FLUENCESCORING> getMesh(int depth = 8)
@@ -313,7 +368,64 @@ protected:
         return res;
     }
 
-    static std::vector<Tetrahedron> readICRP145PhantomGeometry(const std::string& nodeFile, const std::string& elementFile)
+    struct ICRPPregnantOrgan {
+        std::size_t index = 0;
+        std::size_t material_index = 0;
+        double density = 0;
+        std::map<std::size_t, double> material_weights;
+        std::string name;
+    };
+
+    static std::vector<ICRPPregnantOrgan> readICRPPregnantOrganMaterial(const std::string& matfile)
+    {
+        std::vector<ICRPPregnantOrgan> organs;
+        const std::string data = readBufferFromFile(matfile);
+
+        std::vector<std::pair<std::size_t, std::size_t>> segments;
+        bool alternator = true;
+        for (std::size_t teller = 0; teller < data.size(); teller++) {
+            if (data[teller] == 'C') {
+                if (alternator) {
+                    segments.push_back(std::make_pair(teller, teller));
+                    alternator = false;
+                } else {
+                    if (data[teller - 1] == '\n') {
+                        segments.back().second = teller;
+                        alternator = true;
+                    }
+                }
+            }
+        }
+        organs.resize(segments.size());
+        std::transform(segments.cbegin(), segments.cend(), organs.begin(), [&data](const auto& seg) {
+            ICRPPregnantOrgan organ;
+            auto begin = data.data() + seg.first + 1;
+            const auto end = data.data() + seg.second;
+
+            std::string units_number;
+            begin = parseLine(begin, end, ' ', organ.name, organ.density);
+            begin = std::find(begin, end, '\n');
+            if (begin == end) {
+                return organ; // this will result in error
+            } else {
+                begin++;
+            }
+            begin = parseLine(begin, end, 'm', organ.index);
+
+            while (begin < end) {
+                std::size_t Z = 0;
+                double w = 0;
+                begin = parseLine(begin, end, ' ', Z, w) + 1;
+                if (begin < end)
+                    organ.material_weights[Z / 1000] = std::abs(w);
+            }
+            return organ;
+        });
+
+        return organs;
+    }
+
+    static std::vector<Tetrahedron> readICRPPhantomGeometry(const std::string& nodeFile, const std::string& elementFile)
     {
         auto vertices = readVertices(nodeFile, 1, 80);
         auto nodes = readTetrahedalIndices(elementFile, 1, 80);

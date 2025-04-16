@@ -15,6 +15,7 @@ set(TEST_SOURCES
     "testmassenergytransfer.cpp"
     "testtriangulatedmesh.cpp"
     "testcollision.cpp"
+    "testtetrahedalmeshreader.cpp"
 )
 
 
