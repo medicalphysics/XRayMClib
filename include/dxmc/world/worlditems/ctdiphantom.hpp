@@ -43,7 +43,7 @@ public:
         : m_pmma(Material<NMaterialShells>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value())
         , m_air(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
     {
-        radius = std::abs(radius);
+        radius = std::max(std::abs(radius), holeRadii() * 6);
         height = std::max(std::abs(height), holeHeight());
         m_cylinder.center = pos;
         m_cylinder.direction = direction;
@@ -55,7 +55,7 @@ public:
 
         std::vector<CTDIAirHole> holes;
         holes.reserve(5);
-        std::array<double, 10> positions = { 0, 0, 0, 1, 1, 0, 0, -1, -1, 0 };
+        constexpr std::array<double, 10> positions = { 0, 0, 0, 1, 1, 0, 0, -1, -1, 0 };
         std::uint8_t index = 0;
         for (std::size_t i = 0; i < 10; i = i + 2) {
             const auto x = positions[i];
@@ -249,6 +249,11 @@ public:
     static constexpr double holeHeight() noexcept
     {
         return 10.0;
+    }
+
+    double height() const
+    {
+        return m_cylinder.half_height * 2;
     }
 
 protected:
