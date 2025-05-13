@@ -116,6 +116,8 @@ public:
     template <ParticleType P>
     void transport(P& p, RandomState& state) noexcept
     {
+        m_meanEnergyAccumulator.addEnergy(p.energy);
+
         if constexpr (std::is_same<P, ParticleTrack>::value) {
             m_tracker.registerParticle(p);
         }
@@ -204,12 +206,28 @@ protected:
     }
 
 private:
+    struct MeanEnergyAccumulator {
+        double energysum = 0;
+        std::uint64_t n_sum = 0;
+        void addEnergy(double e)
+        {
+            auto eref = std::atomic_ref(energysum);
+            eref.fetch_add(e, std::memory_order_relaxed);
+            auto nref = std::atomic_ref(n_sum);
+            nref.fetch_add(n_sum, std::memory_order_relaxed);
+        }
+        double meanEnergy() const
+        {
+            return n_sum > 0 ? energysum / n_sum : 0.0;
+        }
+    };
     double m_radius = 0;
     std::array<double, 3> m_center;
     Material<NMaterialShells> m_material;
     double m_materialDensity = 1;
     EnergyScore m_energyScored;
     DoseScore m_dose;
+    MeanEnergyAccumulator m_meanEnergyAccumulator;
     ParticleTracker m_tracker;
 };
 }
