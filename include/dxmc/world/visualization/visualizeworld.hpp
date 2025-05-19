@@ -536,6 +536,19 @@ protected:
 
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
+    void setColorOfLineProp(const std::array<U, 3>& color)
+    {
+        if constexpr (std::is_same<U, std::uint8_t>::value) {
+            m_propColor = color;
+        } else {
+            for (std::size_t i = 0; i < 3; ++i) {
+                m_propColor[i] = static_cast<std::uint8_t>(std::clamp(color[0], 0.0, 1.0) * 255);
+            }
+        }
+    }
+
+    template <typename U = std::uint8_t>
+        requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     std::array<U, 3> colorOfLineProp() const
     {
         if constexpr (std::is_same<U, std::uint8_t>::value) {
