@@ -48,6 +48,30 @@ struct TetrahedalMeshData {
     std::vector<double> collectionDensities;
     std::vector<std::map<std::size_t, double>> collectionMaterialComposition;
     std::vector<std::string> collectionNames;
+
+    auto maxCollectionNumber() const
+    {
+        auto iter = std::max_element(std::execution::par_unseq, collectionIndices.cbegin(), collectionIndices.cend());
+        return *iter;
+    }
+    bool valid() const
+    {
+        // test if element indices can index nodes
+        const auto n_nodes = nodes.size();
+        bool val = elements.cend() == std::find(std::execution::par_unseq, elements.cbegin(), elements.cend(), [n_nodes](const auto& element) {
+            bool v = true;
+            for (const auto& e : element)
+                v = v && e < n_nodes;
+            return !v;
+        });
+
+        // test if collection indices is complete
+        const auto max_idx = maxCollectionNumber()+1;
+        val = val && collectionDensities.size() == max_idx;
+        val = val && collectionMaterialComposition.size() == max_idx;
+        val = val && collectionNames.size()== max_idx;
+        return val;
+    }
 };
 
 template <int NMaterialShells = 5, int LOWENERGYCORRECTION = 2, bool FLUENCESCORING = true>
@@ -63,6 +87,7 @@ public:
 
     bool setData(const TetrahedalMeshData& data, std::array<std::size_t, 3> spacing)
     {
+        return false;
     }
 
     void translate(const std::array<double, 3>& vec)
@@ -71,7 +96,7 @@ public:
             m_aabb[i] += vec[i];
             m_aabb[i + 3] += vec[i];
         }
-        std::for_each(std::execution::par_unseq(m_nodes.begin(), m_nodes.end(), [&vec](auto& n){
+        std::for_each(std::execution::par_unseq, m_nodes.begin(), m_nodes.end(), [&vec](auto& n) {
             n = vectormath::add(n, vec);
         });
     }
@@ -90,14 +115,15 @@ public:
         return m_aabb;
     }
 
-    WorldIntersectionResult intersect(auto Particle& p) const
+    WorldIntersectionResult intersect(ParticleType auto& p) const
     { // not implemented
         return WorldIntersectionResult {};
     }
 
-    VisualizationIntersectionResult intersectVisualization(auto Particle& p) const
+    template <typename U>
+    VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     { // not implemented
-        return VisualizationIntersectionResult {};
+        return VisualizationIntersectionResult<U> {};
     }
     const EnergyScore& energyScored(std::size_t index) const
     {
@@ -123,7 +149,7 @@ public:
     {
     }
 
-    void transport(auto Particle& p, RandomState& state)
+    void transport(ParticleType auto& p, RandomState& state)
     { // not implemented
     }
 
@@ -154,6 +180,7 @@ private:
     std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
 
     std::vector<std::array<double, 3>> m_nodes;
+
     std::vector<std::array<std::size_t, 4>> m_elements;
     std::vector<std::uint16_t> m_collectionIndices;
     std::vector<EnergyScore> m_energyScore;

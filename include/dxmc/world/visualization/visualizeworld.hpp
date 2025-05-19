@@ -353,6 +353,15 @@ public:
             addColorBar(buffer, width, height);
     }
 
+    void setPropColor(const std::array<std::uint8_t, 3>& color)
+    {
+        m_propColor = color;
+    }
+    void setBackgroundColor(const std::array<std::uint8_t, 3>& color)
+    {
+        m_backgroundColor = color;
+    }
+
 protected:
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
@@ -531,19 +540,6 @@ protected:
                 return std::array<uint8_t, 3> { 0, 0, 0 };
             else
                 return std::array<double, 3> { 0, 0, 0 };
-        }
-    }
-
-    template <typename U = std::uint8_t>
-        requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
-    void setColorOfLineProp(const std::array<U, 3>& color)
-    {
-        if constexpr (std::is_same<U, std::uint8_t>::value) {
-            m_propColor = color;
-        } else {
-            for (std::size_t i = 0; i < 3; ++i) {
-                m_propColor[i] = static_cast<std::uint8_t>(std::clamp(color[0], 0.0, 1.0) * 255);
-            }
         }
     }
 

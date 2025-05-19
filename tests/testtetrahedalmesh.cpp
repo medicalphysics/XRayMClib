@@ -25,6 +25,7 @@ Copyright 2022 Erlend Andersen
 #include "dxmc/world/worlditems/aavoxelgrid.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh2.hpp"
 #include "dxmc/world/worlditems/worldbox.hpp"
 
 #include <iostream>
@@ -293,6 +294,75 @@ static dxmc::TetrahedalMesh<5, 1, FluenceScore> readICRP145Phantom(const std::ar
     return reader.getMesh(depth);
 }
 
+bool testtetmesh2()
+{
+    using TetMesh = dxmc::TetrahedalMesh2<5, 1, false>;
+    using Data = dxmc::TetrahedalMeshData;
+    using World = dxmc::World<TetMesh>;
+
+    std::vector<std::array<double, 3>> v(16);
+    v[0] = { -1, 1, 1 };
+    v[1] = { 1, -1, 1 };
+    v[2] = { 1, 1, 1 };
+    v[3] = { -1, -1, -1 };
+    v[4] = { 1, -1, -1 };
+    v[5] = { -1, -1, 1 };
+    v[6] = { -1, 1, -1 };
+    v[7] = { 1, 1, -1 };
+
+    v[8] = { -1, 1, 3 };
+    v[9] = { 1, -1, 3 };
+    v[10] = { 1, 1, 3 };
+    v[11] = { -1, -1, 1 };
+    v[12] = { 1, -1, 1 };
+    v[13] = { -1, -1, 3 };
+    v[14] = { -1, 1, 1 };
+    v[15] = { 1, 1, 1 };
+
+    std::vector<std::array<std::size_t, 4>> t(12);
+    t[0] = { 1, 7, 0, 2 }; //*
+    t[1] = { 7, 3, 0, 6 }; //*
+    t[2] = { 1, 3, 0, 4 }; //*
+    t[3] = { 1, 7, 4, 0 }; //*
+    t[4] = { 1, 3, 4, 0 }; //*
+    t[5] = { 1, 3, 5, 0 }; //*
+
+    t[6] = { 1 + 8, 7 + 8, 0 + 8, 2 + 8 }; //*
+    t[7] = { 7 + 8, 3 + 8, 0 + 8, 6 + 8 }; //*
+    t[8] = { 1 + 8, 3 + 8, 0 + 8, 4 + 8 }; //*
+    t[9] = { 1 + 8, 7 + 8, 4 + 8, 0 + 8 }; //*
+    t[10] = { 7 + 8, 3 + 8, 4 + 8, 0 + 8 }; //*
+    t[11] = { 1 + 8, 3 + 8, 5 + 8, 0 + 8 }; //*
+
+    Data data;
+    data.nodes = v;
+    data.elements = t;
+    data.collectionIndices.resize(t.size(), 0);
+    data.collectionDensities.resize(t.size(), 1);
+    data.collectionMaterialComposition.resize(1, { { { 6, 1 } } });
+    data.collectionNames.resize(1, "Carbon");
+    TetMesh mesh(data);
+
+    World world;
+    world.addItem(mesh, "Doctor");
+    world.build();
+
+    using Beam = dxmc::DXBeam<>;
+    const std::array<double, 3> source_pos = { 0, 100, 0 };
+    Beam beam(source_pos);
+    beam.setDirectionCosines({ 1, 0, 0 }, { 0, 0, 1 });
+    beam.setBeamSize(20, 100, 100);
+    beam.setNumberOfExposures(48);
+    beam.setNumberOfParticlesPerExposure(100000);
+
+    std::cout << "Max node count: " << doctor.maxThetrahedronsVoxelCount() << std::endl;
+
+    dxmc::Transport transport;
+    auto time = transport.runConsole(world, beam, 0, true);
+    std::cout << "Time: " << time << std::endl;
+    return false;
+}
+
 void testICRP145Phantom()
 {
     constexpr bool FLUENCE = true;
@@ -342,6 +412,7 @@ int main()
     // testICRP145Phantom();
 
     bool success = true;
+    success = success && testtetmesh2();
     success = success && testIntersection();
     success = success && testTransport();
     if (success)
