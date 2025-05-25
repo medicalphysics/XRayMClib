@@ -1748,10 +1748,11 @@ Arguments argparse(int argc, char* argv[])
                 args.filename = arg;
             } else {
                 args.exit = true;
-                std::cout << "Binding correction type must be specified, see --help\n";
+                std::cout << "Filename must be specified, see --help\n";
                 return args;
             }
         }
+
         i++;
     }
     return args;
