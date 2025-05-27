@@ -8,16 +8,16 @@ if(DXMCLIB_EPICS_DATA_DIRPATH)
     SET(DXMCLIB_EPICS_DATA_EPDLPATH "${DXMCLIB_EPICS_DATA_DIRPATH}/EPDL2025.ALL" CACHE FILEPATH "Path to EPDL2025.ALL" FORCE)
     SET(DXMCLIB_EPICS_DATA_EADLPATH "${DXMCLIB_EPICS_DATA_DIRPATH}/EADL2025.ALL" CACHE FILEPATH "Path to EADL2025.ALL" FORCE)
 
-    SET(DXMCLIB_EPICS_DOWNLOAD OFF CACHE BOOL "Download EPICS data from https://www-nds.iaea.org/epics/ if necessary.")
+    SET(DXMCLIB_EPICS_DOWNLOAD OFF CACHE BOOL "Download EPICS data from https://nuclear.llnl.gov/EPICS/ENDL2025 if necessary.")
 
     #CHECK IF EPICS DATAFILES EXISTS
     if(NOT EXISTS "${DXMCLIB_EPICS_DATA_EPDLPATH}" AND "${DXMCLIB_EPICS_DOWNLOAD}" )
         MESSAGE("Downloading EPDL")
-        FILE(DOWNLOAD "https://www-nds.iaea.org/epics/ENDL2023/EPDL2025.ALL" "${DXMCLIB_EPICS_DATA_EPDLPATH}" SHOW_PROGRESS)
+        FILE(DOWNLOAD "https://nuclear.llnl.gov/EPICS/ENDL2025/EPDL2025.ALL" "${DXMCLIB_EPICS_DATA_EPDLPATH}" SHOW_PROGRESS)
     endif()
     if(NOT EXISTS "${DXMCLIB_EPICS_DATA_EADLPATH}" AND "${DXMCLIB_EPICS_DOWNLOAD}" )
         MESSAGE("Downloading EADL")
-        FILE(DOWNLOAD "https://www-nds.iaea.org/epics/ENDL2023/EADL2025.ALL" "${DXMCLIB_EPICS_DATA_EADLPATH}" SHOW_PROGRESS)
+        FILE(DOWNLOAD "https://nuclear.llnl.gov/EPICS/ENDL2025/EADL2025.ALL" "${DXMCLIB_EPICS_DATA_EADLPATH}" SHOW_PROGRESS)
     endif()
 
     if(NOT EXISTS "${DXMCLIB_EPICS_DATA_EADLPATH}" OR NOT EXISTS "${DXMCLIB_EPICS_DATA_EPDLPATH}")
@@ -59,7 +59,7 @@ add_custom_command(TARGET EPICSparser PRE_BUILD
     COMMENT "Copying standarddensities.csv to ${CMAKE_CURRENT_BINARY_DIR}/standarddensities.csv"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/standarddensities.csv
-            ${CMAKE_CURRENT_BINARY_DIR}/standarddensities.csv
+            "$<TARGET_FILE_DIR:EPICSparser>/standarddensities.csv"
 )
 
 ## Copying Compton profiles since this data is lacking from EPICS data
@@ -67,7 +67,7 @@ add_custom_command(TARGET EPICSparser PRE_BUILD
     COMMENT "Copying ComptonProfiles.dat to ${CMAKE_CURRENT_BINARY_DIR}/ComptonProfiles.dat"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/ComptonProfiles.dat
-            ${CMAKE_CURRENT_BINARY_DIR}/ComptonProfiles.dat
+            "$<TARGET_FILE_DIR:EPICSparser>/ComptonProfiles.dat"
 )
 
 ## make parsed EPICS data available to all binaries consuming dxmc on build machine
