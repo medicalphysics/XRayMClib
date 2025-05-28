@@ -69,6 +69,22 @@ add_custom_command(TARGET EPICSparser PRE_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/ComptonProfiles.dat
             "$<TARGET_FILE_DIR:EPICSparser>/ComptonProfiles.dat"
 )
+# Copying standard densities for all elements up to 92
+add_custom_command(TARGET EPICSparser PRE_BUILD
+COMMENT "Copying standarddensities.csv to ${CMAKE_CURRENT_BINARY_DIR}/standarddensities.csv"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/standarddensities.csv
+            ${CMAKE_CURRENT_BINARY_DIR}/standarddensities.csv
+)
+
+## Copying Compton profiles since this data is lacking from EPICS data
+add_custom_command(TARGET EPICSparser PRE_BUILD
+    COMMENT "Copying ComptonProfiles.dat to ${CMAKE_CURRENT_BINARY_DIR}/ComptonProfiles.dat"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/ComptonProfiles.dat
+            ${CMAKE_CURRENT_BINARY_DIR}/ComptonProfiles.dat
+)
+
 
 ## make parsed EPICS data available to all binaries consuming dxmc on build machine
 target_compile_definitions(libdxmc INTERFACE DXMCLIB_PHYSICSLISTSPATH="${DXMCLIB_EPICS_PHYSICSLISTS}")
