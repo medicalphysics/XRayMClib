@@ -117,10 +117,11 @@ namespace interactions {
             const auto e_min = 1 / (1 + 2 * k);
             const auto g_max = 1 / e_min + e_min;
             double g;
+
             do {
                 const double r1 = state.randomUniform();
                 e = r1 + (1 - r1) * e_min;
-                cosTheta = 1 - (1 - e) / (e * k);
+                cosTheta = 1 - std::min((1 - e) / (k * e), 2.0); // to prevent rounding errors with arg > 2 (better way?)
                 const double sinThetaSqr = 1 - cosTheta * cosTheta;
                 g = 1 / e + e - sinThetaSqr;
             } while (state.randomUniform(g_max) > g);
