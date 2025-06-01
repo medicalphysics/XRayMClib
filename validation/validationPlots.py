@@ -36,7 +36,7 @@ def readData(filename="validationTable.txt"):
         print(
             "Warning: Found {} NaN values or missing data, dropping rows".format(nNaN)
         )
-        return dt.dropna()
+        dt = dt.dropna()
 
     # Making TG195 results an own model
     m_series = dt["Model"].value_counts().sort_values(ascending=False)
@@ -68,13 +68,12 @@ def readData(filename="validationTable.txt"):
         if m not in present_models:
             HUE_ORDER.remove(m)
 
-    return df
     # adding errors for seaborn
-    # df_max = df[df["Model"] != "TG195"][df["Case"] != "Case 4.2"].copy()
-    # df_max["Result"] += 1.96 * df_max["Stddev"]
-    # df_min = df[df["Model"] != "TG195"].copy()
-    # df_min["Result"] -= 1.96 * df_max["Stddev"]
-    # return pd.concat([df, df_min, df_max], ignore_index=True)
+    df_max = df[df["Model"] != "TG195"][df["Case"] != "Case 4.2"].copy()
+    df_max["Result"] += 1.96 * df_max["Stddev"]
+    df_min = df[df["Model"] != "TG195"].copy()
+    df_min["Result"] -= 1.96 * df_max["Stddev"]
+    return pd.concat([df, df_min, df_max], ignore_index=True)
 
 
 def readAllData(filelist: list):
