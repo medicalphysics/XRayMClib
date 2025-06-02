@@ -27,6 +27,9 @@ import re
 
 HUE_ORDER = list(["NoneLC", "Livermore", "IA", "TG195"])
 
+plt.rcParams["font.family"] = "Times New Roman"
+sns.set_theme(palette="husl", font="Times New Roman", style="ticks")
+
 
 def readData(filename="validationTable.txt"):
     converters = {"Result": float, "Stddev": float, "SimulationTime": float}
@@ -83,7 +86,12 @@ def readAllData(filelist: list):
     return pd.concat(dfs, ignore_index=True)
 
 
-def fix_axis(fg, rotate_labels=True, ylabel="Energy [eV/history]", set_y0=False):
+def fix_axis(
+    fg,
+    rotate_labels=True,
+    ylabel=r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$",
+    set_y0=False,
+):
     if set_y0:
         fg.set(ylim=(0, None))
     fg.set_axis_labels(y_var=ylabel)
@@ -114,8 +122,9 @@ def plotCase1(dt_full, kind="strip", show=False):
             kind=kind,
             errorbar=lambda x: (x.min(), x.max()),
         )
+        ylabel = r"$\mathdefault{KERMA}_{\mathdefault{Air}} $ per history"
 
-        fix_axis(g, ylabel="KERMA per history")
+        fix_axis(g, ylabel=ylabel)
 
         plt.savefig("plots/Case1_{}.png".format(m), dpi=300)
         if show:
