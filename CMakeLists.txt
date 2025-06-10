@@ -126,6 +126,8 @@ set(HEADER_LIST
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangle.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshdata.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"    
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshkdtree.hpp" 

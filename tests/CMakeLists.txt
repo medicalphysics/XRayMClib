@@ -16,6 +16,7 @@ set(TEST_SOURCES
     "testtriangulatedmesh.cpp"
     "testcollision.cpp"
     "testtetrahedalmeshreader.cpp"
+    "testtetrahedalmesh2.cpp"
 )
 
 
