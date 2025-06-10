@@ -20,6 +20,7 @@ Copyright 2023 Erlend Andersen
 
 #include "dxmc/particle.hpp"
 #include "dxmc/vectormath.hpp"
+#include "dxmc/world/basicshapes/aabb.hpp"
 #include "dxmc/world/visualizationintersectionresult.hpp"
 #include "dxmc/world/worldintersectionresult.hpp"
 
@@ -72,158 +73,213 @@ namespace basicshape {
 
         static bool triangleAABBoverlap(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 6>& aabb)
         {
-
-            // heller denne
-
-            // https://github.com/gszauer/GamePhysicsCookbook/blob/master/Code/Geometry3D.cpp linje 1000
+            // test for a triangle overlapping a AABB
 
             // https://michael-schwarz.com/research/publ/files/vox-siga10.pdf
-            auto normal = normalVector(v0, v1, v2);
+            const auto normal = normalVector(v0, v1, v2);
 
             const auto& [p, pd] = vectormath::splice(aabb);
-            auto d_aabb = vectormath::subtract(pd, p);
-            /*std::array d_aabb = {
-                aabb[3] - aabb[0],
-                aabb[4] - aabb[1],
-                aabb[5] - aabb[2]
-            };*/
-            std::array c = {
+            const auto d_aabb = vectormath::subtract(pd, p);
+
+            const std::array c = {
                 normal[0] > 0 ? d_aabb[0] : 0.0,
                 normal[1] > 0 ? d_aabb[1] : 0.0,
                 normal[2] > 0 ? d_aabb[2] : 0.0,
             };
 
-            auto d1 = vectormath::dot(normal, vectormath::subtract(c, v0));
-            auto d2 = vectormath::dot(normal, vectormath::subtract(vectormath::subtract(d_aabb, c), v0));
+            const auto d1 = vectormath::dot(normal, vectormath::subtract(c, v0));
+            const auto d2 = vectormath::dot(normal, vectormath::subtract(vectormath::subtract(d_aabb, c), v0));
 
-            auto np = vectormath::dot(normal, p);
-            bool overlap = (np + d1) * (np + d2) <= 0;
+            const auto np = vectormath::dot(normal, p);
+            const bool overlap = (np + d1) * (np + d2) <= 0;
             if (overlap) {
+                const std::array<std::array<double, 3>, 3> edges = {
+                    vectormath::subtract(v1, v0),
+                    vectormath::subtract(v2, v1),
+                    vectormath::subtract(v0, v2)
+                };
+                const std::array<std::array<double, 3>, 3> vertices = {
+                    v0,
+                    v1,
+                    v2
+                };
 
-                auto e0 = vectormath::subtract(v1, v0);
-                auto e1 = vectormath::subtract(v2, v1);
-                auto e2 = vectormath::subtract(v0, v2);
                 // XY
-                std::array n_e0 = { -e0[1], e0[0] };
-                if (normal[2] < 0)
-                    n_e0 = { e0[1], -e0[0] };
-                auto d_e0 = -(n_e0[0] * v0[0] + n_e0[1] * v0[1]) + std::max(0.0, d_aabb[0] * n_e0[0]) + std::max(0.0, d_aabb[1] * n_e0[1]);
-                overlap = overlap && (n_e0[0] * p[0] + n_e0[1] * p[1] + d_e0) >= 0;
-                auto d_e1 = -(n_e0[0] * v1[0] + n_e0[1] * v1[1]) + std::max(0.0, d_aabb[0] * n_e0[0]) + std::max(0.0, d_aabb[1] * n_e0[1]);
-                overlap = overlap && (n_e0[0] * p[0] + n_e0[1] * p[1] + d_e1) >= 0;
-                auto d_e0 = -(n_e0[0] * v2[0] + n_e0[1] * v2[1]) + std::max(0.0, d_aabb[0] * n_e0[0]) + std::max(0.0, d_aabb[1] * n_e0[1]);
-                overlap = overlap && (n_e0[0] * p[0] + n_e0[1] * p[1] + d_e2) >= 0;
+                bool overlap_xy = true;
+                for (std::size_t i = 0; i < 3; ++i) {
+                    const auto& e = edges[i];
+                    const auto& v = vertices[i];
+                    std::array n_e = { -e[1], e[0] };
+                    if (normal[2] < 0) {
+                        n_e[0] *= -1;
+                        n_e[1] *= -1;
+                    }
+
+                    const auto d_e = -(n_e[0] * v[0] + n_e[1] * v[1]) + std::max(0.0, d_aabb[0] * n_e[0]) + std::max(0.0, d_aabb[1] * n_e[1]);
+                    const auto res_xy = (n_e[0] * p[0] + n_e[1] * p[1] + d_e);
+                    overlap_xy = overlap_xy && res_xy >= 0;
+                }
+
+                // XZ
+                bool overlap_xz = true;
+                for (std::size_t i = 0; i < 3; ++i) {
+                    const auto& e = edges[i];
+                    const auto& v = vertices[i];
+                    std::array n_e = { -e[2], e[0] };
+                    if (normal[1] < 0) {
+                        n_e[0] *= -1;
+                        n_e[1] *= -1;
+                    }
+
+                    const auto d_e = -(n_e[0] * v[0] + n_e[1] * v[2]) + std::max(0.0, d_aabb[0] * n_e[0]) + std::max(0.0, d_aabb[2] * n_e[1]);
+                    const auto res_xz = (n_e[0] * p[0] + n_e[1] * p[2] + d_e);
+                    overlap_xz = overlap_xz && res_xz >= 0;
+                }
+                // YZ
+                bool overlap_yz = true;
+                for (std::size_t i = 0; i < 3; ++i) {
+                    const auto& e = edges[i];
+                    const auto& v = vertices[i];
+                    std::array n_e = { -e[2], e[1] };
+                    if (normal[1] < 0) {
+                        n_e[0] *= -1;
+                        n_e[1] *= -1;
+                    }
+
+                    const auto d_e = -(n_e[0] * v[1] + n_e[1] * v[2]) + std::max(0.0, d_aabb[1] * n_e[0]) + std::max(0.0, d_aabb[2] * n_e[1]);
+                    const auto res_yz = (n_e[0] * p[1] + n_e[1] * p[2] + d_e);
+                    overlap_yz = overlap_yz && res_yz >= 0;
+                }
+                return overlap_xy || overlap_xz || overlap_yz;
             }
+            return overlap;
         }
-    }
 
-    static constexpr bool insideAABB(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 6>& aabb)
-    {
-        bool outside = true;
-        for (std::size_t i = 0; i < 3; ++i) {
-            outside = outside && (v0[i] > aabb[i + 3] || v0[i] < aabb[i]);
-            outside = outside && (v1[i] > aabb[i + 3] || v1[i] < aabb[i]);
-            outside = outside && (v2[i] > aabb[i + 3] || v2[i] < aabb[i]);
-            outside = outside && (v3[i] > aabb[i + 3] || v3[i] < aabb[i]);
-        }
-        return !outside;
-    }
+        static constexpr bool insideAABB(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 6>& aabb)
+        {
 
-    static double volume(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3)
-    {
-        const auto a = vectormath::subtract(v1, v0);
-        const auto b = vectormath::subtract(v2, v0);
-        const auto c = vectormath::subtract(v3, v0);
-        static constexpr double scale = 1.0 / 6.0;
-        return scale * std::abs(vectormath::tripleProduct(a, b, c));
-    }
+            const std::array<double, 6> tetAABB = {
+                std::min({ v0[0], v1[0], v2[0], v3[0] }),
+                std::min({ v0[1], v1[1], v2[1], v3[1] }),
+                std::min({ v0[2], v1[2], v2[2], v3[2] }),
+                std::max({ v0[0], v1[0], v2[0], v3[0] }),
+                std::max({ v0[1], v1[1], v2[1], v3[1] }),
+                std::max({ v0[2], v1[2], v2[2], v3[2] })
+            };
+            const bool overlap = AABB::overlap(aabb, tetAABB);
 
-    static std::optional<double> intersectTriangle(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const ParticleType auto& p)
-    {
-        const auto E1 = vectormath::subtract(v1, v0);
-        const auto TT = vectormath::subtract(p.pos, v0);
-        const auto Q = vectormath::cross(TT, E1);
-
-        const auto E2 = vectormath::subtract(v2, v0);
-        const auto P = vectormath::cross(p.dir, E2);
-
-        const auto det_inv = 1 / vectormath::dot(P, E1);
-
-        const auto v = vectormath::dot(Q, p.dir) * det_inv;
-        const auto u = vectormath::dot(P, TT) * det_inv;
-
-        return v >= 0 && u >= 0 && (u + v) <= 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
-                                                : std::nullopt;
-    }
-
-    static WorldIntersectionResult intersect(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
-    {
-
-        const std::array<std::optional<double>, 4> hits = {
-            intersectTriangle(v0, v1, v2, particle),
-            intersectTriangle(v1, v0, v3, particle),
-            intersectTriangle(v2, v3, v0, particle),
-            intersectTriangle(v3, v2, v1, particle)
-        };
-
-        auto chit = std::numeric_limits<double>::max();
-        for (const auto& h : hits) {
-            if (h) {
-                if (*h > 0)
-                    chit = std::min(*h, chit);
+            if (overlap) {
+                // test if the 4 triangles intersect the AABB
+                const bool tri_overlap1 = triangleAABBoverlap(v0, v1, v2, aabb);
+                const bool tri_overlap2 = triangleAABBoverlap(v1, v0, v3, aabb);
+                const bool tri_overlap3 = triangleAABBoverlap(v2, v3, v0, aabb);
+                const bool tri_overlap4 = triangleAABBoverlap(v3, v2, v1, aabb);
+                const bool tri_overlap = tri_overlap1 || tri_overlap2 || tri_overlap3 || tri_overlap4;
+           
+                if (!tri_overlap) { // if no intersection test for a point in aabb is inside tetrahedron
+                    const std::array point = { aabb[0], aabb[1], aabb[2] };
+                    return pointInside(v0, v1, v2, v3, point);
+                } else
+                    return true;
             }
+            return overlap;
         }
 
-        WorldIntersectionResult res;
-        if (chit < std::numeric_limits<double>::max()) {
-            res.rayOriginIsInsideItem = pointInside(v0, v1, v2, v3, particle.pos);
-            res.intersection = chit;
-            res.intersectionValid = true;
+        static double volume(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3)
+        {
+            const auto a = vectormath::subtract(v1, v0);
+            const auto b = vectormath::subtract(v2, v0);
+            const auto c = vectormath::subtract(v3, v0);
+            static constexpr double scale = 1.0 / 6.0;
+            return scale * std::abs(vectormath::tripleProduct(a, b, c));
         }
-        return res;
-    }
 
-    template <typename U>
-    VisualizationIntersectionResult<U> intersectVisualization(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
-    {
+        static std::optional<double> intersectTriangle(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const ParticleType auto& p)
+        {
+            const auto E1 = vectormath::subtract(v1, v0);
+            const auto TT = vectormath::subtract(p.pos, v0);
+            const auto Q = vectormath::cross(TT, E1);
 
-        const std::array<std::optional<double>, 4> hits = {
-            intersectTriangle(v0, v1, v2, particle),
-            intersectTriangle(v1, v0, v3, particle),
-            intersectTriangle(v2, v3, v0, particle),
-            intersectTriangle(v3, v2, v1, particle)
-        };
+            const auto E2 = vectormath::subtract(v2, v0);
+            const auto P = vectormath::cross(p.dir, E2);
 
-        auto chit = std::numeric_limits<double>::max();
-        int normalIdx = 0;
-        for (int i = 0; i < 4; ++i) {
-            if (auto h = *(hits[i]); hits[i]) {
-                if (h > 0) {
-                    if (h < chit) {
-                        chit = h;
-                        normalIdx = i;
+            const auto det_inv = 1 / vectormath::dot(P, E1);
+
+            const auto v = vectormath::dot(Q, p.dir) * det_inv;
+            const auto u = vectormath::dot(P, TT) * det_inv;
+
+            return v >= 0 && u >= 0 && (u + v) <= 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
+                                                    : std::nullopt;
+        }
+
+        static WorldIntersectionResult intersect(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
+        {
+
+            const std::array<std::optional<double>, 4> hits = {
+                intersectTriangle(v0, v1, v2, particle),
+                intersectTriangle(v1, v0, v3, particle),
+                intersectTriangle(v2, v3, v0, particle),
+                intersectTriangle(v3, v2, v1, particle)
+            };
+
+            auto chit = std::numeric_limits<double>::max();
+            for (const auto& h : hits) {
+                if (h) {
+                    if (*h > 0)
+                        chit = std::min(*h, chit);
+                }
+            }
+
+            WorldIntersectionResult res;
+            if (chit < std::numeric_limits<double>::max()) {
+                res.rayOriginIsInsideItem = pointInside(v0, v1, v2, v3, particle.pos);
+                res.intersection = chit;
+                res.intersectionValid = true;
+            }
+            return res;
+        }
+
+        template <typename U>
+        VisualizationIntersectionResult<U> intersectVisualization(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
+        {
+
+            const std::array<std::optional<double>, 4> hits = {
+                intersectTriangle(v0, v1, v2, particle),
+                intersectTriangle(v1, v0, v3, particle),
+                intersectTriangle(v2, v3, v0, particle),
+                intersectTriangle(v3, v2, v1, particle)
+            };
+
+            auto chit = std::numeric_limits<double>::max();
+            int normalIdx = 0;
+            for (int i = 0; i < 4; ++i) {
+                if (auto h = *(hits[i]); hits[i]) {
+                    if (h > 0) {
+                        if (h < chit) {
+                            chit = h;
+                            normalIdx = i;
+                        }
                     }
                 }
             }
+
+            VisualizationIntersectionResult<U> res;
+            if (chit < std::numeric_limits<double>::max()) {
+                res.rayOriginIsInsideItem = pointInside(v0, v1, v2, v3, particle.pos);
+                res.intersection = chit;
+                res.intersectionValid = true;
+                if (normalIdx == 0)
+                    res.normal = normalVector<true>(v0, v1, v2);
+                else if (normalIdx == 1)
+                    res.normal = normalVector<true>(v1, v0, v3);
+                else if (normalIdx == 2)
+                    res.normal = normalVector<true>(v2, v3, v0);
+                else
+                    res.normal = normalVector<true>(v3, v2, v1);
+            }
+            return res;
         }
 
-        VisualizationIntersectionResult<U> res;
-        if (chit < std::numeric_limits<double>::max()) {
-            res.rayOriginIsInsideItem = pointInside(v0, v1, v2, v3, particle.pos);
-            res.intersection = chit;
-            res.intersectionValid = true;
-            if (normalIdx == 0)
-                res.normal = normalVector<true>(v0, v1, v2);
-            else if (normalIdx == 1)
-                res.normal = normalVector<true>(v1, v0, v3);
-            else if (normalIdx == 2)
-                res.normal = normalVector<true>(v2, v3, v0);
-            else
-                res.normal = normalVector<true>(v3, v2, v1);
-        }
-        return res;
-    }
-
-} // namespace tetrahedron
+    } // namespace tetrahedron
 }
 }

@@ -163,8 +163,8 @@ private:
 
     std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
     std::array<double, 3> m_gridSpacing = { 1, 1, 1 };
-    std::array<std::uint32_t, 3> m_gridDimensions = { 8, 8, 8 };
+    std::array<std::uint32_t, 3> m_gridDimensions = { 2, 2, 2 };
     std::vector<std::uint32_t> m_gridIndices; // same size as grid;
-    std::vector<std::uint32_t> m_gridElements; // most likly larger than elements
+    std::vector<std::uint32_t> m_gridElements; // most likely larger than elements
 };
 }

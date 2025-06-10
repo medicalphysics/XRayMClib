@@ -18,6 +18,7 @@ Copyright 2025 Erlend Andersen
 
 #include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshdata.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshreader2.hpp"
 
 #include <iostream>
 #include <string>
@@ -84,6 +85,8 @@ bool testTetrahedalMeshGrid()
 
 int main()
 {
+
+    dxmc::TetrahedalmeshReader2 testreader(R"C:\Users\ander\OneDrive\tetgentest\torus.1.node", R"C:\Users\ander\OneDrive\tetgentest\torus.1.ele");
 
     bool success = true;
 
