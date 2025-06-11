@@ -79,18 +79,33 @@ bool testTetrahedalMeshGrid()
 
     auto data = tetCube();
 
-    dxmc::TetrahedalMeshGrid2 grid(data);
+    // dxmc::TetrahedalMeshGrid2 grid(data);
     return false;
 }
 
 int main()
 {
 
-    dxmc::TetrahedalmeshReader2 testreader(R"C:\Users\ander\OneDrive\tetgentest\torus.1.node", R"C:\Users\ander\OneDrive\tetgentest\torus.1.ele");
+    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+
+    // dxmc::TetrahedalmeshReader2 testreader(node_file, element_file, material_file, organ_file);
+
+    node_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.node";
+    element_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.ele";
+    dxmc::TetrahedalmeshReader2 testreader(node_file, element_file);
+    dxmc::TetrahedalMeshGrid2 grid(testreader.data(), { 32, 32, 16 });
+
+    auto test = grid.pointInside({ -1, 0, 0 });
+
+    dxmc::Particle p { .pos = { 0, -100, 0 }, .dir = { 0, 1, 0 } };
+    auto res = grid.intersect(p);
 
     bool success = true;
 
-    auto data = tetCube();
+    // auto data = tetCube();
     success = success && testTetrahedalMeshGrid();
     if (success)
         return EXIT_SUCCESS;

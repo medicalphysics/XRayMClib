@@ -34,7 +34,7 @@ struct TetrahedalMeshData {
 
     // specify collection/organ properties
     std::vector<double> collectionDensities;
-    std::vector<std::map<std::uint32_t, double>> collectionMaterialComposition;
+    std::vector<std::map<std::size_t, double>> collectionMaterialComposition;
     std::vector<std::string> collectionNames;
 
     auto maxCollectionNumber() const

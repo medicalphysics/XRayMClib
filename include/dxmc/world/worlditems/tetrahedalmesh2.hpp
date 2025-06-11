@@ -31,6 +31,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/world/energyscore.hpp"
 #include "dxmc/world/visualizationintersectionresult.hpp"
 #include "dxmc/world/worldintersectionresult.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
 
 #include <array>
 #include <string>
@@ -39,92 +40,94 @@ Copyright 2023 Erlend Andersen
 
 namespace dxmc {
 
-struct TetrahedalMeshData {
-    std::vector<std::array<double, 3>> nodes;
-    std::vector<std::array<std::size_t, 4>> elements;
-    std::vector<std::size_t> collectionIndices; // same size as elements
-
-    // specify collection/organ properties
-    std::vector<double> collectionDensities;
-    std::vector<std::map<std::size_t, double>> collectionMaterialComposition;
-    std::vector<std::string> collectionNames;
-
-    auto maxCollectionNumber() const
-    {
-        auto iter = std::max_element(std::execution::par_unseq, collectionIndices.cbegin(), collectionIndices.cend());
-        return *iter;
-    }
-    bool valid() const
-    {
-        // test if element indices can index nodes
-        const auto n_nodes = nodes.size();
-        bool val = elements.cend() == std::find(std::execution::par_unseq, elements.cbegin(), elements.cend(), [n_nodes](const auto& element) {
-            bool v = true;
-            for (const auto& e : element)
-                v = v && e < n_nodes;
-            return !v;
-        });
-
-        // test if collection indices is complete
-        const auto max_idx = maxCollectionNumber()+1;
-        val = val && collectionDensities.size() == max_idx;
-        val = val && collectionMaterialComposition.size() == max_idx;
-        val = val && collectionNames.size()== max_idx;
-        return val;
-    }
-};
-
 template <int NMaterialShells = 5, int LOWENERGYCORRECTION = 2, bool FLUENCESCORING = true>
 class TetrahedalMesh2 {
 public:
     TetrahedalMesh2()
     {
     }
-    TetrahedalMesh2(const TetrahedalMeshData& data, std::array<std::size_t, 3> spacing = { 128, 128, 128 })
+    TetrahedalMesh2(const TetrahedalMeshData& data, std::array<uint32_t, 3> dimensions = { 128, 128, 128 })
     {
-        setData(data, spacing);
+        setData(data, dimensions);
     }
 
-    bool setData(const TetrahedalMeshData& data, std::array<std::size_t, 3> spacing)
+    bool setData(const TetrahedalMeshData& data, std::array<std::uint32_t, 3> dimensions)
     {
-        return false;
+        if (!data.valid())
+            return false;
+
+        m_collectionMaterials.clear();
+        m_collectionMaterials.reserve(data.collectionMaterialComposition.size());
+        for (const auto& weights : data.collectionMaterialComposition) {
+            auto mat_opt = dxmc::Material<NMaterialShells>::byWeight(weights);
+            if (mat_opt)
+                m_collectionMaterials.push_back(mat_opt.value());
+            else
+                return false;
+        }
+
+        m_grid.setData(data, dimensions);
+        m_collectionIdx = data.collectionIndices;
+        m_collectionDensities = data.collectionDensities;
+        m_collectionNames = data.collectionNames;
+        m_doseScore.resize(m_collectionIdx.size());
+        m_energyScore.resize(m_collectionIdx.size());
     }
 
     void translate(const std::array<double, 3>& vec)
     {
-        for (std::size_t i = 0; i < 3; ++i) {
-            m_aabb[i] += vec[i];
-            m_aabb[i + 3] += vec[i];
-        }
-        std::for_each(std::execution::par_unseq, m_nodes.begin(), m_nodes.end(), [&vec](auto& n) {
-            n = vectormath::add(n, vec);
-        });
+        m_grid.translate(vec);
     }
 
     std::array<double, 3> center() const
     {
+        const auto& aabb = m_grid.AABB();
         std::array<double, 3> c = {
-            (m_aabb[0] + m_aabb[3]) * 0.5,
-            (m_aabb[1] + m_aabb[4]) * 0.5,
-            (m_aabb[2] + m_aabb[5]) * 0.5
+            (aabb[0] + aabb[3]) * 0.5,
+            (aabb[1] + aabb[4]) * 0.5,
+            (aabb[2] + aabb[5]) * 0.5
         };
         return c;
     }
     const std::array<double, 6>& AABB() const
     {
-        return m_aabb;
+        return m_grid.AABB();
     }
 
     WorldIntersectionResult intersect(ParticleType auto& p) const
-    { // not implemented
-        return WorldIntersectionResult {};
+    {
+        WorldIntersectionResult res;
+        if (const auto kres = m_grid.intersect(p); kres.valid()) {
+            res.intersection = kres.intersection;
+            res.rayOriginIsInsideItem = kres.rayOriginIsInsideItem;
+            res.intersectionValid = kres.valid();
+        }
+        return res;
     }
 
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
-    { // not implemented
-        return VisualizationIntersectionResult<U> {};
+    {
+        VisualizationIntersectionResult<U> res;
+        if (const auto kres = m_grid.intersect(p); kres.valid()) {
+            res.intersection = kres.intersection;
+            res.rayOriginIsInsideItem = kres.rayOriginIsInsideItem;
+            res.intersectionValid = kres.valid();
+            const auto index = *res.item;
+            res.value = m_doseScore[index].dose();
+            const auto hit_pos = vectormath::add(p.pos, vectormath::scale(p.dir, kres.intersection));
+
+            const auto& elements = m_grid.elements();
+            const auto& nodes = m_grid.nodes();
+            const auto& v0 = m_nodes[m_elements[index][0]];
+            const auto& v1 = m_nodes[m_elements[index][1]];
+            const auto& v2 = m_nodes[m_elements[index][2]];
+            const auto& v3 = m_nodes[m_elements[index][3]];
+            res.normal = basicshape::tetrahedron::closestNormalToPoint(v0, v1, v2, v3, hit_pos);
+        }
+        return res;
     }
+
     const EnergyScore& energyScored(std::size_t index) const
     {
         return m_energyScore.at(index);
@@ -147,10 +150,37 @@ public:
     }
     void addEnergyScoredToDoseScore(double factor)
     {
+        auto elementVolumes = m_grid.volumes();
+        std::vector<double> elementDensity(elementVolumes.size());
+        std::transform(std::execution::par_unseq, m_collectionIdx.cbegin(), m_collectionIdx.cend(), elementDensity.begin(), [&](const auto collIdx) {
+            return m_collectionDensities[collIdx];
+        });
+
+        for (std::size_t i = 0; i < elementVolumes.size(); ++i) {
+            m_doseScore[i].addScoredEnergy(m_energyScore[i], elementVolumes[i], elementDensity[i], factor);
+        }
     }
 
-    void transport(ParticleType auto& p, RandomState& state)
-    { // not implemented
+    template <ParticleType P>
+    void transport(P& p, RandomState& state)
+    {
+        if constexpr (std::is_same_v<P, ParticleTrack>) {
+            m_tracker.registerParticle(p);
+        }
+        if constexpr (FLUENCESCORING)
+            transportSiddonForced(p, state);
+        else
+            transportWoodcock(p, state);
+    }
+
+    const ParticleTracker& particleTracker() const
+    {
+        return m_tracker;
+    }
+
+    ParticleTracker& particleTracker()
+    {
+        return m_tracker;
     }
 
 protected:
@@ -176,18 +206,127 @@ protected:
         }
     }
 
+    void generateWoodcockStepTable()
+    {
+        std::vector<double> energy;
+        {
+            auto e = std::log(MIN_ENERGY());
+            const auto emax = std::log(MAX_ENERGY());
+            const auto estep = (emax - e) / 10;
+            while (e <= emax) {
+                energy.push_back(e);
+                e += estep;
+            }
+        }
+        // adding edges;
+        for (const auto& mat : m_collectionMaterials) {
+            for (std::size_t i = 0; i < mat.numberOfShells(); ++i) {
+                const auto& shell = mat.shell(i);
+                const auto e = shell.bindingEnergy + 0.01;
+                if (e > MIN_ENERGY()) {
+                    energy.push_back(std::log(e));
+                }
+            }
+        }
+        std::sort(energy.begin(), energy.end());
+        auto remove = std::unique(energy.begin(), energy.end());
+        energy.erase(remove, energy.end());
+        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), energy.begin(), [](const auto e) { return std::exp(e); });
+
+        // finding max attenuation for each energy
+        std::vector<double> att(energy.size(), 0.0);
+        for (std::size_t mIdx = 0; mIdx < m_collectionMaterials.size(); ++mIdx) {
+            const auto& mat = m_collectionMaterials[mIdx];
+            const auto d = m_collectionDensities[mIdx];
+            for (std::size_t i = 0; i < energy.size(); ++i) {
+                const auto aval = mat.attenuationValues(energy[i]);
+                att[i] = std::max(aval.sum() * d, att[i]);
+            }
+        }
+
+        m_woodcockStepTableLin.resize(energy.size());
+        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), att.cbegin(), m_woodcockStepTableLin.begin(), [](const auto e, const auto a) {
+            return std::make_pair(e, a);
+        });
+    }
+
+    void transportWoodcock(ParticleType auto& p, RandomState& state)
+    {
+        bool still_inside = true;
+        double attMaxInv;
+        bool updateAtt = true;
+        while (still_inside) {
+            if (updateAtt) {
+                attMaxInv = 1 / interpolate(m_woodcockStepTableLin, p.energy);
+                updateAtt = false;
+            }
+
+            // making interaction step
+            const auto steplen = -std::log(state.randomUniform()) * attMaxInv;
+            p.translate(steplen);
+
+            // finding current tet
+            const auto tetIdx = m_grid.pointInside(p.pos);
+
+            if (tetIdx) { // is interaction virtual?
+                const auto collIdx = m_collectionIdx[tetIdx.value()];
+                const auto attenuation = m_collectionMaterials[collIdx].attenuationValues(p.energy);
+                const auto attSum = attenuation.sum() * m_collectionDensities[collIdx];
+                if (state.randomUniform() < attSum * attMaxInv) {
+                    // we have a real interaction
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_materials[materialIdx], state);
+                    m_energyScore[tetIdx].scoreEnergy(intRes.energyImparted);
+                    still_inside = intRes.particleAlive;
+                    updateAtt = intRes.particleEnergyChanged;
+                }
+            } else {
+                // we are outside item, backtrack and return
+                const Particle pback = { .pos = p.pos, .dir = vectormath::scale(p.dir, -1.0) };
+                const auto inter_back = intersect(pback);
+                if (inter_back.valid()) {
+                    p.border_translate(-inter_back.intersection);
+                }
+                still_inside = false;
+            }
+        }
+    }
+    void transportSiddonForced(ParticleType auto& p, RandomState& state)
+    {
+        auto tetIdx_cand = m_grid.pointInside(p.pos);
+
+        const auto& elements = m_grid.elements();
+        const auto& nodes = m_grid.nodes();
+
+        while (tetIdx_cand) {
+            const auto tetIdx = tetIdx_cand.value();
+            const auto collIdx = m_collectionIdx[tetIdx];
+            const auto& material = m_collectionMaterials[collIdx];
+            const auto& density = m_collectionDensities[collIdx];
+
+            const auto& v0 = m_nodes[m_elements[tetIdx][0]];
+            const auto& v1 = m_nodes[m_elements[tetIdx][1]];
+            const auto& v2 = m_nodes[m_elements[tetIdx][2]];
+            const auto& v3 = m_nodes[m_elements[tetIdx][3]];
+
+            const auto intLen = basicshape::tetrahedron::intersect(v0, v1, v2, v3, p).intersection; // this must be valid
+            const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(intLen, density, p, material, state);
+            m_energyScore[tetIdx].scoreEnergy(intRes.energyImparted);
+            tetIdx_cand = intRes.particleAlive ? m_grid.pointInside(p.pos) : std::nullopt;
+        }
+    }
+
 private:
-    std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
-
-    std::vector<std::array<double, 3>> m_nodes;
-
-    std::vector<std::array<std::size_t, 4>> m_elements;
-    std::vector<std::uint16_t> m_collectionIndices;
+    TetrahedalMeshGrid2 m_grid;
+    std::vector<std::uint32_t> m_collectionIdx;
     std::vector<EnergyScore> m_energyScore;
     std::vector<DoseScore> m_doseScore;
+
+    std::vector<std::pair<double, double>> m_woodcockStepTableLin;
 
     std::vector<double> m_collectionDensities;
     std::vector<Material<NMaterialShells>> m_collectionMaterials;
     std::vector<std::string> m_collectionNames;
+
+    ParticleTracker m_tracker;
 };
 }

@@ -175,12 +175,15 @@ namespace basicshape {
                 const bool tri_overlap3 = triangleAABBoverlap(v2, v3, v0, aabb);
                 const bool tri_overlap4 = triangleAABBoverlap(v3, v2, v1, aabb);
                 const bool tri_overlap = tri_overlap1 || tri_overlap2 || tri_overlap3 || tri_overlap4;
-           
+                return tri_overlap;
+
+                /* Is this needed?
                 if (!tri_overlap) { // if no intersection test for a point in aabb is inside tetrahedron
                     const std::array point = { aabb[0], aabb[1], aabb[2] };
                     return pointInside(v0, v1, v2, v3, point);
                 } else
                     return true;
+                */
             }
             return overlap;
         }
@@ -192,6 +195,25 @@ namespace basicshape {
             const auto c = vectormath::subtract(v3, v0);
             static constexpr double scale = 1.0 / 6.0;
             return scale * std::abs(vectormath::tripleProduct(a, b, c));
+        }
+
+        static std::array<double, 3> closestNormalToPoint(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& p)
+        {
+            const std::array<std::array<double, 3>, 4> normals = {
+                normalVector<false>(v0, v1, v2),
+                normalVector<false>(v1, v0, v3),
+                normalVector<false>(v2, v3, v0),
+                normalVector<false>(v3, v2, v1)
+            };
+
+            const std::array<double, 4> dist = {
+                std::abs(vectormath::dot(normals[0], vectormath::subtract(p, v0))),
+                std::abs(vectormath::dot(normals[1], vectormath::subtract(p, v1))),
+                std::abs(vectormath::dot(normals[2], vectormath::subtract(p, v2))),
+                std::abs(vectormath::dot(normals[3], vectormath::subtract(p, v3))),
+            };
+            auto ind = std::min_element(dist.cbegin(), dist.cend());
+            return normals[std::distance(dist.cbegin(), ind)];
         }
 
         static std::optional<double> intersectTriangle(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const ParticleType auto& p)

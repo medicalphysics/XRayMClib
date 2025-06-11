@@ -35,7 +35,15 @@ namespace dxmc {
 class TetrahedalMeshGrid2 {
 
 public:
-    TetrahedalMeshGrid2() { }
+    TetrahedalMeshGrid2(const std::array<std::uint32_t, 3>& dimensions = { 8, 8, 8 })
+        : m_gridDimensions(dimensions)
+    {
+    }
+    TetrahedalMeshGrid2(const TetrahedalMeshData& data, const std::array<std::uint32_t, 3>& dimensions)
+        : m_gridDimensions(dimensions)
+    {
+        setData(data);
+    }
     TetrahedalMeshGrid2(const TetrahedalMeshData& data)
     {
         setData(data);
@@ -47,8 +55,172 @@ public:
         calculateAABB();
         updateGrid();
     }
+    void setData(const TetrahedalMeshData& data, const std::array<std::uint32_t, 3>& dimensions)
+    {
+        m_gridDimensions = dimensions;
+        m_nodes = data.nodes;
+        m_elements = data.elements;
+        calculateAABB();
+        updateGrid();
+    }
+    void setDimensions(const std::array<std::uint32_t, 3>& dimensions)
+    {
+        m_gridDimensions = dimensions;
+        updateGrid();
+    }
+
+    const auto& dimensions() const
+    {
+        return m_gridDimensions;
+    }
+
+    const std::array<double, 6>& AABB() const
+    {
+        return m_aabb;
+    }
+
+    void translate(const std::array<double, 3>& vec)
+    {
+        for (std::size_t i = 0; i < 3; ++i) {
+            m_aabb[i] += vec[i];
+            m_aabb[i + 3] += vec[i];
+        }
+        std::for_each(std::execution::par_unseq, m_nodes.begin(), m_nodes.end(), [&vec](auto& n) {
+            n = vectormath::add(n, vec);
+        });
+    }
+
+    std::array<std::uint32_t, 3> gridIndex(const std::array<double, 3>& p) const
+    {
+        std::array<std::uint32_t, 3> d = {
+            static_cast<std::uint32_t>(std::clamp((p[0] - m_aabb[0]) / m_gridSpacing[0], 0.0, static_cast<double>(m_gridDimensions[0] - 1))),
+            static_cast<std::uint32_t>(std::clamp((p[1] - m_aabb[1]) / m_gridSpacing[1], 0.0, static_cast<double>(m_gridDimensions[1] - 1))),
+            static_cast<std::uint32_t>(std::clamp((p[2] - m_aabb[2]) / m_gridSpacing[2], 0.0, static_cast<double>(m_gridDimensions[2] - 1)))
+        };
+        return d;
+    }
+    std::uint32_t gridIndex(const std::array<std::uint32_t, 3>& ind) const
+    {
+        return ind[0] + m_gridDimensions[0] * (ind[1] + m_gridDimensions[1] * ind[2]);
+    }
+    std::uint32_t numberOfTetrahedrons(std::uint32_t index) const
+    {
+        auto start = m_gridIndices[index];
+        auto stop = m_gridIndices[index + 1];
+        return stop - start;
+    }
+
+    const std::vector<std::array<double, 3>>& nodes() const
+    {
+        return m_nodes;
+    }
+    const std::vector<std::array<std::uint32_t, 4>>& elements() const
+    {
+        return m_elements;
+    }
+
+    std::vector<double> volumes() const
+    {
+        std::vector<double> v(m_elements.size());
+        std::transform(std::execution::par_unseq, m_elements.cbegin(), m_elements.cend(), v.begin(), [&](const auto& e) {
+            const auto& v0 = m_nodes[e[0]];
+            const auto& v1 = m_nodes[e[1]];
+            const auto& v2 = m_nodes[e[2]];
+            const auto& v3 = m_nodes[e[3]];
+            return basicshape::tetrahedron::volume(v0, v1, v2, v3);
+        });
+        return v;
+    }
+
+    std::optional<std::uint32_t> pointInside(const std::array<double, 3>& pos) const
+    {
+        const auto gridIdx = gridIndex(gridIndex(pos));
+        const auto start = m_gridIndices[gridIdx];
+        const auto stop = m_gridIndices[gridIdx + 1];
+
+        for (auto i = start; i < stop; ++i) {
+            auto elIdx = m_gridElements[i];
+            const auto& v0 = m_nodes[m_elements[elIdx][0]];
+            const auto& v1 = m_nodes[m_elements[elIdx][1]];
+            const auto& v2 = m_nodes[m_elements[elIdx][2]];
+            const auto& v3 = m_nodes[m_elements[elIdx][3]];
+            if (basicshape::tetrahedron::pointInside(v0, v1, v2, v3, pos)) {
+                return elIdx;
+            }
+        }
+        return std::nullopt;
+    }
+
+    KDTreeIntersectionResult<const std::uint32_t> intersect(const ParticleType auto& particle) const
+    {
+        const auto inter = basicshape::AABB::intersectForwardInterval<false>(particle, m_aabb);
+        return inter ? intersect(particle, *inter) : KDTreeIntersectionResult<const std::uint32_t> {};
+    }
 
 protected:
+    static inline int argmin3(const std::array<double, 3>& a)
+    {
+        return a[0] < a[2] ? a[0] < a[1] ? 0 : 1 : a[2] < a[1] ? 2
+                                                               : 1;
+    }
+
+    KDTreeIntersectionResult<const std::uint32_t> intersect(const ParticleType auto& p, const std::array<double, 2>& t) const
+    {
+        auto idx = gridIndex(vectormath::add(p.pos, vectormath::scale(p.dir, t[0])));
+        const std::array<int, 3> step = {
+            p.dir[0] < 0 ? -1 : 1,
+            p.dir[1] < 0 ? -1 : 1,
+            p.dir[2] < 0 ? -1 : 1
+        };
+        const std::array<double, 3> delta = {
+            m_gridSpacing[0] / std::abs(p.dir[0]),
+            m_gridSpacing[1] / std::abs(p.dir[1]),
+            m_gridSpacing[2] / std::abs(p.dir[2])
+        };
+
+        std::array<double, 3> tmax;
+        for (int i = 0; i < 3; ++i) {
+            tmax[i] = step[i] > 0 ? (m_aabb[i] + (idx[i] + 1) * m_gridSpacing[i] - p.pos[i]) / p.dir[i] : (m_aabb[i] + idx[i] * m_gridSpacing[i] - p.pos[i]) / p.dir[i];
+        };
+
+        int dimension = argmin3(tmax);
+        KDTreeIntersectionResult<const std::uint32_t> res;
+        res.intersection = std::numeric_limits<double>::max();
+        bool cont = true;
+        while (cont) {
+            // we have a valid voxel, check intersections
+            const auto grid_ind = gridIndex(idx);
+            for (auto flat_idx = m_gridIndices[grid_ind]; flat_idx < m_gridIndices[grid_ind + 1]; ++flat_idx) {
+                const auto elementIdx = m_gridElements[flat_idx];
+                const auto& v0 = m_nodes[m_elements[elementIdx][0]];
+                const auto& v1 = m_nodes[m_elements[elementIdx][1]];
+                const auto& v2 = m_nodes[m_elements[elementIdx][2]];
+                const auto& v3 = m_nodes[m_elements[elementIdx][3]];
+
+                const auto res_cand = basicshape::tetrahedron::intersect(v0, v1, v2, v3, p);
+                if (res_cand.valid() && res_cand.intersection <= tmax[dimension] && res_cand.intersection < res.intersection) {
+                    res.intersection = res_cand.intersection;
+                    res.rayOriginIsInsideItem = res_cand.rayOriginIsInsideItem;
+                    res.item = &m_gridElements[flat_idx];
+                    if (res.rayOriginIsInsideItem) // early exit if we are inside tet
+                        return res;
+                }
+            }
+            if (res.valid()) {
+                cont = false;
+            } else {
+                idx[dimension] += step[dimension];
+                if (idx[dimension] < m_gridDimensions[dimension]) { // we test for less than zero by overflow
+                    tmax[dimension] += delta[dimension];
+                    dimension = argmin3(tmax);
+                } else {
+                    cont = false;
+                }
+            }
+        }
+        return res;
+    }
+
     void calculateAABB()
     {
         m_aabb = {
@@ -65,29 +237,15 @@ protected:
                 m_aabb[i + 3] = std::max(m_aabb[i + 3], p[i]);
             }
         }
+
         // padding AABB
         for (std::size_t i = 0; i < 3; ++i) {
             m_aabb[i] -= GEOMETRIC_ERROR();
             m_aabb[i + 3] += GEOMETRIC_ERROR();
         }
-
         // update grid resolution
         for (std::size_t i = 0; i < 3; ++i)
             m_gridSpacing[i] = (m_aabb[i + 3] - m_aabb[i]) / m_gridDimensions[i];
-    }
-
-    std::array<std::uint32_t, 3> gridIndex(const std::array<double, 3>& p) const
-    {
-        std::array<std::uint32_t, 3> d = {
-            static_cast<std::uint32_t>((p[0] - m_aabb[0]) / m_gridSpacing[0]),
-            static_cast<std::uint32_t>((p[1] - m_aabb[1]) / m_gridSpacing[1]),
-            static_cast<std::uint32_t>((p[2] - m_aabb[2]) / m_gridSpacing[2])
-        };
-        return d;
-    }
-    std::uint32_t gridIndex(const std::array<std::uint32_t, 3>& ind) const
-    {
-        return ind[0] + m_gridDimensions[0] * (ind[1] + m_gridDimensions[1] * ind[2]);
     }
 
     void updateGrid()
@@ -116,11 +274,11 @@ protected:
                     for (std::uint32_t x = find[0]; x <= rind[0]; ++x) {
                         std::array<double, 6> vox_aabb = {
                             x * m_gridSpacing[0] + m_aabb[0],
-                            x * m_gridSpacing[1] + m_aabb[1],
-                            x * m_gridSpacing[2] + m_aabb[2],
+                            y * m_gridSpacing[1] + m_aabb[1],
+                            z * m_gridSpacing[2] + m_aabb[2],
                             (x + 1) * m_gridSpacing[0] + m_aabb[0],
-                            (x + 1) * m_gridSpacing[1] + m_aabb[1],
-                            (x + 1) * m_gridSpacing[2] + m_aabb[2],
+                            (y + 1) * m_gridSpacing[1] + m_aabb[1],
+                            (z + 1) * m_gridSpacing[2] + m_aabb[2],
                         };
                         const auto& v0 = m_nodes[m_elements[i][0]];
                         const auto& v1 = m_nodes[m_elements[i][1]];
@@ -163,8 +321,8 @@ private:
 
     std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
     std::array<double, 3> m_gridSpacing = { 1, 1, 1 };
-    std::array<std::uint32_t, 3> m_gridDimensions = { 2, 2, 2 };
-    std::vector<std::uint32_t> m_gridIndices; // same size as grid;
+    std::array<std::uint32_t, 3> m_gridDimensions = { 8, 8, 8 };
+    std::vector<std::uint32_t> m_gridIndices; // same size as grid + 1;
     std::vector<std::uint32_t> m_gridElements; // most likely larger than elements
 };
 }
