@@ -72,6 +72,7 @@ public:
         m_collectionNames = data.collectionNames;
         m_doseScore.resize(m_collectionIdx.size());
         m_energyScore.resize(m_collectionIdx.size());
+        return true;
     }
 
     void translate(const std::array<double, 3>& vec)
@@ -113,16 +114,17 @@ public:
             res.intersection = kres.intersection;
             res.rayOriginIsInsideItem = kres.rayOriginIsInsideItem;
             res.intersectionValid = kres.valid();
-            const auto index = *res.item;
-            res.value = m_doseScore[index].dose();
+            const auto index = *kres.item;
+            const auto& dose = m_doseScore[index];
+            res.value = dose.dose();
             const auto hit_pos = vectormath::add(p.pos, vectormath::scale(p.dir, kres.intersection));
 
             const auto& elements = m_grid.elements();
             const auto& nodes = m_grid.nodes();
-            const auto& v0 = m_nodes[m_elements[index][0]];
-            const auto& v1 = m_nodes[m_elements[index][1]];
-            const auto& v2 = m_nodes[m_elements[index][2]];
-            const auto& v3 = m_nodes[m_elements[index][3]];
+            const auto& v0 = nodes[elements[index][0]];
+            const auto& v1 = nodes[elements[index][1]];
+            const auto& v2 = nodes[elements[index][2]];
+            const auto& v3 = nodes[elements[index][3]];
             res.normal = basicshape::tetrahedron::closestNormalToPoint(v0, v1, v2, v3, hit_pos);
         }
         return res;
@@ -184,28 +186,6 @@ public:
     }
 
 protected:
-    void computeAABB()
-    {
-        m_aabb = {
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::lowest(),
-            std::numeric_limits<double>::lowest(),
-            std::numeric_limits<double>::lowest(),
-        };
-        for (const auto& n : m_nodes) {
-            for (std::size_t i = 0; i < 3; ++i) {
-                m_aabb[i] = std::min(m_aabb[i], n[i]);
-                m_aabb[i + 3] = std::max(m_aabb[i + 3], n[i]);
-            }
-        }
-        for (std::size_t i = 0; i < 3; ++i) {
-            m_aabb[i] -= GEOMETRIC_ERROR();
-            m_aabb[i + 3] += GEOMETRIC_ERROR();
-        }
-    }
-
     void generateWoodcockStepTable()
     {
         std::vector<double> energy;
@@ -274,7 +254,7 @@ protected:
                 const auto attSum = attenuation.sum() * m_collectionDensities[collIdx];
                 if (state.randomUniform() < attSum * attMaxInv) {
                     // we have a real interaction
-                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_materials[materialIdx], state);
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_collectionMaterials[collIdx], state);
                     m_energyScore[tetIdx].scoreEnergy(intRes.energyImparted);
                     still_inside = intRes.particleAlive;
                     updateAtt = intRes.particleEnergyChanged;
@@ -303,10 +283,10 @@ protected:
             const auto& material = m_collectionMaterials[collIdx];
             const auto& density = m_collectionDensities[collIdx];
 
-            const auto& v0 = m_nodes[m_elements[tetIdx][0]];
-            const auto& v1 = m_nodes[m_elements[tetIdx][1]];
-            const auto& v2 = m_nodes[m_elements[tetIdx][2]];
-            const auto& v3 = m_nodes[m_elements[tetIdx][3]];
+            const auto& v0 = nodes[elements[tetIdx][0]];
+            const auto& v1 = nodes[elements[tetIdx][1]];
+            const auto& v2 = nodes[elements[tetIdx][2]];
+            const auto& v3 = nodes[elements[tetIdx][3]];
 
             const auto intLen = basicshape::tetrahedron::intersect(v0, v1, v2, v3, p).intersection; // this must be valid
             const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(intLen, density, p, material, state);
