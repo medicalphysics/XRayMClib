@@ -90,6 +90,15 @@ public:
         });
     }
 
+    void rotate(const std::array<double, 3>& axis, double angle)
+    {
+        std::transform(std::execution::par_unseq, m_nodes.cbegin(), m_nodes.cend(), m_nodes.begin(), [angle, &axis](const auto& v) {
+            return vectormath::rotate(v, axis, angle);
+        });
+        calculateAABB();
+        updateGrid();
+    }
+
     std::array<std::uint32_t, 3> gridIndex(const std::array<double, 3>& p) const
     {
         std::array<std::uint32_t, 3> d = {

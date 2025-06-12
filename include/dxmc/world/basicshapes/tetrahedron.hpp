@@ -74,7 +74,6 @@ namespace basicshape {
         static bool triangleAABBoverlap(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 6>& aabb)
         {
             // test for a triangle overlapping a AABB
-
             // https://michael-schwarz.com/research/publ/files/vox-siga10.pdf
             const auto normal = normalVector(v0, v1, v2);
 
@@ -177,7 +176,7 @@ namespace basicshape {
                 const bool tri_overlap = tri_overlap1 || tri_overlap2 || tri_overlap3 || tri_overlap4;
                 return tri_overlap;
 
-                /* Is this needed?
+                /* Is this needed, will we miss tetrahedrons covering a whole grid element?
                 if (!tri_overlap) { // if no intersection test for a point in aabb is inside tetrahedron
                     const std::array point = { aabb[0], aabb[1], aabb[2] };
                     return pointInside(v0, v1, v2, v3, point);
@@ -200,10 +199,10 @@ namespace basicshape {
         static std::array<double, 3> closestNormalToPoint(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& p)
         {
             const std::array<std::array<double, 3>, 4> normals = {
-                normalVector<false>(v0, v1, v2),
-                normalVector<false>(v1, v0, v3),
-                normalVector<false>(v2, v3, v0),
-                normalVector<false>(v3, v2, v1)
+                normalVector<true>(v0, v1, v2),
+                normalVector<true>(v1, v0, v3),
+                normalVector<true>(v2, v3, v0),
+                normalVector<true>(v3, v2, v1)
             };
 
             const std::array<double, 4> dist = {

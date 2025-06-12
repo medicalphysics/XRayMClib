@@ -83,6 +83,13 @@ public:
         m_data = TetrahedalMeshData {};
     }
 
+    void rotate(const std::array<double, 3>& axis, double angle)
+    {
+        std::transform(std::execution::par_unseq, m_data.nodes.cbegin(), m_data.nodes.cend(), m_data.nodes.begin(), [angle, &axis](const auto& v) {
+            return vectormath::rotate(v, axis, angle);
+        });
+    }
+
 protected:
     struct ICRPCollection {
         std::uint32_t index = 0;
