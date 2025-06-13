@@ -260,7 +260,7 @@ protected:
                 if (state.randomUniform() < attSum * attMaxInv) {
                     // we have a real interaction
                     const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_collectionMaterials[collIdx], state);
-                    m_energyScore[tetIdx].scoreEnergy(intRes.energyImparted);
+                    m_energyScore[tetIdx.value()].scoreEnergy(intRes.energyImparted);
                     still_inside = intRes.particleAlive;
                     updateAtt = intRes.particleEnergyChanged;
                 }
