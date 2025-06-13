@@ -308,9 +308,11 @@ protected:
         });
 
         // assigning grid Indexes
+        m_gridIndices.clear();
         m_gridIndices.resize(N + 1, 0);
 
         auto N_indices = std::transform_reduce(std::execution::par_unseq, indices.cbegin(), indices.cend(), std::size_t { 0 }, std::plus {}, [](const auto& i_vec) { return i_vec.size(); });
+        m_gridElements.clear();
         m_gridElements.reserve(N_indices);
 
         std::uint32_t teller = 0;
