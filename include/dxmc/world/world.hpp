@@ -231,6 +231,15 @@ public:
         }
     }
 
+    void build(const std::array<double, 6>& aabb)
+    {
+        build();
+        for (std::size_t i = 0; i < 3; ++i) {
+            m_aabb[i] = std::min(m_aabb[i], aabb[i]);
+            m_aabb[i + 3] = std::max(m_aabb[i + 3], aabb[i + 3]);
+        }
+    }
+
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;

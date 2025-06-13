@@ -159,7 +159,7 @@ public:
 
     void rotate(const double angle, const std::array<double, 3>& axis)
     {
-        const std::array offset = center();
+        constexpr std::array<double, 3> offset = { 0, 0, 0 };
         rotate(angle, axis, offset);
     }
 
