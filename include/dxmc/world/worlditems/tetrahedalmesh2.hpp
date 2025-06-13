@@ -95,7 +95,7 @@ public:
         return m_grid.AABB();
     }
 
-    WorldIntersectionResult intersect(ParticleType auto& p) const
+    WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         WorldIntersectionResult res;
         if (const auto kres = m_grid.intersect(p); kres.valid()) {
