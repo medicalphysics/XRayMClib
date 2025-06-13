@@ -72,6 +72,9 @@ public:
         m_collectionNames = data.collectionNames;
         m_doseScore.resize(m_collectionIdx.size());
         m_energyScore.resize(m_collectionIdx.size());
+        if constexpr (!FLUENCESCORING) {
+            generateWoodcockStepTable();
+        }
         return true;
     }
 
