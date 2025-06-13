@@ -34,18 +34,18 @@ Copyright 2025 Erlend Andersen
 
 namespace dxmc {
 
-class TetrahedalmeshReader2 {
+class TetrahedalMeshReader2 {
 public:
-    TetrahedalmeshReader2() { }
+    TetrahedalMeshReader2() { }
 
-    TetrahedalmeshReader2(const std::string& nodeFile, const std::string& elementFile)
+    TetrahedalMeshReader2(const std::string& nodeFile, const std::string& elementFile)
     {
         readNodes(nodeFile);
         readElements(elementFile);
         auto coll = genericCollection();
         m_valid = mergeTetAndCollData(coll);
     }
-    TetrahedalmeshReader2(
+    TetrahedalMeshReader2(
         const std::string& nodeFile,
         const std::string& elementFile,
         const std::string& matfilePath,
@@ -57,7 +57,7 @@ public:
         m_valid = mergeTetAndCollData(coll);
     }
 
-    TetrahedalmeshReader2(
+    TetrahedalMeshReader2(
         const std::string& nodeFile,
         const std::string& elementFile,
         const std::string& matorganfilePath)

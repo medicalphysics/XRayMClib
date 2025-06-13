@@ -90,14 +90,14 @@ void showPhantom()
 {
     // std::string node_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.node";
     // std::string element_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.ele";
-    // dxmc::TetrahedalmeshReader2 testreader(node_file, element_file);
+    // dxmc::TetrahedalMeshReader2 testreader(node_file, element_file);
 
     std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
     std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
     std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
     std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    dxmc::TetrahedalmeshReader2 testreader(node_file, element_file, material_file, organ_file);
+    dxmc::TetrahedalMeshReader2 testreader(node_file, element_file, material_file, organ_file);
 
     using Mesh = dxmc::TetrahedalMesh2<5, 2, false>;
     dxmc::World<Mesh> world;
@@ -125,13 +125,13 @@ int main()
         std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
         std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-        // dxmc::TetrahedalmeshReader2 testreader(node_file, element_file, material_file, organ_file);
+        // dxmc::TetrahedalMeshReader2 testreader(node_file, element_file, material_file, organ_file);
 
 
 
         node_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.node";
         element_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.ele";
-        dxmc::TetrahedalmeshReader2 testreader(node_file, element_file);
+        dxmc::TetrahedalMeshReader2 testreader(node_file, element_file);
         dxmc::TetrahedalMeshGrid2 grid(testreader.data(), { 32, 32, 16 });
 
         auto test = grid.pointInside({ -1, 0, 0 });
