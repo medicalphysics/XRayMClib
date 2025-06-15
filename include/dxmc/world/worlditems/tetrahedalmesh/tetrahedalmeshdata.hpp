@@ -58,9 +58,21 @@ struct TetrahedalMeshData {
         // test if collection indices is complete
         const auto max_idx = maxCollectionNumber() + 1;
         val = val && collectionDensities.size() == max_idx;
-        // val = val && collectionMaterialComposition.size() == max_idx;
+        val = val && collectionMaterialComposition.size() == max_idx;
         val = val && collectionNames.size() == max_idx;
         return val;
+    }
+
+    void makeGenericCollectionNames()
+    {
+        const auto N = maxCollectionNumber() + 1;
+        if (collectionNames.size() < N)
+            collectionNames.resize(N);
+        for (std::size_t i = 0; i < N; ++i) {
+            if (collectionNames[i].empty()) {
+                collectionNames[i] = "Generic name " + std::to_string(i + 1);
+            }
+        }
     }
 };
 }

@@ -18,10 +18,10 @@ Copyright 2025 Erlend Andersen
 
 #include "dxmc/world/visualization/visualizeworld.hpp"
 #include "dxmc/world/world.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh2.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshdata.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshreader2.hpp"
 
 #include <iostream>
 #include <string>
@@ -97,7 +97,7 @@ void showPhantom()
     std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
     std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    dxmc::TetrahedalMeshReader2 testreader(node_file, element_file, material_file, organ_file);
+    dxmc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
     using Mesh = dxmc::TetrahedalMesh2<5, 2, false>;
     dxmc::World<Mesh> world;

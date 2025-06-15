@@ -29,6 +29,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/vectormath.hpp"
 #include "dxmc/world/dosescore.hpp"
 #include "dxmc/world/energyscore.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
 
@@ -53,14 +54,43 @@ public:
     {
     }
 
-    TetrahedalMesh(const std::vector<Tetrahedron>& tets, const std::vector<double>& collectionDensities, const std::vector<Material<NMaterialShells>>& materials, const std::vector<std::string>& collectionNames = {}, std::array<int, 3> depth = { 8, 8, 8 })
+    TetrahedalMesh(const TetrahedalMeshData& data, std::array<int, 3> dimensions = { 8, 8, 8 })
     {
-        setData(tets, collectionDensities, materials, collectionNames, depth);
+        setData(data, dimensions);
     }
 
-    TetrahedalMesh(const std::vector<Tetrahedron>& tets, const std::vector<double>& collectionDensities, const std::vector<Material<NMaterialShells>>& materials, const std::vector<std::string>& collectionNames = {}, int max_depth = 8)
+    bool setData(const TetrahedalMeshData& data, std::array<int, 3> dimensions)
     {
-        setData(tets, collectionDensities, materials, collectionNames, { max_depth, max_depth, max_depth });
+        if (!data.valid())
+            return false;
+
+        std::vector<Tetrahedron> tets(data.elements.size());
+        std::transform(std::execution::par_unseq, data.elements.cbegin(), data.elements.cend(), data.collectionIndices.cbegin(), tets.begin(), [&data](const auto& e, const auto idx) {
+            const auto& v0 = data.nodes[e[0]];
+            const auto& v1 = data.nodes[e[1]];
+            const auto& v2 = data.nodes[e[2]];
+            const auto& v3 = data.nodes[e[3]];
+            return Tetrahedron { v0, v1, v2, v3, static_cast<std::uint16_t>(idx) };
+        });
+
+        m_collectionDensity = data.collectionDensities;
+
+        m_collectionMaterial.clear();
+        m_collectionMaterial.reserve(data.collectionMaterialComposition.size());
+        for (const auto& weights : data.collectionMaterialComposition) {
+            auto mat_opt = dxmc::Material<NMaterialShells>::byWeight(weights);
+            if (mat_opt)
+                m_collectionMaterial.push_back(mat_opt.value());
+            else
+                return false;
+        }
+
+        m_grid.setData(tets, dimensions);
+
+        if constexpr (!FLUENCESCORING) {
+            generateWoodcockStepTable();
+        }
+        return true;
     }
 
     bool setData(const std::vector<Tetrahedron>& tets, const std::vector<double>& collectionDensities, const std::vector<Material<NMaterialShells>>& materials, const std::vector<std::string>& collectionNames = {}, std::array<int, 3> depth = { 8, 8, 8 })
@@ -76,8 +106,8 @@ public:
             [](const auto& t) { return t.materialIndex(); });
         if (collectionDensities.size() <= maxCollectionIdx || materials.size() <= maxMaterialIdx)
             return false;
-        m_materials = materials;
-        m_collections.reserve(collectionDensities.size());
+        m_collectionMaterial = materials;
+        m_collectionDensity.reserve(collectionDensities.size());
 
         std::vector<std::atomic<double>> volumes(maxCollectionIdx + 1);
         std::for_each(std::execution::par_unseq, volumes.begin(), volumes.end(), [](auto& v) { v.store(double { 0 }); });
@@ -89,13 +119,13 @@ public:
         for (std::size_t i = 0; i <= maxCollectionIdx; ++i) {
             const auto d = collectionDensities[i];
             const auto v = volumes[i].load();
-            m_collections.emplace_back(d, v);
+            m_collectionDensity.emplace_back(d, v);
         }
 
-        if (collectionNames.size() == m_collections.size())
+        if (collectionNames.size() == m_collectionDensity.size())
             m_collectionNames = collectionNames;
         else
-            m_collectionNames.resize(m_collections.size());
+            m_collectionNames.resize(m_collectionDensity.size());
 
         m_grid.setData(tets, depth);
 
@@ -166,7 +196,7 @@ public:
         auto& tets = m_grid.tetrahedrons();
         std::for_each(std::execution::par_unseq, tets.begin(), tets.end(), [calibration_factor, this](auto& tet) {
             const auto cidx = tet.collection();
-            const auto dens = this->m_collections[cidx].density;
+            const auto dens = this->m_collectionDensity[cidx];
             tet.addEnergyScoredToDoseScore(dens, calibration_factor);
         });
     }
@@ -194,8 +224,7 @@ public:
             transportWoodcock(p, state);
     }
 
-    std::size_t numberOfCollections() const { return m_collections.size(); }
-    std::size_t numberOfMaterials() const { return m_materials.size(); }
+    std::size_t numberOfCollections() const { return m_collectionDensity.size(); }
     std::size_t numberOfTetrahedra() const { return m_grid.tetrahedrons().size(); }
     const std::vector<Tetrahedron>& tetrahedrons() const
     {
@@ -208,10 +237,10 @@ public:
 
     std::vector<TetrahedalMeshCollection> collectionData() const
     {
-        std::vector<TetrahedalMeshCollection> data(m_collections.size());
+        std::vector<TetrahedalMeshCollection> data(m_collectionDensity.size());
         const auto& tets = m_grid.tetrahedrons();
-        for (std::size_t i = 0; i < m_collections.size(); ++i) {
-            data[i].density = m_collections[i].density;
+        for (std::size_t i = 0; i < m_collectionDensity.size(); ++i) {
+            data[i].density = m_collectionDensity[i].density;
             data[i].name = m_collectionNames[i];
             const auto collectionIdx = static_cast<std::uint16_t>(i);
             data[i].volume = std::transform_reduce(std::execution::par_unseq, tets.cbegin(), tets.cend(), 0.0, std::plus {}, [collectionIdx](const auto& t) -> double {
@@ -237,8 +266,8 @@ public:
 
     void setMaterial(const Material<NMaterialShells>& material, std::size_t index)
     {
-        if (index < m_materials.size())
-            m_materials[index] = material;
+        if (index < m_collectionMaterial.size())
+            m_collectionMaterial[index] = material;
     }
 
     const ParticleTracker& particleTracker() const
@@ -265,7 +294,7 @@ protected:
             }
         }
         // adding edges;
-        for (const auto& mat : m_materials) {
+        for (const auto& mat : m_collectionMaterial) {
             for (std::size_t i = 0; i < mat.numberOfShells(); ++i) {
                 const auto& shell = mat.shell(i);
                 const auto e = shell.bindingEnergy + 0.01;
@@ -279,19 +308,11 @@ protected:
         energy.erase(remove, energy.end());
         std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), energy.begin(), [](const auto e) { return std::exp(e); });
 
-        // finding max density for each material;
-        std::vector<double> dens(m_materials.size(), 0.0);
-        for (const auto& tet : m_grid.tetrahedrons()) {
-            const auto i = tet.materialIndex();
-            const auto c = tet.collection();
-            dens[i] = std::max(m_collections[c].density, dens[i]);
-        }
-
         // finding max attenuation for each energy
         std::vector<double> att(energy.size(), 0.0);
-        for (std::size_t mIdx = 0; mIdx < m_materials.size(); ++mIdx) {
-            const auto& mat = m_materials[mIdx];
-            const auto d = dens[mIdx];
+        for (std::size_t mIdx = 0; mIdx < m_collectionMaterial.size(); ++mIdx) {
+            const auto& mat = m_collectionMaterial[mIdx];
+            const auto d = m_collectionDensity[mIdx];
             for (std::size_t i = 0; i < energy.size(); ++i) {
                 const auto aval = mat.attenuationValues(energy[i]);
                 att[i] = std::max(aval.sum() * d, att[i]);
@@ -324,13 +345,12 @@ protected:
             auto* currentTet = m_grid.pointInside(p.pos);
 
             if (currentTet) { // is interaction virtual?
-                const auto materialIdx = currentTet->materialIndex();
                 const auto collectionIdx = currentTet->collection();
-                const auto attenuation = m_materials[materialIdx].attenuationValues(p.energy);
-                const auto attSum = attenuation.sum() * m_collections[collectionIdx].density;
+                const auto attenuation = m_collectionMaterial[collectionIdx].attenuationValues(p.energy);
+                const auto attSum = attenuation.sum() * m_collectionDensity[collectionIdx];
                 if (state.randomUniform() < attSum * attMaxInv) {
                     // we have a real interaction
-                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_materials[materialIdx], state);
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_collectionMaterial[collectionIdx], state);
                     currentTet->scoreEnergy(intRes.energyImparted);
                     still_inside = intRes.particleAlive;
                     updateAtt = intRes.particleEnergyChanged;
@@ -352,8 +372,8 @@ protected:
         Tetrahedron* tet = m_grid.pointInside(p.pos);
 
         while (tet) {
-            const auto& material = m_materials[tet->materialIndex()];
-            const auto& density = m_collections[tet->collection()].density;
+            const auto& material = m_collectionMaterial[tet->collection()];
+            const auto& density = m_collectionDensity[tet->collection()];
             const auto intLen = tet->intersect(p).intersection; // this must be valid
             const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(intLen, density, p, material, state);
             tet->scoreEnergy(intRes.energyImparted);
@@ -371,9 +391,8 @@ protected:
         while (tet) {
             if (updateAtt) {
                 currentCollection = tet->collection();
-                const auto materialIdx = tet->materialIndex();
-                att = m_materials[materialIdx].attenuationValues(p.energy);
-                attSumInv = 1 / (att.sum() * m_collections[currentCollection].density);
+                att = m_collectionMaterial[currentCollection].attenuationValues(p.energy);
+                attSumInv = 1 / (att.sum() * m_collectionDensity[currentCollection]);
                 updateAtt = false;
             }
             const auto stepLen = -std::log(state.randomUniform()) * attSumInv; // cm
@@ -381,7 +400,7 @@ protected:
             if (stepLen < intLen) {
                 // interaction happends
                 p.translate(stepLen);
-                const auto& material = m_materials[tet->materialIndex()];
+                const auto& material = m_collectionMaterial[currentCollection];
                 const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, material, state);
                 tet->scoreEnergy(intRes.energyImparted);
                 if (intRes.particleAlive)
@@ -399,20 +418,10 @@ protected:
     }
 
 private:
-    struct Collection {
-        const double density = 0;
-        const double volume = 0;
-        Collection(double dens, double volume)
-            : density(dens)
-            , volume(volume)
-        {
-        }
-    };
-
     TetrahedalMeshGrid m_grid;
     std::vector<std::pair<double, double>> m_woodcockStepTableLin;
-    std::vector<Collection> m_collections;
-    std::vector<Material<NMaterialShells>> m_materials;
+    std::vector<double> m_collectionDensity;
+    std::vector<Material<NMaterialShells>> m_collectionMaterial;
     std::vector<std::string> m_collectionNames;
     ParticleTracker m_tracker;
 };

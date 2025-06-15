@@ -22,7 +22,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/world/basicshapes/aabb.hpp"
 #include "dxmc/world/basicshapes/tetrahedron.hpp"
 #include "dxmc/world/kdtreeintersectionresult.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshdata.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 
 #include <algorithm>
 #include <execution>

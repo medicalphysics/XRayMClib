@@ -46,7 +46,7 @@ public:
     TetrahedalMesh2()
     {
     }
-    TetrahedalMesh2(const TetrahedalMeshData& data, std::array<uint32_t, 3> dimensions = { 128, 128, 128 })
+    TetrahedalMesh2(const TetrahedalMeshData& data, std::array<uint32_t, 3> dimensions = { 8, 8, 8 })
     {
         setData(data, dimensions);
     }
@@ -132,6 +132,8 @@ public:
         }
         return res;
     }
+
+    std::size_t numberOfTetrahedra() const { return m_grid.elements().size(); }
 
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
