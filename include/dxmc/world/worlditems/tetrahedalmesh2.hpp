@@ -31,6 +31,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/world/energyscore.hpp"
 #include "dxmc/world/visualizationintersectionresult.hpp"
 #include "dxmc/world/worldintersectionresult.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
 
 #include <array>
@@ -193,6 +194,40 @@ public:
     void rotate(const std::array<double, 3>& axis, double angle)
     {
         m_grid.rotate(axis, angle);
+    }
+
+    std::vector<TetrahedalMeshCollection> collectionData() const
+    {
+        const auto& elements = m_grid.elements();
+        const auto& nodes = m_grid.nodes();
+
+        std::vector<TetrahedalMeshCollection> data(m_collectionDensities.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i].density = m_collectionDensities[i];
+            data[i].name = m_collectionNames[i];
+            data[i].volume = std::transform_reduce(std::execution::par_unseq, m_collectionIdx.cbegin(), m_collectionIdx.cend(), 0.0, std::plus {}, [&](std::size_t c) {
+                if(i == m_collectionIdx[c]){
+                    const auto& v0 = nodes[elements[c][0]];
+                    const auto& v1 = nodes[elements[c][1]];
+                    const auto& v2 = nodes[elements[c][2]];
+                    const auto& v3 = nodes[elements[c][3]];
+                    return basicshape::tetrahedron::volume(v0, v1, v2, v3);
+                }
+                return 0.0; });
+            const auto mass = data[i].volume * data[i].density;
+            data[i].dose = std::transform_reduce(std::execution::par_unseq, m_collectionIdx.cbegin(), m_collectionIdx.cend(), 0.0, std::plus {}, [&](std::size_t c) {
+                if(i == m_collectionIdx[c]){
+                    const auto& v0 = nodes[elements[c][0]];
+                    const auto& v1 = nodes[elements[c][1]];
+                    const auto& v2 = nodes[elements[c][2]];
+                    const auto& v3 = nodes[elements[c][3]];
+                    const auto vol = basicshape::tetrahedron::volume(v0, v1, v2, v3);
+                    const auto energy = m_doseScore[c].dose() * (vol * m_collectionDensities[i]);
+                }
+                return 0.0; });
+            data[i].dose /= mass;
+        }
+        return data;
     }
 
 protected:

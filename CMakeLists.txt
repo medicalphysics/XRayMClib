@@ -128,6 +128,7 @@ set(HEADER_LIST
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"    
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
     "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"    

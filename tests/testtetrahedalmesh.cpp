@@ -131,7 +131,7 @@ bool testTransport()
     using G = dxmc::AAVoxelGrid<5, 1, 255>;
 
     constexpr std::size_t N_HIST = 10000;
-    constexpr std::size_t N_EXP = 240;
+    constexpr std::size_t N_EXP = 32;
 
     dxmc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
     beam.setNumberOfExposures(N_EXP);
@@ -149,8 +149,8 @@ bool testTransport()
         dxmc::Transport transport;
 
         transport(w, beam, &progress);
-        for (const auto& t : mesh.tetrahedrons())
-            dose += t.doseScored().dose();
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
         std::cout << "Mesh forced " << dose << " " << progress.humanTotalTime() << std::endl;
     }
 
@@ -164,8 +164,8 @@ bool testTransport()
         dxmc::Transport transport;
 
         transport(w, beam, &progress);
-        for (const auto& t : mesh.tetrahedrons())
-            dose += t.doseScored().dose();
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
         std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
     {
@@ -180,9 +180,11 @@ bool testTransport()
         transport(w, beam, &progress);
         for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
             dose += mesh.doseScored(i).dose();
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
         std::cout << "Mesh2 forced " << dose << " " << progress.humanTotalTime() << std::endl;
     }
-
+    
     {
         dxmc::World<T2> w;
         w.reserveNumberOfItems(1);
@@ -197,6 +199,7 @@ bool testTransport()
             dose += mesh.doseScored(i).dose();
         std::cout << "Mesh2 random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
+    
     {
         dxmc::World<G> w;
         w.reserveNumberOfItems(1);
@@ -209,7 +212,7 @@ bool testTransport()
         double dose = 0;
         for (std::size_t i = 0; i < s; ++i)
             dose += mesh.doseScored(i).dose();
-        std::cout << "Grid random " << dose << " " << progress.humanTotalTime() << std::endl;
+        std::cout << "Grid random " << dose / s << " " << progress.humanTotalTime() << std::endl;
     }
 
     {

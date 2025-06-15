@@ -29,6 +29,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/vectormath.hpp"
 #include "dxmc/world/dosescore.hpp"
 #include "dxmc/world/energyscore.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
@@ -39,13 +40,6 @@ Copyright 2023 Erlend Andersen
 #include <vector>
 
 namespace dxmc {
-
-struct TetrahedalMeshCollection {
-    double density = 0;
-    double volume = 0;
-    double dose = 0;
-    std::string name;
-};
 
 template <int NMaterialShells = 5, int LOWENERGYCORRECTION = 2, bool FLUENCESCORING = true>
 class TetrahedalMesh {
@@ -74,7 +68,7 @@ public:
         });
 
         m_collectionDensity = data.collectionDensities;
-
+        m_collectionNames = data.collectionNames;
         m_collectionMaterial.clear();
         m_collectionMaterial.reserve(data.collectionMaterialComposition.size());
         for (const auto& weights : data.collectionMaterialComposition) {
@@ -240,7 +234,7 @@ public:
         std::vector<TetrahedalMeshCollection> data(m_collectionDensity.size());
         const auto& tets = m_grid.tetrahedrons();
         for (std::size_t i = 0; i < m_collectionDensity.size(); ++i) {
-            data[i].density = m_collectionDensity[i].density;
+            data[i].density = m_collectionDensity[i];
             data[i].name = m_collectionNames[i];
             const auto collectionIdx = static_cast<std::uint16_t>(i);
             data[i].volume = std::transform_reduce(std::execution::par_unseq, tets.cbegin(), tets.cend(), 0.0, std::plus {}, [collectionIdx](const auto& t) -> double {
