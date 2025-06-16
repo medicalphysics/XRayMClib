@@ -281,7 +281,7 @@ protected:
             for (std::uint32_t z = find[2]; z <= rind[2]; ++z)
                 for (std::uint32_t y = find[1]; y <= rind[1]; ++y)
                     for (std::uint32_t x = find[0]; x <= rind[0]; ++x) {
-                        std::array<double, 6> vox_aabb = {
+                        /*std::array<double, 6> vox_aabb = {
                             x * m_gridSpacing[0] + m_aabb[0],
                             y * m_gridSpacing[1] + m_aabb[1],
                             z * m_gridSpacing[2] + m_aabb[2],
@@ -297,7 +297,10 @@ protected:
                             const std::array ind = { x, y, z };
                             const auto ind_flat = gridIndex(ind);
                             indices[ind_flat].push_back(i);
-                        }
+                        }*/
+                        const std::array ind = { x, y, z };
+                        const auto ind_flat = gridIndex(ind);
+                        indices[ind_flat].push_back(i);
                     }
         }
         // sorting and removing duplicates if any

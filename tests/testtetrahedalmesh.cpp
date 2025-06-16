@@ -130,7 +130,7 @@ bool testTransport()
     using BF = dxmc::WorldBox<5, 1, true>;
     using G = dxmc::AAVoxelGrid<5, 1, 255>;
 
-    constexpr std::size_t N_HIST = 10000;
+    constexpr std::size_t N_HIST = 200000;
     constexpr std::size_t N_EXP = 32;
 
     dxmc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
@@ -178,13 +178,11 @@ bool testTransport()
         dxmc::Transport transport;
 
         transport(w, beam, &progress);
-        for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
-            dose += mesh.doseScored(i).dose();
         auto coll = mesh.collectionData();
         dose = coll[0].dose;
         std::cout << "Mesh2 forced " << dose << " " << progress.humanTotalTime() << std::endl;
     }
-    
+
     {
         dxmc::World<T2> w;
         w.reserveNumberOfItems(1);
@@ -193,13 +191,13 @@ bool testTransport()
 
         double dose = 0;
         dxmc::Transport transport;
-        transport.setNumberOfThreads(1);
+
         transport(w, beam, &progress);
-        for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
-            dose += mesh.doseScored(i).dose();
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
         std::cout << "Mesh2 random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
-    
+
     {
         dxmc::World<G> w;
         w.reserveNumberOfItems(1);
@@ -236,6 +234,105 @@ bool testTransport()
         transport(w, beam, &progress);
         auto dose = box.doseScored().dose();
         std::cout << "Box forced " << dose << " " << progress.humanTotalTime() << std::endl;
+    }
+
+    return false;
+}
+
+dxmc::TetrahedalMeshData getICRP()
+{
+    const std::string n = "C:/Users/ander/OneDrive/phantomsMNCP/adult/MRCP_AF/MRCP_AF.node";
+    const std::string e = "C:/Users/ander/OneDrive/phantomsMNCP/adult/MRCP_AF/MRCP_AF.ele";
+
+    dxmc::TetrahedalMeshReader reader(n, e);
+    auto data = reader.data();
+    data.collectionIndices.resize(data.elements.size(), 0);
+    data.collectionMaterialComposition.resize(1);
+    data.collectionMaterialComposition[0][1] = 0.111894;
+    data.collectionMaterialComposition[0][8] = 0.888106;
+    data.collectionDensities.resize(1, 1.0);
+    data.makeGenericCollectionNames();
+    return data;
+}
+
+bool testTransportICRP()
+{
+
+    using M1 = dxmc::TetrahedalMesh<5, 1, true>;
+    using M2 = dxmc::TetrahedalMesh<5, 1, false>;
+    using T1 = dxmc::TetrahedalMesh2<5, 1, true>;
+    using T2 = dxmc::TetrahedalMesh2<5, 1, false>;
+
+    constexpr std::size_t N_HIST = 10000;
+    constexpr std::size_t N_EXP = 32;
+
+    dxmc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
+    beam.setNumberOfExposures(N_EXP);
+    beam.setNumberOfParticlesPerExposure(N_HIST);
+
+    dxmc::TransportProgress progress;
+
+    const auto data = getICRP();
+
+    {
+        dxmc::World<M1> w;
+        w.reserveNumberOfItems(1);
+        auto& mesh = w.addItem(M1 { data });
+        w.build();
+
+        double dose = 0;
+        dxmc::Transport transport;
+
+        transport(w, beam, &progress);
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
+        std::cout << "Mesh forced " << dose << " " << progress.humanTotalTime() << std::endl;
+    }
+
+    {
+        dxmc::World<M2> w;
+        w.reserveNumberOfItems(1);
+        auto& mesh = w.addItem(M2 { data });
+        w.build();
+
+        double dose = 0;
+        dxmc::Transport transport;
+
+        transport(w, beam, &progress);
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
+        std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
+    }
+    {
+        dxmc::World<T1> w;
+        w.reserveNumberOfItems(1);
+        auto& mesh = w.addItem(T1 { data });
+        w.build();
+
+        double dose = 0;
+        dxmc::Transport transport;
+
+        transport(w, beam, &progress);
+        for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
+            dose += mesh.doseScored(i).dose();
+        auto coll = mesh.collectionData();
+        dose = coll[0].dose;
+        std::cout << "Mesh2 forced " << dose << " " << progress.humanTotalTime() << std::endl;
+    }
+
+    {
+        dxmc::World<T2> w;
+        w.reserveNumberOfItems(1);
+        auto& mesh = w.addItem(T2 { data });
+        w.build();
+
+        double dose = 0;
+        dxmc::Transport transport;
+        // transport.setNumberOfThreads(1);
+        transport(w, beam, &progress);
+        for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
+            dose += mesh.doseScored(i).dose();
+        std::cout << "Mesh2 random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
 
     return false;

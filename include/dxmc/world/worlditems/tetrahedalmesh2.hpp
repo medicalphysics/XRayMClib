@@ -94,6 +94,18 @@ public:
         };
         return c;
     }
+
+    double tetrahedalVolume(std::size_t index) const
+    {
+        const auto& nodes = m_grid.nodes();
+        const auto& el = m_grid.elements().at(index);
+        const auto& v0 = nodes[el[0]];
+        const auto& v1 = nodes[el[1]];
+        const auto& v2 = nodes[el[2]];
+        const auto& v3 = nodes[el[3]];
+        return basicshape::tetrahedron::volume(v0, v1, v2, v3);
+    }
+
     const std::array<double, 6>& AABB() const
     {
         return m_grid.AABB();
@@ -205,27 +217,22 @@ public:
         for (std::size_t i = 0; i < data.size(); ++i) {
             data[i].density = m_collectionDensities[i];
             data[i].name = m_collectionNames[i];
-            data[i].volume = std::transform_reduce(std::execution::par_unseq, m_collectionIdx.cbegin(), m_collectionIdx.cend(), 0.0, std::plus {}, [&](std::size_t c) {
-                if(i == m_collectionIdx[c]){
-                    const auto& v0 = nodes[elements[c][0]];
-                    const auto& v1 = nodes[elements[c][1]];
-                    const auto& v2 = nodes[elements[c][2]];
-                    const auto& v3 = nodes[elements[c][3]];
-                    return basicshape::tetrahedron::volume(v0, v1, v2, v3);
-                }
-                return 0.0; });
-            const auto mass = data[i].volume * data[i].density;
-            data[i].dose = std::transform_reduce(std::execution::par_unseq, m_collectionIdx.cbegin(), m_collectionIdx.cend(), 0.0, std::plus {}, [&](std::size_t c) {
-                if(i == m_collectionIdx[c]){
-                    const auto& v0 = nodes[elements[c][0]];
-                    const auto& v1 = nodes[elements[c][1]];
-                    const auto& v2 = nodes[elements[c][2]];
-                    const auto& v3 = nodes[elements[c][3]];
+
+            data[i].volume = 0;
+            data[i].dose = 0;
+            for (std::uint32_t nIdx = 0; nIdx < elements.size(); ++nIdx) {
+                if (m_collectionIdx[nIdx] == i) {
+                    const auto& v0 = nodes[elements[nIdx][0]];
+                    const auto& v1 = nodes[elements[nIdx][1]];
+                    const auto& v2 = nodes[elements[nIdx][2]];
+                    const auto& v3 = nodes[elements[nIdx][3]];
                     const auto vol = basicshape::tetrahedron::volume(v0, v1, v2, v3);
-                    const auto energy = m_doseScore[c].dose() * (vol * m_collectionDensities[i]);
+                    data[i].volume += vol;
+                    data[i].dose += m_doseScore[nIdx].dose() * data[i].density * vol;
                 }
-                return 0.0; });
-            data[i].dose /= mass;
+            }
+
+            data[i].dose /= (data[i].density * data[i].volume);
         }
         return data;
     }
