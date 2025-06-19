@@ -144,7 +144,8 @@ public:
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
             tri.mirror(point);
         });
-        m_kdtree.mirror(point);
+        const auto depth = m_kdtree.maxDepth();
+        m_kdtree.setData(m_triangles, depth);
         calculateAABB();
     }
 
@@ -153,7 +154,8 @@ public:
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
             tri.mirror(value, dim);
         });
-        m_kdtree.mirror(value, dim);
+        const auto depth = m_kdtree.maxDepth();
+        m_kdtree.setData(m_triangles, depth);
         calculateAABB();
     }
 
