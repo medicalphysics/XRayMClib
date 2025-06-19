@@ -157,6 +157,12 @@ public:
         calculateAABB();
     }
 
+    void mirror(const std::uint_fast32_t dim)
+    {
+        const auto value = (m_aabb[dim] + m_aabb[dim + 3]) * 0.5;
+        mirror(value, dim);
+    }
+
     void rotate(const double angle, const std::array<double, 3>& axis)
     {
         constexpr std::array<double, 3> offset = { 0, 0, 0 };
