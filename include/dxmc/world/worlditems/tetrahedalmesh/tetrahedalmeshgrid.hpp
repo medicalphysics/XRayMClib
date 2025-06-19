@@ -21,6 +21,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/particle.hpp"
 #include "dxmc/world/basicshapes/aabb.hpp"
 #include "dxmc/world/kdtreeintersectionresult.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
 
 #include <algorithm>
@@ -33,7 +34,7 @@ namespace dxmc {
 
 class TetrahedalMeshGrid {
 public:
-    TetrahedalMeshGrid() { }
+    TetrahedalMeshGrid() { }    
     TetrahedalMeshGrid(const std::vector<Tetrahedron>& tets, int depth = 8)
     {
         setData(tets, depth);

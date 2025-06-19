@@ -31,6 +31,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/world/energyscore.hpp"
 #include "dxmc/world/visualizationintersectionresult.hpp"
 #include "dxmc/world/worldintersectionresult.hpp"
+#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"
 #include "dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
 
 #include <array>
@@ -46,7 +47,7 @@ public:
     TetrahedalMesh2()
     {
     }
-    TetrahedalMesh2(const TetrahedalMeshData& data, std::array<uint32_t, 3> dimensions = { 128, 128, 128 })
+    TetrahedalMesh2(const TetrahedalMeshData& data, std::array<uint32_t, 3> dimensions = { 8, 8, 8 })
     {
         setData(data, dimensions);
     }
@@ -93,6 +94,18 @@ public:
         };
         return c;
     }
+
+    double tetrahedalVolume(std::size_t index) const
+    {
+        const auto& nodes = m_grid.nodes();
+        const auto& el = m_grid.elements().at(index);
+        const auto& v0 = nodes[el[0]];
+        const auto& v1 = nodes[el[1]];
+        const auto& v2 = nodes[el[2]];
+        const auto& v3 = nodes[el[3]];
+        return basicshape::tetrahedron::volume(v0, v1, v2, v3);
+    }
+
     const std::array<double, 6>& AABB() const
     {
         return m_grid.AABB();
@@ -132,6 +145,8 @@ public:
         }
         return res;
     }
+
+    std::size_t numberOfTetrahedra() const { return m_grid.elements().size(); }
 
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
@@ -191,6 +206,35 @@ public:
     void rotate(const std::array<double, 3>& axis, double angle)
     {
         m_grid.rotate(axis, angle);
+    }
+
+    std::vector<TetrahedalMeshCollection> collectionData() const
+    {
+        const auto& elements = m_grid.elements();
+        const auto& nodes = m_grid.nodes();
+
+        std::vector<TetrahedalMeshCollection> data(m_collectionDensities.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i].density = m_collectionDensities[i];
+            data[i].name = m_collectionNames[i];
+
+            data[i].volume = 0;
+            data[i].dose = 0;
+            for (std::uint32_t nIdx = 0; nIdx < elements.size(); ++nIdx) {
+                if (m_collectionIdx[nIdx] == i) {
+                    const auto& v0 = nodes[elements[nIdx][0]];
+                    const auto& v1 = nodes[elements[nIdx][1]];
+                    const auto& v2 = nodes[elements[nIdx][2]];
+                    const auto& v3 = nodes[elements[nIdx][3]];
+                    const auto vol = basicshape::tetrahedron::volume(v0, v1, v2, v3);
+                    data[i].volume += vol;
+                    data[i].dose += m_doseScore[nIdx].dose() * data[i].density * vol;
+                }
+            }
+
+            data[i].dose /= (data[i].density * data[i].volume);
+        }
+        return data;
     }
 
 protected:

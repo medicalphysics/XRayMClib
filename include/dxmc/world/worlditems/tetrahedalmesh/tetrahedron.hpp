@@ -34,7 +34,6 @@ class Tetrahedron {
 public:
     Tetrahedron(const std::array<double, 3>& first, const std::array<double, 3>& second, const std::array<double, 3>& third, const std::array<double, 3>& fourth, std::uint16_t collectionIdx = 0, std::uint16_t materialIdx = 0)
         : m_collectionIdx(collectionIdx)
-        , m_materialIdx(materialIdx)
     {
         m_vertices[0] = first;
         m_vertices[1] = second;
@@ -45,7 +44,6 @@ public:
     Tetrahedron(const std::array<std::array<double, 3>, 4>& vertices, std::uint16_t collectionIdx = 0, std::uint16_t materialIdx = 0)
         : m_vertices(vertices)
         , m_collectionIdx(collectionIdx)
-        , m_materialIdx(materialIdx)
     {
     }
 
@@ -55,8 +53,6 @@ public:
 
     std::uint16_t collection() const { return m_collectionIdx; }
     void setCollection(std::uint16_t coll) { m_collectionIdx = coll; }
-    std::uint16_t materialIndex() const { return m_materialIdx; }
-    void setMaterialIndex(std::uint16_t idx) { m_materialIdx = idx; }
 
     std::array<double, 3> center() const
     {
@@ -268,6 +264,5 @@ private:
     EnergyScore m_energy_imparted;
     DoseScore m_dose;
     std::uint16_t m_collectionIdx = 0;
-    std::uint16_t m_materialIdx = 0;
 };
 }
