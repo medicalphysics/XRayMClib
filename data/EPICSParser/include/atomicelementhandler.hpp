@@ -57,6 +57,7 @@ public:
     void setShellNumberOfElectrons(const std::vector<double>& data);
     void setShellNumberOfPhotonsPerInitVacancy(const std::vector<double>& data);
     void setShellEnergyOfPhotonsPerInitVacancy(const std::vector<double>& data);
+    void setRadiativeTransitionProbabilities(std::uint64_t shell, const std::vector<double>& data);
 
     void setShellHartreeFockProfile_0(std::uint64_t shell, double J);
     void setStandardDensity(double dens);

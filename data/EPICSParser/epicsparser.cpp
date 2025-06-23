@@ -199,6 +199,9 @@ void processSegments(const std::vector<DataSegment>& segments, std::map<std::uin
                     if (seg.I == 934) { // avg energy of particles per vacancy
                         elements[seg.Z].setShellEnergyOfPhotonsPerInitVacancy(seg.data);
                     }
+                    if (seg.I == 931) { // radiative transition probability
+                        elements[seg.Z].setRadiativeTransitionProbabilities(seg.X1, seg.data);
+                    }
                 }
             }
         }

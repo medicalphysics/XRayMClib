@@ -96,6 +96,15 @@ protected:
         serialize(shell.energyOfPhotonsPerInitVacancy, data);
         serialize(shell.photoel, data);
 
+        // serialize atomic shell radiative transitions
+        const std::uint64_t shellTransSize = shell.radiativeEmissions.size();
+        serialize(shell.radiativeEmissions.size(), data);
+        for (std::uint64_t i = 0; i < shellTransSize; ++i) {            
+            serialize(shell.radiativeEmissions[i].vacancy, data);
+            serialize(shell.radiativeEmissions[i].probability, data);
+            serialize(shell.radiativeEmissions[i].energy, data);
+        }
+
         std::uint64_t data_size = data.size();
         serialize(data_size, buffer); // adding data size to buffer
         appendToBuffer(data, buffer); // adding data
@@ -164,6 +173,15 @@ protected:
         start = deserialize(shell.numberOfPhotonsPerInitVacancy, start);
         start = deserialize(shell.energyOfPhotonsPerInitVacancy, start);
         start = deserialize(shell.photoel, start);
+
+        std::uint64_t shellTransSize = 0;
+        start = deserialize(shellTransSize, start);
+        shell.radiativeEmissions.resize(shellTransSize);
+        for (std::uint64_t i = 0; i < shellTransSize; ++i) {            
+            start = deserialize(shell.radiativeEmissions[i].vacancy, start);
+            start = deserialize(shell.radiativeEmissions[i].probability, start);
+            start = deserialize(shell.radiativeEmissions[i].energy, start);
+        }
         return start;
     }
     static char* deserializeAtomicElement(AtomicElement& atom, char* begin)

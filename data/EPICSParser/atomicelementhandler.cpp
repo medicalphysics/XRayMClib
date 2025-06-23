@@ -176,6 +176,22 @@ void AtomicElementHandler::setShellPhotoelectricData(std::uint64_t shell, const 
     m_atom.shells[shell].photoel = photoel;
 }
 
+void AtomicElementHandler::setRadiativeTransitionProbabilities(std::uint64_t shell, const std::vector<double>& data)
+{
+    if (!m_atom.shells.contains(shell)) {
+        m_atom.shells[shell] = dxmc::AtomicShell(shell);
+    }
+    const auto N = data.size() / 3;
+    std::vector<dxmc::AtomicShellRadiativeEmission> trans(N);
+    for (std::size_t i = 0; i < N; ++i) {        
+        trans[i].vacancy = static_cast<std::uint64_t>(data[i * 3 + 0]);
+        trans[i].probability = (data[i * 3 + 1]);
+        trans[i].energy = (data[i * 3 + 2]) * MeVTokeV();
+    }
+    m_atom.shells.at(shell).radiativeEmissions = trans;
+    return;
+}
+
 void AtomicElementHandler::setShellBindingEnergy(const std::vector<double>& data)
 {
     for (std::size_t i = 0; i < data.size(); i = i + 2) {

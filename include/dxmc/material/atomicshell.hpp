@@ -24,6 +24,13 @@ Copyright 2022 Erlend Andersen
 #include <vector>
 
 namespace dxmc {
+
+struct AtomicShellRadiativeEmission {    
+    std::uint64_t vacancy = 0; // shell from where the vacancy is filled
+    double energy = 0;
+    double probability = 0;
+};
+
 struct AtomicShell {
     AtomicShell(std::uint64_t shell = 0)
         : shell(shell)
@@ -37,6 +44,7 @@ struct AtomicShell {
     double numberOfPhotonsPerInitVacancy = 0;
     double energyOfPhotonsPerInitVacancy = 0;
     std::vector<std::pair<double, double>> photoel;
+    std::vector<AtomicShellRadiativeEmission> radiativeEmissions;
 };
 
 }
