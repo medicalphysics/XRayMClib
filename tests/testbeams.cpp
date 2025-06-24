@@ -146,6 +146,7 @@ bool testDXBeamSampling()
     ydir = dxmc::vectormath::rotate(ydir, { 0, 1, 0 }, roty);
 
     beam.setDirectionCosines(xdir, ydir);
+    const auto dir = dxmc::vectormath::cross(xdir, ydir);
     beam.setCollimationHalfAnglesDeg(30, 30);
 
     constexpr std::size_t N = 1e4;
@@ -154,15 +155,20 @@ bool testDXBeamSampling()
     std::vector<std::array<double, 3>> samps(N);
     std::vector<double> x(N);
     std::vector<double> y(N);
+    std::vector<double> z(N);
 
     std::ofstream out("out.txt");
-    //out << "x, y\n";
+    // out << "x, y\n";
     for (std::size_t i = 0; i < N; ++i) {
         const auto p = e.sampleParticle(state);
         samps[i] = p.dir;
         x[i] = dxmc::vectormath::dot(xdir, p.dir);
         y[i] = dxmc::vectormath::dot(ydir, p.dir);
-        out << x[i] << ", " << y[i] << '\n';
+        z[i] = dxmc::vectormath::dot(dir, p.dir);
+        //x[i] = p.dir[0];
+        //y[i] = p.dir[1];
+        //z[i] = p.dir[2];
+        out << x[i] << "," << y[i] << "," << z[i] << '\n';
     }
 
     return false;

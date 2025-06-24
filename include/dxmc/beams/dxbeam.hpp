@@ -51,13 +51,11 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = particleDirection(state),
                 .energy = m_specter.sampleValue(state),
                 .weight = m_weight
             };
@@ -66,7 +64,7 @@ public:
         } else {
             Particle p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = particleDirection(state),
                 .energy = m_specter.sampleValue(state),
                 .weight = m_weight
             };
@@ -75,8 +73,26 @@ public:
     }
 
 protected:
-    std::array<double, 3> particleDirection(double anglex, double angley) const
+    std::array<double, 3> particleDirection(RandomState& state) const
     {
+        /*constexpr auto s2 = std::numbers::sqrt2_v<double>;
+         const auto z = state.randomUniform(std::cos(std::max(m_collimationHalfAngles[0], m_collimationHalfAngles[1])), 1.0);
+         const auto phi = state.randomUniform(0.0, 2 * PI_VAL());
+         const auto cosPhi = std::cos(phi);
+         const auto sinPhi = std::sin(phi);
+         const auto zm = std::sqrt(1 - z * z);
+         return std::array<double, 3> { zm * cosPhi, zm * sinPhi, z };
+
+         const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
+         const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
+
+         auto pdir = vectormath::rotate(vectormath::rotate(m_dir, m_dirCosines[0], anglex), m_dirCosines[1], angley);
+         return pdir;
+         */
+
+        /* const auto anglex = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
+        const auto angley = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
+
         const auto dx = std::tan(anglex);
         const auto dy = std::tan(angley);
         const std::array pdir = {
@@ -84,7 +100,25 @@ protected:
             m_dirCosines[0][1] * dx + m_dirCosines[1][1] * dy + m_dir[1],
             m_dirCosines[0][2] * dx + m_dirCosines[1][2] * dy + m_dir[2]
         };
-        return vectormath::normalized(pdir);
+        return vectormath::normalized(pdir);*/
+
+        // https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone
+        constexpr auto pi2 = PI_VAL() * 0.5;
+        const auto limx = std::cos(pi2 - m_collimationHalfAngles[0]);
+        const auto limy = std::cos(pi2 - m_collimationHalfAngles[1]);
+        const auto sinz = std::sqrt(limx * limx + limy * limy);
+        const auto cosz = std::sqrt(1 - sinz * sinz);
+        std::array<double, 3> dir;
+        do {
+            dir = {
+                state.randomUniform(-sinz, sinz),
+                state.randomUniform(-sinz, sinz),
+                state.randomUniform(cosz, 1.0)
+            };
+            vectormath::normalize(dir);
+        } while (std::abs(vectormath::dot(dir, { 1.0, 0.0, 0.0 })) > limx || std::abs(vectormath::dot(dir, { 0.0, 1.0, 0.0 })) > limy);
+        dir = vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dir);
+        return dir;
     }
 
 private:
