@@ -103,15 +103,7 @@ public:
 
     std::array<double, 6> AABB() const
     {
-        std::array aabb {
-            m_cylinder.center[0] - m_cylinder.radius,
-            m_cylinder.center[1] - m_cylinder.radius,
-            m_cylinder.center[2] - m_cylinder.radius,
-            m_cylinder.center[0] + m_cylinder.radius,
-            m_cylinder.center[1] + m_cylinder.radius,
-            m_cylinder.center[2] + m_cylinder.radius
-        };
-        return aabb;
+        return dxmc::basicshape::cylinder::cylinderAABB(m_cylinder);
     }
 
     WorldIntersectionResult intersect(const Particle& p) const noexcept
@@ -134,7 +126,7 @@ public:
         while (cont) {
             if (updateAtt) {
                 att = m_material.attenuationValues(p.energy);
-                attSumInv = 1 / (att.sum() * m_materialDensity);
+                attSumInv = 1.0 / (att.sum() * m_materialDensity);
                 updateAtt = false;
             }
 

@@ -30,6 +30,7 @@ Copyright 2022 Erlend Andersen
 #include "dxmc/constants.hpp"
 #include "dxmc/vectormath.hpp"
 
+#include <fstream>
 #include <iostream>
 
 template <dxmc::BeamType B>
@@ -130,11 +131,49 @@ bool testCBCTBeam()
     return initiateBeam(beam);
 }
 
+bool testDXBeamSampling()
+{
+    using Beam = dxmc::DXBeam<false>;
+    Beam beam;
+    std::array xdir = { 1.0, 0.0, 0.0 };
+    std::array ydir = { 0.0, 1.0, 0.0 };
+
+    const auto rotx = dxmc::DEG_TO_RAD() * 45;
+    const auto roty = dxmc::DEG_TO_RAD() * 60;
+    xdir = dxmc::vectormath::rotate(xdir, { 1, 0, 0 }, rotx);
+    ydir = dxmc::vectormath::rotate(ydir, { 1, 0, 0 }, rotx);
+    xdir = dxmc::vectormath::rotate(xdir, { 0, 1, 0 }, roty);
+    ydir = dxmc::vectormath::rotate(ydir, { 0, 1, 0 }, roty);
+
+    beam.setDirectionCosines(xdir, ydir);
+    beam.setCollimationHalfAnglesDeg(30, 30);
+
+    constexpr std::size_t N = 1e4;
+    const auto e = beam.exposure(0);
+    dxmc::RandomState state;
+    std::vector<std::array<double, 3>> samps(N);
+    std::vector<double> x(N);
+    std::vector<double> y(N);
+
+    std::ofstream out("out.txt");
+    //out << "x, y\n";
+    for (std::size_t i = 0; i < N; ++i) {
+        const auto p = e.sampleParticle(state);
+        samps[i] = p.dir;
+        x[i] = dxmc::vectormath::dot(xdir, p.dir);
+        y[i] = dxmc::vectormath::dot(ydir, p.dir);
+        out << x[i] << ", " << y[i] << '\n';
+    }
+
+    return false;
+}
+
 int main()
 {
     std::cout << "Testing beams ";
 
     bool success = true;
+    success = success && testDXBeamSampling();
     success = success && testIsotropicMonoEnergyBeamCircle();
     success = success && testIsotropicBeamCircle();
     success = success && testDXBeam();
