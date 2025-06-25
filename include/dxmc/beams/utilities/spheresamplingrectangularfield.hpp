@@ -44,28 +44,55 @@ struct SphereSamplingRectangularField {
     {
         borderx = std::sin(collimationHalfAngle_x);
         bordery = std::sin(collimationHalfAngle_y);
+
         limx = std::tan(collimationHalfAngle_x);
         limy = std::tan(collimationHalfAngle_y);
-        const auto sinz = std::sqrt(limx * limx + limy * limy);
-        limz = std::sqrt(1 - sinz * sinz);
-        
+
+        const auto sinz = std::sqrt(borderx * borderx + bordery * bordery);
+        cosz = std::sqrt(1 - sinz * sinz);
     }
 
-    std::array<double, 3> operator()(RandomState& state)
+    std::array<double, 3> operator()(RandomState& state) const
+    {
+        return works(state);
+    }
+
+    std::array<double, 3> test(RandomState& state)
+    {
+        std::array<double, 3> dir;
+        double x, y, z;
+        do {
+            const auto costheta = state.randomUniform(cosz, 1.0);
+            const auto sintheta = std::sqrt(1 - costheta * costheta);
+            double phi = state.randomUniform(0.0, 2 * PI_VAL());
+            double cosphi = std::cos(phi);
+            double sinphi = std::sin(phi);
+
+            x = sintheta * cosphi;
+            y = sintheta * sinphi;
+            z = costheta;
+
+        } while (std::abs(x) > borderx || std::abs(y) > bordery);
+        dir = { x, y, z };
+        return dir;
+    }
+
+    std::array<double, 3> works(RandomState& state) const
     {
         std::array<double, 3> dir;
         double x, y, z;
 
         do {
-            const auto costheta = state.randomUniform(limz, 1.0);
+            const auto costheta = state.randomUniform(cosz, 1.0);
             const auto sintheta = std::sqrt(1 - costheta * costheta);
             double phi = state.randomUniform(0.0, 2 * PI_VAL());
             double cosphi = std::cos(phi);
             double sinphi = std::sin(phi);
+
             x = sintheta * cosphi;
             y = sintheta * sinphi;
             z = costheta;
-            teller++;
+
         } while (std::abs(x) > borderx || std::abs(y) > bordery);
         dir = { x, y, z };
         return dir;
@@ -75,7 +102,7 @@ struct SphereSamplingRectangularField {
     double bordery = 1;
     double limx = 0;
     double limy = 0;
-    double limz = 1;
+    double cosz = 1;
 };
 
 struct SphereSamplingRectangularFieldOffset {

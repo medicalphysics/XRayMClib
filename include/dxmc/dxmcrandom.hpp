@@ -24,6 +24,7 @@ Copyright 2019 Erlend Andersen
 #include <concepts>
 #include <execution>
 #include <limits>
+#include <numbers>
 #include <numeric>
 #include <random>
 #include <utility>
@@ -116,6 +117,15 @@ public:
             return min + r;
         } else
             static_assert(std::is_integral<T>::value || std::is_floating_point<T>::value, "Must be integral or floating point value.");
+    }
+
+    inline std::pair<double, double> randomNormal() noexcept
+    {
+        const auto u1 = randomUniform();
+        const auto u2 = randomUniform();
+        const auto R = std::sqrt(-2.0 * std::log(u1));
+        constexpr double pi2 = std::numbers::pi_v<double> * 2;
+        return std::make_pair(R * std::sin(pi2 * u2), R * std::cos(pi2 * u2));
     }
 
     /**

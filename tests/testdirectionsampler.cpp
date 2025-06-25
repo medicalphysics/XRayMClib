@@ -28,7 +28,7 @@ bool testBeamSampling()
     dxmc::SphereSamplingRectangularField sampler;
     sampler.setData(dxmc::DEG_TO_RAD() * 30, dxmc::DEG_TO_RAD() * 30);
 
-    constexpr std::size_t N = 1e4;
+    constexpr std::size_t N = 1e5;
 
     dxmc::RandomState state;
     std::vector<std::array<double, 3>> samps(N);
