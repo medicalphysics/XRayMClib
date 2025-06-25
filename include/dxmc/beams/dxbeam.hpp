@@ -19,6 +19,7 @@ Copyright 2023 Erlend Andersen
 #pragma once
 
 #include "dxmc/beams/tube/tube.hpp"
+#include "dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
 #include "dxmc/constants.hpp"
 #include "dxmc/dxmcrandom.hpp"
 #include "dxmc/floating.hpp"
@@ -35,7 +36,8 @@ class DXBeamExposure {
 public:
     DXBeamExposure(const std::array<double, 3>& pos, const std::array<std::array<double, 3>, 2>& dircosines, std::uint64_t N, double weight,
         const std::array<double, 2>& collimationHalfAngles, const SpecterDistribution<double> specter)
-        : m_pos(pos)
+        : m_directionSampler(collimationHalfAngles)
+        , m_pos(pos)
         , m_dirCosines(dircosines)
         , m_collimationHalfAngles(collimationHalfAngles)
         , m_NParticles(N)
@@ -51,7 +53,6 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
                 .pos = m_pos,
@@ -75,53 +76,12 @@ public:
 protected:
     std::array<double, 3> particleDirection(RandomState& state) const
     {
-        /*constexpr auto s2 = std::numbers::sqrt2_v<double>;
-         const auto z = state.randomUniform(std::cos(std::max(m_collimationHalfAngles[0], m_collimationHalfAngles[1])), 1.0);
-         const auto phi = state.randomUniform(0.0, 2 * PI_VAL());
-         const auto cosPhi = std::cos(phi);
-         const auto sinPhi = std::sin(phi);
-         const auto zm = std::sqrt(1 - z * z);
-         return std::array<double, 3> { zm * cosPhi, zm * sinPhi, z };
-
-         const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
-         const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
-
-         auto pdir = vectormath::rotate(vectormath::rotate(m_dir, m_dirCosines[0], anglex), m_dirCosines[1], angley);
-         return pdir;
-         */
-
-        /* const auto anglex = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
-        const auto angley = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
-
-        const auto dx = std::tan(anglex);
-        const auto dy = std::tan(angley);
-        const std::array pdir = {
-            m_dirCosines[0][0] * dx + m_dirCosines[1][0] * dy + m_dir[0],
-            m_dirCosines[0][1] * dx + m_dirCosines[1][1] * dy + m_dir[1],
-            m_dirCosines[0][2] * dx + m_dirCosines[1][2] * dy + m_dir[2]
-        };
-        return vectormath::normalized(pdir);*/
-
-        // https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone
-        constexpr auto pi2 = PI_VAL() * 0.5;
-        const auto limx = std::cos(pi2 - m_collimationHalfAngles[0]);
-        const auto limy = std::cos(pi2 - m_collimationHalfAngles[1]);
-        const auto sinz = std::sqrt(limx * limx + limy * limy);
-        const auto cosz = std::sqrt(1 - sinz * sinz);
-        std::array<double, 3> dir;
-        do {
-            dir = {
-                state.randomUniform(-sinz, sinz),
-                state.randomUniform(-sinz, sinz),
-                state.randomUniform(cosz, 1.0)
-            };
-            vectormath::normalize(dir);
-        } while (std::abs(vectormath::dot(dir, { 1.0, 0.0, 0.0 })) > limx || std::abs(vectormath::dot(dir, { 0.0, 1.0, 0.0 })) > limy);
-        dir = vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dir);
-        return dir;
+        const auto dir = m_directionSampler(state);
+        return vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dir);
     }
 
 private:
+    SphereSamplingRectangularField m_directionSampler;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };

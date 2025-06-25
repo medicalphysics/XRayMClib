@@ -18,6 +18,7 @@ Copyright 2022 Erlend Andersen
 
 #pragma once
 
+#include "dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
 #include "dxmc/dxmcrandom.hpp"
 #include "dxmc/floating.hpp"
 #include "dxmc/particle.hpp"
@@ -42,8 +43,8 @@ public:
 
     void setCollimationHalfAngles(const std::array<double, 4>& angles)
     {
-        for (std::size_t i = 0; i < angles.size(); ++i)
-            m_collimationHalfAngles[i] = angles[i];
+        m_collimationHalfAngles = angles;
+        m_directionSampler.setData(m_collimationHalfAngles);
     }
 
     void setSpecterDistribution(const SpecterDistribution<double>& s)
@@ -55,13 +56,10 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(m_collimationHalfAngles[0], m_collimationHalfAngles[2]);
-        const auto angy = state.randomUniform(m_collimationHalfAngles[1], m_collimationHalfAngles[3]);
-
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = particleDirection(state),
                 .energy = m_specterDist.sampleValue(state),
                 .weight = 1
             };
@@ -70,7 +68,7 @@ public:
         } else {
             Particle p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = particleDirection(state),
                 .energy = m_specterDist.sampleValue(state),
                 .weight = 1
             };
@@ -79,19 +77,14 @@ public:
     }
 
 protected:
-    std::array<double, 3> particleDirection(double anglex, double angley) const
+    std::array<double, 3> particleDirection(RandomState& state) const
     {
-        const auto dx = std::tan(anglex);
-        const auto dy = std::tan(angley);
-        const std::array pdir = {
-            m_dirCosines[0][0] * dx + m_dirCosines[1][0] * dy + m_dir[0],
-            m_dirCosines[0][1] * dx + m_dirCosines[1][1] * dy + m_dir[1],
-            m_dirCosines[0][2] * dx + m_dirCosines[1][2] * dy + m_dir[2]
-        };
-        return vectormath::normalized(pdir);
+        const auto dir = m_directionSampler(state);
+        return vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dir);
     }
 
 private:
+    SphereSamplingRectangularFieldOffset m_directionSampler;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };

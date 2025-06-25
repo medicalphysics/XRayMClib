@@ -18,6 +18,7 @@ Copyright 2024 Erlend Andersen
 
 #pragma once
 
+#include "dxmc/beams/utilities/spheresamplingcircularfield.hpp"
 #include "dxmc/dxmcrandom.hpp"
 #include "dxmc/floating.hpp"
 #include "dxmc/particle.hpp"
@@ -43,7 +44,7 @@ public:
 
     void setCollimationHalfAngle(double angle)
     {
-        m_r = std::tan(std::abs(angle));
+        m_directionSampler.setData(angle);
     }
 
     void setSpecterDistribution(const SpecterDistribution<double>& s)
@@ -56,26 +57,13 @@ public:
     auto sampleParticle(RandomState& state) const noexcept
     {
 
-        auto k_x = state.randomUniform() * 2 - 1;
-        auto k_y = state.randomUniform() * 2 - 1;
-        while (k_x * k_x + k_y * k_y > 1) {
-            k_x = state.randomUniform() * 2 - 1;
-            k_y = state.randomUniform() * 2 - 1;
-        }
-
-        const auto x = m_r * k_x;
-        const auto y = m_r * k_y;
-
-        const std::array<double, 3> dir = {
-            m_dir[0] + x * m_dirCosines[0][0] + y * m_dirCosines[1][0],
-            m_dir[1] + x * m_dirCosines[0][1] + y * m_dirCosines[1][1],
-            m_dir[2] + x * m_dirCosines[0][2] + y * m_dirCosines[1][2]
-        };
+        const auto dirz = m_directionSampler(state);
+        const auto dir = vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dirz);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
                 .pos = m_pos,
-                .dir = vectormath::normalized(dir),
+                .dir = dir,
                 .energy = m_specterDist.sampleValue(state),
                 .weight = 1
             };
@@ -84,7 +72,7 @@ public:
         } else {
             Particle p = {
                 .pos = m_pos,
-                .dir = vectormath::normalized(dir),
+                .dir = dir,
                 .energy = m_specterDist.sampleValue(state),
                 .weight = 1
             };
@@ -107,10 +95,10 @@ protected:
     }
 
 private:
+    SphereSamplingCircularField m_directionSampler;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    double m_r = 0;
     std::uint64_t m_NParticles = 100;
     SpecterDistribution<double> m_specterDist;
 };

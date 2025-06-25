@@ -20,6 +20,7 @@ Copyright 2023 Erlend Andersen
 
 #include "dxmc/beams/filters/bowtiefilter.hpp"
 #include "dxmc/beams/filters/ctorganaecfilter.hpp"
+#include "dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
 #include "dxmc/constants.hpp"
 #include "dxmc/dxmcrandom.hpp"
 #include "dxmc/particle.hpp"
@@ -34,7 +35,8 @@ class CTDIBeamExposure {
 public:
     CTDIBeamExposure(double angle, double SDD, std::uint64_t historiesPerExposure,
         const std::array<double, 2>& collimationHalfAngles, const SpecterDistribution<double>* specter, const BowtieFilter* bowtie, double weight = 1)
-        : m_Nparticles(historiesPerExposure)
+        : m_directionSampler(collimationHalfAngles)
+        , m_Nparticles(historiesPerExposure)
         , m_collimationHalfAngles(collimationHalfAngles)
         , m_weight(weight)
         , m_specter(specter)
@@ -56,15 +58,14 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
-
+        const auto dir = m_directionSampler(state);
+        const auto angx = std::acos(dir[0]);
         const auto bowtie_weight = m_bowtieFilter->operator()(angx);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = vectormath::changeBasis(m_dirCosineX, m_dirCosineY, m_dir, dir),
                 .energy = m_specter->sampleValue(state),
                 .weight = m_weight * bowtie_weight
             };
@@ -73,7 +74,7 @@ public:
         } else {
             Particle p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = vectormath::changeBasis(m_dirCosineX, m_dirCosineY, m_dir, dir),
                 .energy = m_specter->sampleValue(state),
                 .weight = m_weight * bowtie_weight
             };
@@ -82,19 +83,8 @@ public:
     }
 
 protected:
-    std::array<double, 3> particleDirection(double anglex, double angley) const
-    {
-        const auto dx = std::tan(anglex);
-        const auto dy = std::tan(angley);
-        const std::array pdir = {
-            m_dirCosineX[0] * dx + m_dirCosineY[0] * dy + m_dir[0],
-            m_dirCosineX[1] * dx + m_dirCosineY[1] * dy + m_dir[1],
-            m_dirCosineX[2] * dx + m_dirCosineY[2] * dy + m_dir[2]
-        };
-        return vectormath::normalized(pdir);
-    }
-
 private:
+    SphereSamplingRectangularField m_directionSampler;
     std::uint64_t m_Nparticles = 1;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 1, 0 };

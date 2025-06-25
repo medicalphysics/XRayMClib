@@ -23,6 +23,7 @@ Copyright 2023 Erlend Andersen
 #include "dxmc/beams/filters/ctaecfilter.hpp"
 #include "dxmc/beams/filters/ctorganaecfilter.hpp"
 #include "dxmc/beams/tube/tube.hpp"
+#include "dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
 #include "dxmc/dxmcrandom.hpp"
 #include "dxmc/floating.hpp"
 #include "dxmc/material/material.hpp"
@@ -41,7 +42,8 @@ class CTSpiralBeamExposure {
 public:
     CTSpiralBeamExposure(const std::array<double, 3>& pos, const std::array<std::array<double, 3>, 2>& dircosines, std::uint64_t N, double weight,
         const std::array<double, 2>& collimationHalfAngles, const SpecterDistribution<double>* specter, const BowtieFilter* bowtie)
-        : m_pos(pos)
+        : m_directionSampler(collimationHalfAngles)
+        , m_pos(pos)
         , m_dirCosines(dircosines)
         , m_collimationHalfAngles(collimationHalfAngles)
         , m_NParticles(N)
@@ -67,15 +69,14 @@ public:
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angx = state.randomUniform(-m_collimationHalfAngles[0], m_collimationHalfAngles[0]);
-        const auto angy = state.randomUniform(-m_collimationHalfAngles[1], m_collimationHalfAngles[1]);
-
+        const auto dir = m_directionSampler(state);
+        const auto angx = std::acos(dir[0]);
         const auto bowtie_weight = m_bowtieFilter->operator()(angx);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dir),
                 .energy = m_specter->sampleValue(state),
                 .weight = m_weight * bowtie_weight
             };
@@ -84,7 +85,7 @@ public:
         } else {
             Particle p = {
                 .pos = m_pos,
-                .dir = particleDirection(angx, angy),
+                .dir = vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dir),
                 .energy = m_specter->sampleValue(state),
                 .weight = m_weight * bowtie_weight
             };
@@ -98,19 +99,8 @@ public:
     }
 
 protected:
-    std::array<double, 3> particleDirection(double anglex, double angley) const
-    {
-        const auto dx = std::tan(anglex);
-        const auto dy = std::tan(angley);
-        const std::array pdir = {
-            m_dirCosines[0][0] * dx + m_dirCosines[1][0] * dy + m_dir[0],
-            m_dirCosines[0][1] * dx + m_dirCosines[1][1] * dy + m_dir[1],
-            m_dirCosines[0][2] * dx + m_dirCosines[1][2] * dy + m_dir[2]
-        };
-        return vectormath::normalized(pdir);
-    }
-
 private:
+    SphereSamplingRectangularField m_directionSampler;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };

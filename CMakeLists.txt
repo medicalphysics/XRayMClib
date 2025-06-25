@@ -79,6 +79,8 @@ set(HEADER_LIST
     "${dxmclib_SOURCE_DIR}/include/dxmc/transport.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/transportprogress.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/vectormath.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/utilities/spheresamplingcircularfield.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/bowtiefilter.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/ctaecfilter.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/ctorganaecfilter.hpp"
