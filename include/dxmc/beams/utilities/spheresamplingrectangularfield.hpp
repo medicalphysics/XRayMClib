@@ -30,6 +30,7 @@ struct SphereSamplingRectangularField {
     // Uses simple random sampling of x, y, z inside a constrained box and rejecting points outside field
     // perhaps https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone is better?
 
+    SphereSamplingRectangularField() { }
     SphereSamplingRectangularField(const std::array<double, 2>& angles)
     {
         setData(angles[0], angles[1]);
@@ -47,36 +48,29 @@ struct SphereSamplingRectangularField {
         limy = std::tan(collimationHalfAngle_y);
         const auto sinz = std::sqrt(limx * limx + limy * limy);
         limz = std::sqrt(1 - sinz * sinz);
+        
     }
 
-    std::array<double, 3> operator()(RandomState& state) const
+    std::array<double, 3> operator()(RandomState& state)
     {
         std::array<double, 3> dir;
+        double x, y, z;
+
         do {
-            dir = {
-                state.randomUniform(-limx, limx),
-                state.randomUniform(-limy, limy),
-                state.randomUniform(limz, 1.0)
-            };
-            vectormath::normalize(dir);
-        } while (std::abs(dir[0]) > borderx || std::abs(dir[1]) > bordery);
+            const auto costheta = state.randomUniform(limz, 1.0);
+            const auto sintheta = std::sqrt(1 - costheta * costheta);
+            double phi = state.randomUniform(0.0, 2 * PI_VAL());
+            double cosphi = std::cos(phi);
+            double sinphi = std::sin(phi);
+            x = sintheta * cosphi;
+            y = sintheta * sinphi;
+            z = costheta;
+            teller++;
+        } while (std::abs(x) > borderx || std::abs(y) > bordery);
+        dir = { x, y, z };
         return dir;
-
-        // safe naive version
-        // const auto sinz = std::sqrt(borderx * borderx + bordery * bordery);
-        // const auto cosz = std::sqrt(1 - sinz * sinz);
-        // std::array<double, 3> dir;
-        // do {
-        //     dir = {
-        //         state.randomUniform(-sinz, sinz),
-        //         state.randomUniform(-sinz, sinz),
-        //         state.randomUniform(cosz, 1.0)
-        //     };
-        //     vectormath::normalize(dir);
-        // } while (std::abs(dir[0]) > borderx || std::abs(dir[1]) > bordery);
-        // return dir;
     }
-
+    int teller = 0;
     double borderx = 1;
     double bordery = 1;
     double limx = 0;
@@ -98,7 +92,7 @@ struct SphereSamplingRectangularFieldOffset {
     {
         setData(xmin, ymin, xmax, ymax);
     }
-    
+
     void setData(const std::array<double, 4>& angles)
     {
         setData(angles[0], angles[1], angles[2], angles[3]);
