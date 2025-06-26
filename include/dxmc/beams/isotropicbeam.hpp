@@ -84,7 +84,7 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularFieldOffset m_directionSampler;
+    SphereSamplingRectangularField m_directionSampler;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };

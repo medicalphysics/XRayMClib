@@ -38,11 +38,11 @@ struct SphereSamplingCircularField {
 
     void setData(double angle)
     {
-        cosz = std::cos(angle);
+        m_cosz = std::cos(angle);
     }
     std::array<double, 3> operator()(RandomState& state) const
     {
-        const auto z = state.randomUniform(cosz, 1.0);
+        const auto z = state.randomUniform(m_cosz, 1.0);
         const auto phi = state.randomUniform(0.0, PI_VAL());
         const auto cosphi = std::cos(phi);
         const auto sinphi = std::sin(phi);
@@ -51,6 +51,6 @@ struct SphereSamplingCircularField {
         return dir;
     }
 
-    double cosz = 0;
+    double m_cosz = 0;
 };
 }

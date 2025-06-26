@@ -81,7 +81,7 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularFieldOffset m_directionSampler;
+    SphereSamplingRectangularField m_directionSampler;
     double m_energy = 60;
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 0, 0, 1 };
