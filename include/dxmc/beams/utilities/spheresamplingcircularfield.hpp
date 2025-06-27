@@ -43,7 +43,7 @@ struct SphereSamplingCircularField {
     std::array<double, 3> operator()(RandomState& state) const
     {
         const auto z = state.randomUniform(m_cosz, 1.0);
-        const auto phi = state.randomUniform(0.0, PI_VAL());
+        const auto phi = state.randomUniform(2 * PI_VAL());
         const auto cosphi = std::cos(phi);
         const auto sinphi = std::sin(phi);
         const auto sinz = std::sqrt(1 - z * z);

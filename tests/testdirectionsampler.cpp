@@ -31,7 +31,6 @@ bool testBeamSampling()
     const auto y_ang_min = std::atan((h - 39.0 / 2) / 180.0);
     const auto y_ang_max = std::atan((h + 39.0 / 2) / 180.0);
     const auto x_ang = std::atan(39.0 / (2 * 180.0));
-    //beam.setCollimationHalfAngles(-x_ang, y_ang_min, x_ang, y_ang_max);
     sampler.setData(-x_ang, y_ang_min, x_ang, y_ang_max);
 
     constexpr std::size_t N = 1e5;

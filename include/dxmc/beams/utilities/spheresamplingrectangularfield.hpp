@@ -27,9 +27,16 @@ namespace dxmc {
 
 struct SphereSamplingRectangularField {
     // Sampling of uniform points on a sphere constrained by a rectangular field
-    // Based on  An Area-Preserving Parametrization for Spherical Rectangles by
+    // Based on: An Area-Preserving Parametrization for Spherical Rectangles by
     // Carlos Ureña1 and Marcos Fajardo2 and Alan King
-
+    SphereSamplingRectangularField(
+        const std::array<double, 3>& plane_lower_left,
+        const std::array<double, 3>& plane_cosinex,
+        const std::array<double, 3>& plane_cosiney,
+        const std::array<double, 3>& source_pos)
+    {
+        setData(plane_lower_left, plane_cosinex, plane_cosiney, source_pos);
+    }
     SphereSamplingRectangularField(const std::array<double, 2>& angles)
     {
         setData(angles[0], angles[1]);
@@ -129,25 +136,27 @@ struct SphereSamplingRectangularField {
     std::array<double, 3> operator()(RandomState& state) const
     {
         const auto u = state.randomUniform();
-        const auto v = state.randomUniform();
         const auto au = u * m_S + m_k;
-        const auto fu = (std::cos(au) * m_b0 - m_b1) / sin(au);
-        const auto cu = std::clamp(fu > 0 ? 1 / std::sqrt(fu * fu + m_b0sq) : -1 / std::sqrt(fu * fu + m_b0sq), -1.0, 1.0);
-        const auto xu = std::clamp(-(cu * m_z0) / std::sqrt(1 - cu * cu), m_x0, m_x1);
+        const auto fu = (std::cos(au) * m_b0 - m_b1) / std::sin(au);
+        const auto cu = std::clamp(1.0 / std::sqrt(fu * fu + m_b0sq), 0.0, 1.0) * (fu > 0 ? 1 : -1);
+        const auto xu = std::clamp(-(cu * m_z0) / std::sqrt(1.0 - cu * cu), m_x0, m_x1);
+
+        const auto v = state.randomUniform();
         const auto d = std::sqrt(xu * xu + m_z0sq);
-        const auto h_part = std::sqrt(d * d + m_y0sq);
-        const auto h0 = m_y0 / h_part;
-        const auto h1 = m_y1 / h_part;
+        const auto h0 = m_y0 / std::sqrt(d * d + m_y0sq);
+        const auto h1 = m_y1 / std::sqrt(d * d + m_y1sq);
         const auto hv = h0 + v * (h1 - h0);
         const auto hv2 = hv * hv;
-        const auto yv = hv2 < 1 ? (hv * d) / std::sqrt(1 - hv2) : m_y1;
+        constexpr auto hv2lim = 1.0 - std::numeric_limits<double>::epsilon();
+        const auto yv = hv2 < hv2lim ? (hv * d) / std::sqrt(1 - hv2) : m_y1;
 
         std::array<double, 3> dir = {
             m_o[0] + xu * m_x[0] + yv * m_y[0] + m_z0 * m_z[0],
             m_o[1] + xu * m_x[1] + yv * m_y[1] + m_z0 * m_z[1],
             m_o[2] + xu * m_x[2] + yv * m_y[2] + m_z0 * m_z[2]
         };
-        return vectormath::normalized(dir);
+        vectormath::normalize(dir);
+        return dir;
     }
     std::array<double, 3> m_o;
     std::array<double, 3> m_x;
@@ -167,30 +176,21 @@ struct SphereSamplingRectangularField {
     double m_k;
     double m_S;
 };
-struct SphereSamplingRectangularField2 {
+struct SphereSamplingSquareField {
     // Sampling of uniform points on a sphere constrained by a rectangular field
     // Based on random sampling of points on a whole sphere by sampling x, y, z in [-1, 1] and normalizing the vector
     // Uses simple random sampling of x, y, z inside a constrained box and rejecting points outside field
     // perhaps https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone is better?
 
-    SphereSamplingRectangularField2(const std::array<double, 2>& angles)
+    SphereSamplingSquareField(double half_angle = 0)
     {
-        setData(angles[0], angles[1]);
-    }
-    SphereSamplingRectangularField2(double collimationHalfAngle_x = 0, double collimationHalfAngle_y = 0)
-    {
-        setData(collimationHalfAngle_x, collimationHalfAngle_y);
+        setData(half_angle);
     }
 
-    void setData(double collimationHalfAngle_x, double collimationHalfAngle_y)
+    void setData(double half_angle)
     {
-        borderx = std::sin(collimationHalfAngle_x);
-        bordery = std::sin(collimationHalfAngle_y);
-
-        limx = std::tan(collimationHalfAngle_x);
-        limy = std::tan(collimationHalfAngle_y);
-
-        const auto sinz = std::sqrt(borderx * borderx + bordery * bordery);
+        border = std::max(std::sin(half_angle), std::numeric_limits<double>::min());
+        const auto sinz = std::sqrt(2 * border * border);
         cosz = std::sqrt(1 - sinz * sinz);
     }
 
@@ -211,72 +211,12 @@ struct SphereSamplingRectangularField2 {
             y = sintheta * sinphi;
             z = costheta;
 
-        } while (std::abs(x) > borderx || std::abs(y) > bordery);
+        } while (std::abs(x) > border || std::abs(y) > border);
         dir = { x, y, z };
         return dir;
     }
-    double borderx = 1;
-    double bordery = 1;
-    double limx = 0;
-    double limy = 0;
+    double border = 0;
     double cosz = 1;
 };
 
-struct SphereSamplingRectangularField3 {
-    SphereSamplingRectangularField3(const std::array<double, 2>& angles)
-    {
-        setData(angles);
-    }
-    SphereSamplingRectangularField3(double collimationHalfAngle_x = 0, double collimationHalfAngle_y = 0)
-    {
-        setData(collimationHalfAngle_x, collimationHalfAngle_y);
-    }
-    SphereSamplingRectangularField3(const std::array<double, 4>& angles)
-    {
-        setData(angles);
-    }
-    SphereSamplingRectangularField3(double x_min, double y_min, double x_max, double y_max)
-    {
-        setData(x_min, y_min, x_max, y_max);
-    }
-    void setData(const std::array<double, 2>& angles)
-    {
-        m_angles[0] = -angles[0];
-        m_angles[1] = -angles[1];
-        m_angles[2] = angles[0];
-        m_angles[3] = angles[1];
-    }
-    void setData(double collimationHalfAngle_x = 0, double collimationHalfAngle_y = 0)
-    {
-        m_angles[0] = -collimationHalfAngle_x;
-        m_angles[1] = -collimationHalfAngle_y;
-        m_angles[2] = collimationHalfAngle_x;
-        m_angles[3] = collimationHalfAngle_y;
-    }
-    void setData(const std::array<double, 4>& angles)
-    {
-        m_angles = angles;
-    }
-    void setData(double x_min, double y_min, double x_max, double y_max)
-    {
-        m_angles[0] = x_min;
-        m_angles[1] = y_min;
-        m_angles[2] = x_max;
-        m_angles[3] = y_max;
-    }
-
-    std::array<double, 3> operator()(RandomState& state) const
-    {
-        constexpr std::array<double, 3> cos_x = { 1, 0, 0 };
-        constexpr std::array<double, 3> cos_y = { 0, 1, 0 };
-        constexpr auto d = vectormath::cross(cos_x, cos_y);
-
-        const auto x = state.randomUniform(m_angles[0], m_angles[2]);
-        const auto y = state.randomUniform(m_angles[1], m_angles[3]);
-        auto dir = vectormath::rotate(vectormath::rotate(d, cos_y, x), cos_x, y);
-        return dir;
-    }
-
-    std::array<double, 4> m_angles;
-};
 }
