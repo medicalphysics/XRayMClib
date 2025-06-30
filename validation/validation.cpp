@@ -410,34 +410,34 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
             beam.setEnergySpecter(specter);
             res.specter = "30kVp";
             filter_thickness = { 0.03431, 0.07663 };
-            TG195result = { 1.858E-01, 9.282E-02, 4.642E-02 };
-            TG195result_min = { 1.857E-01, 9.282E-02, 4.64E-02 };
-            TG195result_max = { 1.860E-01, 9.29E-02, 4.65E-02 };
+            TG195result = { 1.857530E-01, 9.281901E-02, 4.642190E-02 };
+            TG195result_min = { 0.185666, 0.092770, 0.046404 };
+            TG195result_max = { 0.185955, 0.092907, 0.046456 };
         } else {
             const auto specter = TG195_100KV();
             beam.setEnergySpecter(specter);
             res.specter = "100kVp";
             filter_thickness = { 0.3950, 0.9840 };
-            TG195result = { 3.452E-02, 1.725E-02, 8.621E-03 };
+            TG195result = { 3.452395E-02, 1.725231E-02, 8.621281E-03 };
             TG195result_min = { 3.452E-02, 1.725E-02, 8.621E-03 };
             TG195result_max = { 3.452E-02, 1.725E-02, 8.621E-03 };
         }
     } else {
         res.modus = "monoenergetic";
         if (mammo) {
-            beam.setEnergy(29.99);
+            beam.setEnergy(30);
             res.specter = "30keV";
             filter_thickness = { 0.2273, 0.4546 };
-            TG195result = { 5.733E-02, 2.868E-02, 1.436E-02 };
-            TG195result_min = { 5.733E-02, 2.868E-02, 1.436E-02 };
-            TG195result_max = { 5.733E-02, 2.868E-02, 1.436E-02 };
+            TG195result = { 5.732642E-02, 2.868487E-02, 1.435717E-02 };
+            TG195result_min = { 0.057316, 0.028665, 0.014329 };
+            TG195result_max = { 0.057331, 0.028705, 0.014373 };
         } else {
-            beam.setEnergy(99.99);
+            beam.setEnergy(100);
             res.specter = "100keV";
             filter_thickness = { 1.511, 3.022 };
-            TG195result = { 2.902E-02, 1.448E-02, 7.227E-03 };
-            TG195result_min = { 2.902E-02, 1.448E-02, 7.227E-03 };
-            TG195result_max = { 2.902E-02, 1.448E-02, 7.227E-03 };
+            TG195result = { 2.902460E-02, 1.448180E-02, 7.226802E-03 };
+            TG195result_min = { 0.029023, 0.014453, 0.007178 };
+            TG195result_max = { 0.029030, 0.014505, 0.007250 };
         }
     }
 
