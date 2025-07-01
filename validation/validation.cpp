@@ -40,7 +40,7 @@ Copyright 2023 Erlend Andersen
 using namespace dxmc;
 
 // Set this to true for a reduced number of photons (for testing)
-constexpr bool SAMPLE_RUN = true;
+constexpr bool SAMPLE_RUN = false;
 constexpr std::size_t NShells = 12;
 
 struct ResultKeys {
@@ -1063,7 +1063,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     std::cout << " photons with low en model: " << model << std::endl;
 
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
-    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 1000000;
+    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 2000000;
 
     using Cylindar = TG195World42<NShells, LOWENERGYCORRECTION>;
     using World = World<Cylindar>;
