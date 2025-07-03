@@ -155,6 +155,11 @@ void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAn
     } else {
         viz.addLineProp(beam, linelenght, linethick);
     }
+
+    std::array<std::uint8_t, 3> color;
+    color = { 255, 195, 170 }; // skin
+    viz.setColorOfItem(world.getItemPointerFromName("Tissue"), color);
+
     viz.generate(world, buffer);
     viz.savePNG(name, buffer);
     return;
@@ -1504,7 +1509,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
 
     World world;
-    auto& grid = world.addItem(grid_object);
+    auto& grid = world.addItem(grid_object, "Tissue");
     world.build(60);
 
     ResultPrint print;
