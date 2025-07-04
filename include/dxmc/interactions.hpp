@@ -215,7 +215,7 @@ namespace interactions {
         const auto theta = std::acos(cosTheta);
         particle.dir = vectormath::peturb(particle.dir, theta, phi);
 
-        // calkulating kbar
+        // calculating kbar
         const auto bar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
         const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
         particle.energy = kbar * ELECTRON_REST_MASS();
@@ -300,7 +300,8 @@ namespace interactions {
                 particle.energy = s.energyOfPhotonsPerInitVacancy;
                 E -= particle.energy * particle.weight;
                 particle.weight *= s.numberOfPhotonsPerInitVacancy;
-                const auto theta = state.randomUniform(PI_VAL());
+                const auto costheta = 1 - 2 * state.randomUniform();
+                const auto theta = std::acos(costheta);
                 const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
                 particle.dir = vectormath::peturb(particle.dir, theta, phi);
             }
