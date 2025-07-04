@@ -19,6 +19,7 @@ set(TEST_SOURCES
     "testtetrahedalmesh2.cpp"
     "testtetrahedalmesh.cpp"
     "testdirectionsampler.cpp"
+    "testinteractions.cpp"
 )
 
 

@@ -79,7 +79,7 @@ namespace interactions {
     }
 
     template <std::size_t Nshells>
-    int comptonScatterIA_NRC_sample_shell(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
+    int comptonScatterIA_NRC_sample_shell(const ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
         // Binding energy og last shell should be set to zero
         const auto& shells = material.shells();
@@ -189,9 +189,13 @@ namespace interactions {
             do {
                 const auto r = state.randomUniform(S);
                 if (r < 0.5) {
-                    pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
+                    const auto logarg = std::max(2 * r, std::numeric_limits<double>::epsilon());
+                    const auto sqrtarg = 1 - 2 * std::log(logarg);
+                    pz = (1 - std::sqrt(sqrtarg)) / (2 * J0);
                 } else {
-                    pz = (std::sqrt(1 - 2 * std::log(2 * (1 - r))) - 1) / (2 * J0);
+                    const auto logarg = std::max(2 * (1 - r), std::numeric_limits<double>::epsilon());
+                    const auto sqrtarg = 1 - 2 * std::log(logarg);
+                    pz = (std::sqrt(sqrtarg) - 1) / (2 * J0);
                 }
                 if (pz < -p) {
                     F = 1 - alpha * p;
@@ -205,9 +209,13 @@ namespace interactions {
             const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
             const auto r = state.randomUniform(S);
             if (r < 0.5) {
-                pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
+                const auto logarg = std::max(2 * r, std::numeric_limits<double>::epsilon());
+                const auto sqrtarg = 1 - 2 * std::log(logarg);
+                pz = (1 - std::sqrt(sqrtarg)) / (2 * J0);
             } else {
-                pz = (std::sqrt(1 - 2 * std::log(2 * (1 - r))) - 1) / (2 * J0);
+                const auto logarg = std::max(2 * (1 - r), std::numeric_limits<double>::epsilon());
+                const auto sqrtarg = 1 - 2 * std::log(logarg);
+                pz = (std::sqrt(sqrtarg) - 1) / (2 * J0);
             }
         }
 
@@ -219,7 +227,6 @@ namespace interactions {
         const auto bar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
         const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
         particle.energy = kbar * ELECTRON_REST_MASS();
-
         return (E - particle.energy) * particle.weight;
     }
 
