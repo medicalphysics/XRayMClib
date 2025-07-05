@@ -33,13 +33,21 @@ add_custom_command(TARGET validation POST_BUILD
 set(PLOTSCRIPT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/validationPlots.py")
 add_custom_command(TARGET validation POST_BUILD
 	COMMENT "Copying plotting script ${PLOTSCRIPT_PATH}."	
-    COMMAND ${CMAKE_COMMAND} -E copy ${PLOTSCRIPT_PATH} validationPlots.py
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLOTSCRIPT_PATH} validationPlots.py
+	WORKING_DIRECTORY $<TARGET_FILE_DIR:validation>
+	)
+
+add_custom_command(TARGET validation POST_BUILD
+	COMMENT "Copying plotting TG195 results ${CMAKE_CURRENT_SOURCE_DIR}/data/TG195results.txt."	
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/data/TG195results.txt" TG195results.txt
 	WORKING_DIRECTORY $<TARGET_FILE_DIR:validation>
 	)
 
 set(PLOTSCRIPTSCATTER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/scatterPlots.py")
 add_custom_command(TARGET scattervalidation POST_BUILD
 	COMMENT "Copying plotting script ${PLOTSCRIPTSCATTER_PATH}."	
-    COMMAND ${CMAKE_COMMAND} -E copy ${PLOTSCRIPTSCATTER_PATH} scatterPlots.py
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLOTSCRIPTSCATTER_PATH} scatterPlots.py
 	WORKING_DIRECTORY $<TARGET_FILE_DIR:scattervalidation>
 	)
+
+
