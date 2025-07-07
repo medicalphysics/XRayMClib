@@ -25,65 +25,144 @@ import os
 import sys
 import re
 
-HUE_ORDER = list(["NoneLC", "Livermore", "IA", "TG195"])
+HUE_ORDER = list(["EGSnrc", "Geant4", "MCNP", "Penelope", "IA", "Livermore", "NoneLC"])
+
 
 plt.rcParams["font.family"] = "Times New Roman"
 sns.set_theme(palette="husl", font="Times New Roman", style="ticks")
 
 
-def readData(filename="validationTable.txt"):
-    converters = {"Result": float, "Stddev": float, "SimulationTime": float}
-    dt = pd.read_csv(filename, sep=", ", engine="python", converters=converters)
-    nNaN = dt.isnull().sum().sum()
-    if nNaN > 0:
-        print(
-            "Warning: Found {} NaN values or missing data, dropping rows".format(nNaN)
+def readTG195Data(path):
+    converters = {
+        "Case": str,
+        "Volume": str,
+        "Specter": str,
+        "Mode": str,
+        "EGSnrc_Result": float,
+        "EGSnrc_Uncertainty": float,
+        "Geant4_Result": float,
+        "Geant4_Uncertainty": float,
+        "MCNP_Result": float,
+        "MCNP_Uncertainty": float,
+        "Penelope_Result": float,
+        "Penelope_Uncertainty": float,
+    }
+    dt_long = pd.read_csv(path, sep=",", engine="python", converters=converters)
+
+    dt_long["TG195"] = (
+        dt_long["EGSnrc_Result"]
+        + dt_long["Geant4_Result"]
+        + dt_long["MCNP_Result"]
+        + dt_long["Penelope_Result"]
+    ) / 4
+
+    return dt_long
+
+
+def readdxmcData(path):
+    converters = {
+        "Case": str,
+        "Volume": str,
+        "Specter": str,
+        "Mode": str,
+        "Model": str,
+        "Result": float,
+        "Uncertainty": float,
+    }
+    cols = list(converters.keys())
+    dx = pd.read_csv(
+        path, sep=",", engine="python", converters=converters, usecols=cols
+    )
+
+    # Transform from long to wide form
+    models = list(set(dx["Model"]))
+    longs = list([(m, dx[dx["Model"] == m]) for m in models])
+    for _, l in longs:
+        del l["Model"]
+    if len(longs) > 1:
+        m, dxl = longs.pop(0)
+        dxl.rename(
+            columns={
+                "Result": "{}_Result".format(m),
+                "Uncertainty": "{}_Uncertainty".format(m),
+            },
+            inplace=True,
         )
-        dt = dt.dropna()
 
-    # Making TG195 results an own model
-    m_series = dt["Model"].value_counts().sort_values(ascending=False)
-    model = m_series.index[0]
-    dm = dt[dt["Model"] == model].copy()
-    dm["Result"] = dm["TG195Result"]
-    dm["Model"] = ["TG195" for _ in dm["TG195Result"]]
-    for key in ["Stddev", "nEvents", "SimulationTime"]:
-        dm[key] = [0 for _ in dm[key]]
-
-    dm_min = dt[dt["Model"] == model].copy()
-    dm_min["Result"] = dm["TG195Result_min"]
-    dm_min["Model"] = ["TG195" for _ in dm_min["TG195Result_min"]]
-    for key in ["Stddev", "nEvents", "SimulationTime"]:
-        dm_min[key] = [0 for _ in dm_min[key]]
-
-    dm_max = dt[dt["Model"] == model].copy()
-    dm_max["Result"] = dm_max["TG195Result"]
-    dm_max["Model"] = ["TG195" for _ in dm_max["TG195Result"]]
-    for key in ["Stddev", "nEvents", "SimulationTime"]:
-        dm_max[key] = [0 for _ in dm_max[key]]
-
-    df = pd.concat([dt, dm, dm_min, dm_max], ignore_index=True)
-
-    present_models = list([m for m in df["Model"].unique()])
-
-    cmodels = list([m for m in HUE_ORDER])
-    for m in cmodels:
-        if m not in present_models:
-            HUE_ORDER.remove(m)
-
-    # adding errors for seaborn
-    df_max = df[df["Model"] != "TG195"][df["Case"] != "Case 4.2"].copy()
-    df_max["Result"] += 1.96 * df_max["Stddev"]
-    df_min = df[df["Model"] != "TG195"].copy()
-    df_min["Result"] -= 1.96 * df_max["Stddev"]
-    return pd.concat([df, df_min, df_max], ignore_index=True)
+        for m, dxr in longs:
+            dxl = dxl.merge(
+                dxr,
+                how="outer",
+            )
+            dxl.rename(
+                columns={
+                    "Result": "{}_Result".format(m),
+                    "Uncertainty": "{}_Uncertainty".format(m),
+                },
+                inplace=True,
+            )
+    else:
+        m = models[0]
+        dxl = dx.rename(
+            columns={
+                "Result": "{}_Result".format(m),
+                "Uncertainty": "{}_Uncertainty".format(m),
+            }
+        )
+        del dxl["Model"]
+    return dxl
 
 
-def readAllData(filelist: list):
-    dfs = []
-    for file in filelist:
-        dfs.append(readData(file))
-    return pd.concat(dfs, ignore_index=True)
+def readData(dxmc_path, TG195_path, relative_percent=True):
+
+    dx = readdxmcData(dxmc_path)
+    dtg = readTG195Data(TG195_path)
+    dt_long = dtg.merge(dx, how="outer")
+
+    col = dt_long.columns
+    models = ["EGSnrc", "Geant4", "MCNP", "Penelope", "IA", "Livermore", "NoneLC"]
+    models = [m for m in models if "{}_Result".format(m) in col]
+
+    ## making uncertainty absolute values
+    for m in models:
+        u = "{}_Uncertainty".format(m)
+        r = "{}_Result".format(m)
+        dt_long[u] = dt_long[r] * dt_long[u]
+
+    ## making relative data
+    for m in models:
+        r = "{}_Result".format(m)
+        dt_long["{}_relative".format(r)] = dt_long[r] / dt_long["TG195"]
+        u = "{}_Uncertainty".format(m)
+        dt_long["{}_relative".format(u)] = dt_long[u] / dt_long["TG195"]
+
+    ## making long form
+    melted = list()
+    for c in ["Result", "Uncertainty", "Result_relative", "Uncertainty_relative"]:
+        melt = dt_long.melt(
+            id_vars=["Case", "Volume", "Specter", "Mode"],
+            value_vars=["{}_{}".format(m, c) for m in models],
+            var_name="Model",
+            value_name=c,
+        )
+        melt["Model"] = melt["Model"].replace(
+            to_replace={"{}_{}".format(m, c): m for m in models}, inplace=False
+        )
+        melted.append(melt)
+
+    dt = melted.pop(0)
+    for melt in melted:
+        dt = dt.merge(melt, how="outer")
+
+    ##Remove non existing models
+    for h in HUE_ORDER.copy():
+        if h not in models:
+            HUE_ORDER.remove(h)
+
+    if relative_percent:
+        dt["Result_relative"] = (dt["Result_relative"] - 1) * 100
+        dt["Uncertainty_relative"] = (dt["Uncertainty_relative"] - 1) * 100
+    return dt
 
 
 def fix_axis(
@@ -102,140 +181,102 @@ def fix_axis(
     fg.tight_layout()
 
 
-def plotCase1(dt_full, kind="strip", show=False):
+def plotCase1(dt_full, kind="strip", show=False, relative=False):
     dt = dt_full[dt_full["Case"] == "Case 1"]
     if dt.size == 0:
         return
 
     labels = ["NoneFilter", "HVLFilter", "QVLFilter"]
 
-    for m in ["monoenergetic", "polyenergetic"]:
-        dtt = dt[dt["Mode"] == m]
+    g = sns.catplot(
+        x="Volume",
+        y="Result_relative" if relative else "Result",
+        hue="Model",
+        col="Specter",
+        col_wrap=2,
+        order=labels,
+        hue_order=HUE_ORDER,
+        data=dt,
+        kind=kind,
+        errorbar=lambda x: (x.min(), x.max()),
+    )
+    if relative:
+        ylabel = "Difference [%]"
+    else:
+        ylabel = r"$\mathdefault{KERMA}_{\mathdefault{Air}} $ per history"
+
+    fix_axis(g, ylabel=ylabel)
+
+    plt.savefig(
+        "plots/Case1_{}.png".format("relative" if relative else "value"), dpi=300
+    )
+    if show:
+        plt.show()
+    plt.clf()
+    plt.close()
+
+
+def plotCase2and3(case, dt_full, kind="strip", show=False, relative=False):
+    casename = case.replace(" ", "")
+    dt = dt_full[dt_full["Case"] == case]
+    if dt.size == 0:
+        return
+    if relative:
+        dt_vol = dt
+    else:
+        dt_vol = dt[dt["Volume"] != "Total body"]
+
+    labels = list(set([v for v in dt_vol["Volume"]]))
+    labels.sort()
+
+    g = sns.catplot(
+        x="Volume",
+        y="Result_relative" if relative else "Result",
+        hue="Model",
+        row="Specter",
+        col="Mode",
+        order=labels,
+        hue_order=HUE_ORDER,
+        data=dt_vol,
+        kind=kind,
+        errorbar=lambda x: (x.min(), x.max()),
+    )
+
+    if relative:
+        ylabel = "Difference [%]"
+    else:
+        ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
+
+    fix_axis(g, ylabel=ylabel)
+    plt.savefig(
+        "plots/{}_{}.png".format(casename, "relative" if relative else "value"), dpi=300
+    )
+    if show:
+        plt.show()
+    plt.clf()
+    plt.close()
+
+    if not relative:
+        dt_tot = dt[dt["Volume"] == "Total body"]
         g = sns.catplot(
-            x="Volume",
+            x="Specter",
             y="Result",
             hue="Model",
-            col="Specter",
-            order=labels,
+            col="Mode",
             hue_order=HUE_ORDER,
-            data=dtt,
+            data=dt_tot,
             kind=kind,
             errorbar=lambda x: (x.min(), x.max()),
         )
-        ylabel = r"$\mathdefault{KERMA}_{\mathdefault{Air}} $ per history"
-
-        fix_axis(g, ylabel=ylabel)
-
-        plt.savefig("plots/Case1_{}.png".format(m), dpi=300)
+        fix_axis(g, False)
+        plt.savefig("plots/{}_value_TotalBody.png".format(casename), dpi=300)
         if show:
             plt.show()
         plt.clf()
         plt.close()
 
 
-def plotCase2(dt_full, kind="strip", show=False):
-    dt = dt_full[dt_full["Case"] == "Case 2"]
-    if dt.size == 0:
-        return
-    dt_vol = dt[dt["Volume"] != "Total body"]
-
-    labels = list(set([v for v in dt_vol["Volume"]]))
-    labels.sort()
-
-    g = sns.catplot(
-        x="Volume",
-        y="Result",
-        hue="Model",
-        row="Specter",
-        col="Mode",
-        order=labels,
-        hue_order=HUE_ORDER,
-        data=dt_vol,
-        kind=kind,
-        errorbar=lambda x: (x.min(), x.max()),
-    )
-
-    fix_axis(g)
-
-    plt.savefig("plots/Case2_volume.png", dpi=300)
-    if show:
-        plt.show()
-    plt.clf()
-    plt.close()
-
-    dt_tot = dt[dt["Volume"] == "Total body"]
-    g = sns.catplot(
-        x="Specter",
-        y="Result",
-        hue="Model",
-        col="Mode",
-        hue_order=HUE_ORDER,
-        data=dt_tot,
-        kind=kind,
-        errorbar=lambda x: (x.min(), x.max()),
-    )
-    fix_axis(g, False)
-    plt.savefig("plots/Case2_total_body.png", dpi=300)
-    if show:
-        plt.show()
-    plt.clf()
-    plt.close()
-
-
-def plotCase3(dt_full, kind="strip", show=False):
-    dt = dt_full[dt_full["Case"] == "Case 3"]
-    if dt.size == 0:
-        return
-    dt_vol = dt[dt["Volume"] != "Total body"]
-
-    labels = list(set([v for v in dt_vol["Volume"]]))
-    labels.sort()
-
-    g = sns.catplot(
-        x="Volume",
-        y="Result",
-        hue="Model",
-        row="Specter",
-        col="Mode",
-        order=labels,
-        hue_order=HUE_ORDER,
-        data=dt_vol,
-        kind=kind,
-        errorbar=lambda x: (x.min(), x.max()),
-    )
-
-    fix_axis(g)
-
-    plt.savefig("plots/Case3_volume.png", dpi=300)
-    if show:
-        plt.show()
-    plt.clf()
-    plt.close()
-
-    dt_tot = dt[dt["Volume"] == "Total body"]
-    labels = list(set([v for v in dt_tot["Specter"]]))
-    labels.sort()
-
-    g = sns.catplot(
-        x="Specter",
-        y="Result",
-        hue="Model",
-        col="Mode",
-        order=labels,
-        hue_order=HUE_ORDER,
-        data=dt_tot,
-        kind=kind,
-        errorbar=lambda x: (x.min(), x.max()),
-    )
-    fix_axis(g, False)
-    plt.savefig("plots/Case3_total_body.png", dpi=300)
-    if show:
-        plt.show()
-    plt.clf()
-    plt.close()
-
-
-def plotCase41(dt_full, kind="strip", show=False):
+def plotCase41(dt_full, kind="strip", show=False, relative=False):
     dt = dt_full[dt_full["Case"] == "Case 4.1"]
     if dt.size == 0:
         return
@@ -245,7 +286,7 @@ def plotCase41(dt_full, kind="strip", show=False):
 
     g = sns.catplot(
         x="Volume",
-        y="Result",
+        y="Result_relative" if relative else "Result",
         hue="Model",
         row="Specter",
         col="Mode",
@@ -255,53 +296,71 @@ def plotCase41(dt_full, kind="strip", show=False):
         kind=kind,
         errorbar=lambda x: (x.min(), x.max()),
     )
-    fix_axis(g, False)
-    plt.savefig("plots/Case41.png", dpi=300)
+    if relative:
+        ylabel = "Difference [%]"
+    else:
+        ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
+
+    fix_axis(g, rotate_labels=False, ylabel=ylabel)
+    plt.savefig(
+        "plots/Case41_{}.png".format("relative" if relative else "value"), dpi=300
+    )
     if show:
         plt.show()
     plt.close()
 
 
-def plotCase42(dt_full, show=False):
+def plotCase42(dt_full, show=False, kind="strip", relative=False):
     dt = dt_full[dt_full["Case"] == "Case 4.2"]
     if dt.size == 0:
         return
     dt["Volume [angle]"] = [float(d) for d in dt["Volume"]]
     dtp_ind = ["Cent" in e for e in dt["Mode"]]
     dtp = dt[dtp_ind]
-    g = sns.relplot(
+    g = sns.catplot(
         x="Volume [angle]",
-        y="Result",
+        y="Result_relative" if relative else "Result",
         hue="Model",
         row="Specter",
         col="Mode",
+        kind=kind,
         hue_order=HUE_ORDER,
         data=dtp,
     )
-    fix_axis(g)
-    plt.savefig("plots/Case42_Cent.png", dpi=300)
+    if relative:
+        ylabel = "Difference [%]"
+    else:
+        ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
+
+    fix_axis(g, ylabel=ylabel)
+    plt.savefig(
+        "plots/Case42_Cent_{}.png".format("relative" if relative else "value"), dpi=300
+    )
     if show:
         plt.show()
 
     dtp_ind = ["Pher" in e for e in dt["Mode"]]
     dtp = dt[dtp_ind]
-    g = sns.relplot(
+    g = sns.catplot(
         x="Volume [angle]",
-        y="Result",
+        y="Result_relative" if relative else "Result",
         hue="Model",
         row="Specter",
         col="Mode",
+        kind=kind,
         hue_order=HUE_ORDER,
         data=dtp,
     )
-    fix_axis(g)
-    plt.savefig("plots/Case42_Pher.png", dpi=300)
+    fix_axis(g, ylabel=ylabel)
+    plt.savefig(
+        "plots/Case42_Pher_{}.png".format("relative" if relative else "value"), dpi=300
+    )
     if show:
         plt.show()
     plt.close()
 
 
-def plotCase5(dt_full, kind="strip", show=False):
+def plotCase5(dt_full, kind="strip", show=False, relative=False):
     dt = dt_full[dt_full["Case"] == "Case 5"]
     if dt.size == 0:
         return
@@ -316,7 +375,7 @@ def plotCase5(dt_full, kind="strip", show=False):
         dtm = dt[dt["Volume"] == m]
         g = sns.catplot(
             x="Mode",
-            y="Result",
+            y="Result_relative" if relative else "Result",
             hue="Model",
             row=None,
             col="Specter",
@@ -326,122 +385,43 @@ def plotCase5(dt_full, kind="strip", show=False):
             kind=kind,
             errorbar=lambda x: (x.min(), x.max()),
         )
-        fix_axis(g)
-        plt.savefig("plots/Case5_{}.png".format(m), dpi=300)
-        if show:
-            plt.show()
-        plt.close()
-
-
-def plotRuntimes(dt, kind="strip", show=False):
-    df = dt[dt["Model"] != "TG195"]
-    for cas in set(df["Case"]):
-        dff = df[df["Case"] == cas]
-        labels = list(set(dff["Mode"]))
-        if all([m.isdigit() for m in labels]):
-            labels.sort(key=lambda x: int(x))
+        if relative:
+            ylabel = "Difference [%]"
         else:
-            labels.sort()
-        g = sns.catplot(
-            x="Mode",
-            y="SimulationTime",
-            row="Specter",
-            hue="Model",
-            data=dff,
-            kind=kind,
-            order=labels,
-            hue_order=HUE_ORDER[:-1],
+            ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
+        fix_axis(g, ylabel=ylabel)
+        plt.savefig(
+            "plots/Case5_{}_{}.png".format(m, "relative" if relative else "value"),
+            dpi=300,
         )
-        fix_axis(g, ylabel="Simulation time [ms]", set_y0=False)
-        plt.savefig("plots/Runtimes_{}.png".format(cas), dpi=300)
         if show:
             plt.show()
-        plt.clf()
         plt.close()
-
-
-def merge_files(filenames: list, output="validationTable.txt", aggregate=True):
-    have_header = os.path.isfile(output)
-    if not aggregate:
-        with open(output, "a") as out:
-            for fname in filenames:
-                if os.path.isfile(fname) and fname != output:
-                    with open(fname, "r") as f:
-                        if have_header:
-                            lines = f.readlines()
-                            if len(lines) > 1:
-                                out.writelines(lines[1:])
-                        else:
-                            out.write(f.read())
-                            have_header = True
-                else:
-                    print("No file named {}, skipping".format(fname))
-    else:
-        tables = list()
-        for fname in filenames:
-            if os.path.isfile(fname):
-                converters = {"Result": float, "Stddev": float, "SimulationTime": float}
-                dt = pd.read_csv(
-                    fname, sep=", ", engine="python", converters=converters
-                )
-                tables.append(dt)
-            else:
-                print("No file named {}, skipping".format(fname))
-
-        if len(tables) == 0:
-            print("No files found, exiting.")
-            return
-
-        df = tables[0]
-        for i in range(1, len(tables)):
-            df["Result"] += tables[i]["Result"]
-        df["Result"] /= len(tables)
-        df.to_csv(output, index=False, sep=",", mode="w")
-
-        ##fixing seps
-        with open(output, "r") as inn:
-            txt = inn.read()
-        txt.replace(",", ", ")
-        with open(output, "w") as out:
-            out.write(txt)
-
-
-def expand_filenames(filenames: list):
-    expanded = list()
-    files_in_path = os.listdir(os.path.dirname(os.path.abspath(__file__)))
-    for fname in filenames:
-        if "*" in fname:
-            for p in Path(".").glob(fname):
-                expanded.append(str(p))
-        else:
-            expanded.append(fname)
-
-    return list(set(expanded))
 
 
 if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    infile = "validationTable.txt"
-    if len(sys.argv) > 2:
-        infile = sys.argv[1]
-        merge_files(expand_filenames(sys.argv[2:]), output=infile, aggregate=False)
-        # dt = readAllData(expand_filenames(sys.argv[1:]))
-    elif len(sys.argv) == 2:
-        merge_files(expand_filenames(sys.argv[1:]), output=infile, aggregate=False)
 
-    dt = readData(infile)
+    data = readData("ValidationTable.txt", "TG195Results.txt")
 
     try:
         os.mkdir("plots")
     except FileExistsError:
         pass
-
-    kind = "bar"
-    plotCase1(dt, kind=kind)
-    plotCase2(dt, kind=kind)
-    plotCase3(dt, kind=kind)
-    plotCase41(dt, kind=kind)
-    plotCase42(dt)
-    plotCase5(dt, kind=kind)
-    plotRuntimes(dt, kind=kind)
+    # kind = "bar"
+    # kind = "strip"
+    # kind = "swarm"
+    kind = "point"
+    plotCase1(data, kind=kind, relative=False)
+    plotCase1(data, kind=kind, relative=True)
+    plotCase2and3("Case 2", data, kind=kind, relative=False)
+    plotCase2and3("Case 2", data, kind=kind, relative=True)
+    plotCase2and3("Case 3", data, kind=kind, relative=False)
+    plotCase2and3("Case 3", data, kind=kind, relative=True)
+    plotCase41(data, kind=kind, relative=False)
+    plotCase41(data, kind=kind, relative=True)
+    plotCase42(data, kind=kind, relative=False)
+    plotCase42(data, kind=kind, relative=True)
+    plotCase5(data, kind=kind, relative=True)
+    plotCase5(data, kind=kind, relative=True)

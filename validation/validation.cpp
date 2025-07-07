@@ -91,7 +91,7 @@ public:
             if (!empty)
                 return;
         }
-        m_myfile << "Case,Volume,Specter,Model,Mode,Result,Uncertenty,nEvents,SimulationTime\n";
+        m_myfile << "Case,Volume,Specter,Model,Mode,Result,Uncertainty,nEvents,SimulationTime\n";
     }
 
     void operator()(const ResultKeys& r, bool terminal = true, const std::string& units = "ev/hist")
@@ -835,7 +835,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     res.volume = "Total body";
     res.TG195Result = sim_ev;
     res.result = breast.energyScored(8).energyImparted() * evNormal;
-    res.result_std = breast.energyScored(8).relativeUncertainty() * evNormal;
+    res.result_std = breast.energyScored(8).standardDeviation() * evNormal / res.result;
     res.nEvents = breast.energyScored(8).numberOfEvents();
     res.nMilliseconds = time_elapsed.count();
     print(res, true);
@@ -844,7 +844,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
         res.volume = "VOI " + std::to_string(i + 1);
         res.TG195Result = sim_subvol[i];
         res.result = breast.energyScored(i).energyImparted() * evNormal;
-        res.result_std = breast.energyScored(i).relativeUncertainty() * evNormal;
+        res.result_std = breast.energyScored(i).standardDeviation() * evNormal / res.result;
         res.nEvents = breast.energyScored(i).numberOfEvents();
         print(res, true);
     }
@@ -1100,7 +1100,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         res.volume = std::to_string(angInt);
         res.TG195Result = sim_ev_pher[i];
         res.result = cylinder.energyScoredPeriferyCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
-        res.result_std = cylinder.energyScoredPeriferyCylinder().relativeUncertainty() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
+        res.result_std = cylinder.energyScoredPeriferyCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
         res.nEvents = cylinder.energyScoredPeriferyCylinder().numberOfEvents();
         std::cout << " Pherifery: " << res.result << " sim/TG195: [" << (res.result / sim_ev_pher[i] - 1) * 100 << "%]";
         print(res, false);
@@ -1108,7 +1108,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         res.volume = std::to_string(angInt);
         res.TG195Result = sim_ev_center[i];
         res.result = cylinder.energyScoredCenterCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
-        res.result_std = cylinder.energyScoredCenterCylinder().relativeUncertainty() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
+        res.result_std = cylinder.energyScoredCenterCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
         res.nEvents = cylinder.energyScoredCenterCylinder().numberOfEvents();
         std::cout << " Center: " << res.result << " sim/TG195: [" << (res.result / sim_ev_center[i] - 1) * 100 << "%]" << std::endl;
         print(res, false);
@@ -1395,7 +1395,7 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
     matInfo.push_back(std::make_pair(.001205, "Air"));
     matInfo.push_back(std::make_pair(.075, "Cushion Foam"));
     matInfo.push_back(std::make_pair(1.20, "Carbon fiber"));
-    matInfo.push_back(std::make_pair(1.03, "Soft Tissue"));
+    matInfo.push_back(std::make_pair(1.03, "Soft tissue"));
     matInfo.push_back(std::make_pair(1.05, "Heart"));
     matInfo.push_back(std::make_pair(0.26, "Lung"));
     matInfo.push_back(std::make_pair(1.06, "Liver"));
@@ -1411,7 +1411,7 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
     matInfo.push_back(std::make_pair(1.03, "Esophagus"));
     matInfo.push_back(std::make_pair(1.09, "Skin"));
     matInfo.push_back(std::make_pair(0.93, "Breast"));
-    matInfo.push_back(std::make_pair(1.92, "Cortial Bone"));
+    matInfo.push_back(std::make_pair(1.92, "Cortical Bone"));
 
     auto res = std::make_pair(grid, matInfo);
 
