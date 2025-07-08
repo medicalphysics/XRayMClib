@@ -92,6 +92,10 @@ public:
     {
         addFiltrationMaterial(50, mm);
     }
+    void setAgFiltrationMaterial(double mm)
+    {
+        addFiltrationMaterial(47, mm);
+    }
 
     double filtration(std::size_t Z) const
     {
