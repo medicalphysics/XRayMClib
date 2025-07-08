@@ -59,7 +59,7 @@ public:
     auto sampleParticle(RandomState& state) const noexcept
     {
         const auto dir = m_directionSampler(state);
-        const auto angx = std::acos(dir[0]);
+        const auto angx = std::atan(dir[0] / dir[2]);
         const auto bowtie_weight = m_bowtieFilter->operator()(angx);
 
         if constexpr (ENABLETRACKING) {
