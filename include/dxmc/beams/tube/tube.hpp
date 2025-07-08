@@ -92,7 +92,7 @@ public:
     {
         addFiltrationMaterial(50, mm);
     }
-    void setAgFiltrationMaterial(double mm)
+    void setAgFiltration(double mm)
     {
         addFiltrationMaterial(47, mm);
     }
