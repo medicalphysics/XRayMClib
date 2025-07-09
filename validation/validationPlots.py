@@ -119,6 +119,9 @@ def readData(dxmc_path, TG195_path, relative_percent=True):
     dtg = readTG195Data(TG195_path)
     dt_long = dtg.merge(dx, how="outer")
 
+    # dropping non existing data
+    dt_long = dt_long.dropna(how="any")
+
     col = dt_long.columns
     models = ["EGSnrc", "Geant4", "MCNP", "Penelope", "IA", "Livermore", "NoneLC"]
     models = [m for m in models if "{}_Result".format(m) in col]
@@ -161,7 +164,16 @@ def readData(dxmc_path, TG195_path, relative_percent=True):
 
     if relative_percent:
         dt["Result_relative"] = (dt["Result_relative"] - 1) * 100
-        dt["Uncertainty_relative"] = (dt["Uncertainty_relative"] - 1) * 100
+        dt["Uncertainty_relative"] = (dt["Uncertainty_relative"]) * 100
+
+    ## adding conf intervals
+    dt_max = dt.copy()
+    dt_min = dt.copy()
+    dt_max["Result"] = dt["Result"] + dt["Uncertainty"]
+    dt_max["Result_relative"] = dt["Result_relative"] + dt["Uncertainty_relative"]
+    dt_min["Result"] = dt["Result"] - dt["Uncertainty"]
+    dt_min["Result_relative"] = dt["Result_relative"] - dt["Uncertainty_relative"]
+    dt = pd.concat([dt, dt_min, dt_max])
     return dt
 
 
@@ -186,8 +198,8 @@ def plotCase1(dt_full, kind="strip", show=False, relative=False):
     if dt.size == 0:
         return
 
-    labels = ["NoneFilter", "HVLFilter", "QVLFilter"]
-
+    labels = list(set(dt["Mode"]))
+    print(dt)
     g = sns.catplot(
         x="Volume",
         y="Result_relative" if relative else "Result",
@@ -201,7 +213,7 @@ def plotCase1(dt_full, kind="strip", show=False, relative=False):
         errorbar=lambda x: (x.min(), x.max()),
     )
     if relative:
-        ylabel = "Difference [%]"
+        ylabel = "Difference from mean of TG195 [%]"
     else:
         ylabel = r"$\mathdefault{KERMA}_{\mathdefault{Air}} $ per history"
 
@@ -243,7 +255,7 @@ def plotCase2and3(case, dt_full, kind="strip", show=False, relative=False):
     )
 
     if relative:
-        ylabel = "Difference [%]"
+        ylabel = "Difference from mean of TG195 [%]"
     else:
         ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
 
@@ -297,7 +309,7 @@ def plotCase41(dt_full, kind="strip", show=False, relative=False):
         errorbar=lambda x: (x.min(), x.max()),
     )
     if relative:
-        ylabel = "Difference [%]"
+        ylabel = "Difference from mean of TG195 [%]"
     else:
         ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
 
@@ -314,50 +326,64 @@ def plotCase42(dt_full, show=False, kind="strip", relative=False):
     dt = dt_full[dt_full["Case"] == "Case 4.2"]
     if dt.size == 0:
         return
-    dt["Volume [angle]"] = [float(d) for d in dt["Volume"]]
+    dt["Volume [angle]"] = [int(d) for d in dt["Volume"]]
     dtp_ind = ["Cent" in e for e in dt["Mode"]]
     dtp = dt[dtp_ind]
-    g = sns.catplot(
-        x="Volume [angle]",
-        y="Result_relative" if relative else "Result",
-        hue="Model",
-        row="Specter",
-        col="Mode",
-        kind=kind,
-        hue_order=HUE_ORDER,
-        data=dtp,
-    )
-    if relative:
-        ylabel = "Difference [%]"
-    else:
-        ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
+    for mode in set(dtp["Mode"]):
+        g = sns.catplot(
+            x="Volume [angle]",
+            y="Result_relative" if relative else "Result",
+            hue="Model",
+            row="Specter",
+            # col="Mode",
+            col=None,
+            kind=kind,
+            hue_order=HUE_ORDER,
+            data=dtp[dtp["Mode"] == mode],
+            errorbar=lambda x: (x.min(), x.max()),
+            aspect=2,
+        )
+        if relative:
+            ylabel = "Difference from mean of TG195 [%]"
+        else:
+            ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
 
-    fix_axis(g, ylabel=ylabel)
-    plt.savefig(
-        "plots/Case42_Cent_{}.png".format("relative" if relative else "value"), dpi=300
-    )
-    if show:
-        plt.show()
+        fix_axis(g, ylabel=ylabel)
+        plt.savefig(
+            "plots/Case42_Cent_{}_{}.png".format(
+                mode, "relative" if relative else "value"
+            ),
+            dpi=300,
+        )
+        if show:
+            plt.show()
+        plt.close()
 
     dtp_ind = ["Pher" in e for e in dt["Mode"]]
     dtp = dt[dtp_ind]
-    g = sns.catplot(
-        x="Volume [angle]",
-        y="Result_relative" if relative else "Result",
-        hue="Model",
-        row="Specter",
-        col="Mode",
-        kind=kind,
-        hue_order=HUE_ORDER,
-        data=dtp,
-    )
-    fix_axis(g, ylabel=ylabel)
-    plt.savefig(
-        "plots/Case42_Pher_{}.png".format("relative" if relative else "value"), dpi=300
-    )
-    if show:
-        plt.show()
-    plt.close()
+    for mode in set(dtp["Mode"]):
+        g = sns.catplot(
+            x="Volume [angle]",
+            y="Result_relative" if relative else "Result",
+            hue="Model",
+            row="Specter",
+            col=None,
+            kind=kind,
+            hue_order=HUE_ORDER,
+            data=dtp[dtp["Mode"] == mode],
+            errorbar=lambda x: (x.min(), x.max()),
+            aspect=2,
+        )
+        fix_axis(g, ylabel=ylabel)
+        plt.savefig(
+            "plots/Case42_Pher_{}_{}.png".format(
+                mode, "relative" if relative else "value"
+            ),
+            dpi=300,
+        )
+        if show:
+            plt.show()
+        plt.close()
 
 
 def plotCase5(dt_full, kind="strip", show=False, relative=False):
@@ -365,28 +391,29 @@ def plotCase5(dt_full, kind="strip", show=False, relative=False):
     if dt.size == 0:
         return
 
-    dt["Mode"] = [int(v) for v in dt["Mode"]]
-    labels = list(set(dt["Mode"]))
+    # dt["Volume"] = [int(v) for v in dt["Volume"]]
+    labels = list(set(dt["Volume"]))
     labels.sort()
 
-    vols = set([m for m in dt["Volume"]])
+    vols = set([m for m in dt["Mode"]])
 
     for m in vols:
-        dtm = dt[dt["Volume"] == m]
+        dtm = dt[dt["Mode"] == m]
         g = sns.catplot(
-            x="Mode",
+            x="Volume",
             y="Result_relative" if relative else "Result",
             hue="Model",
-            row=None,
-            col="Specter",
+            col=None,
+            row="Specter",
             order=labels,
             hue_order=HUE_ORDER,
             data=dtm,
             kind=kind,
             errorbar=lambda x: (x.min(), x.max()),
+            aspect=2,
         )
         if relative:
-            ylabel = "Difference [%]"
+            ylabel = "Difference from mean of TG195 [%]"
         else:
             ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
         fix_axis(g, ylabel=ylabel)
@@ -409,9 +436,8 @@ if __name__ == "__main__":
         os.mkdir("plots")
     except FileExistsError:
         pass
+
     # kind = "bar"
-    # kind = "strip"
-    # kind = "swarm"
     kind = "point"
     plotCase1(data, kind=kind, relative=False)
     plotCase1(data, kind=kind, relative=True)

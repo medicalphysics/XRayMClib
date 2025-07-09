@@ -42,6 +42,7 @@ using namespace dxmc;
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
 constexpr std::size_t NShells = 12;
+constexpr double Sigma = 1.96;
 
 struct ResultKeys {
     std::string rCase = "unknown";
@@ -636,7 +637,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     res.volume = "Total body";
     res.TG195Result = TG195_value;
     res.result = total_ev / (total_hist / 1000);
-    res.result_std = std::sqrt(total_ev_var) / (total_hist / 1000) / res.result;
+    res.result_std = Sigma * std::sqrt(total_ev_var) / (total_hist / 1000) / res.result;
     res.nEvents = total_number_events;
     res.nMilliseconds = time_elapsed.count();
     ResultPrint print;
@@ -682,7 +683,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
         }
         res.TG195Result = TG195_voi_values[ind - 1];
         res.result /= (total_hist / 1000);
-        res.result_std = std::sqrt(res.result_std) / (total_hist / 1000) / res.result;
+        res.result_std = Sigma * std::sqrt(res.result_std) / (total_hist / 1000) / res.result;
         print(res, true);
     }
 
@@ -729,11 +730,11 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     world.setMaterialByWeight(air_w, air_d);
     world.reserveNumberOfItems(5);
 
-    auto& body = world.template addItem<Box>({ { -17, -15, -15, 0, 15, 15 } });
+    auto& body = world.template addItem<Box>({ { -17 - dxmc::GEOMETRIC_ERROR(), -15, -15, 0 - dxmc::GEOMETRIC_ERROR(), 15, 15 } });
     body.setMaterial(water, water_d);
-    auto& uplate = world.template addItem<Box>({ { 0, -13, 2.5, 14, 13, 2.7 } });
+    auto& uplate = world.template addItem<Box>({ { 0, -13, 2.5 + dxmc::GEOMETRIC_ERROR(), 14, 13, 2.7 + dxmc::GEOMETRIC_ERROR() } });
     uplate.setMaterial(pmma, pmma_d);
-    auto& lplate = world.template addItem<Box>({ { 0, -13, -2.7, 14, 13, -2.5 } });
+    auto& lplate = world.template addItem<Box>({ { 0, -13, -2.7 - dxmc::GEOMETRIC_ERROR(), 14, 13, -2.5 - dxmc::GEOMETRIC_ERROR() } });
     lplate.setMaterial(pmma, pmma_d);
     auto& breast = world.template addItem<Breast>();
     breast.setSkinMaterial(skin, skin_d);
@@ -835,7 +836,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     res.volume = "Total body";
     res.TG195Result = sim_ev;
     res.result = breast.energyScored(8).energyImparted() * evNormal;
-    res.result_std = breast.energyScored(8).standardDeviation() * evNormal / res.result;
+    res.result_std = Sigma * breast.energyScored(8).standardDeviation() * evNormal / res.result;
     res.nEvents = breast.energyScored(8).numberOfEvents();
     res.nMilliseconds = time_elapsed.count();
     print(res, true);
@@ -844,7 +845,7 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
         res.volume = "VOI " + std::to_string(i + 1);
         res.TG195Result = sim_subvol[i];
         res.result = breast.energyScored(i).energyImparted() * evNormal;
-        res.result_std = breast.energyScored(i).standardDeviation() * evNormal / res.result;
+        res.result_std = Sigma * breast.energyScored(i).standardDeviation() * evNormal / res.result;
         res.nEvents = breast.energyScored(i).numberOfEvents();
         print(res, true);
     }
@@ -956,7 +957,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
 
     for (std::size_t i = 0; i < voi_locations.size(); ++i) {
         ev_history[i] /= ((N_HISTORIES * N_EXPOSURES) / 1000.0);
-        ev_history_var[i] = std::sqrt(ev_history_var[i]) / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / ev_history[i];
+        ev_history_var[i] = Sigma * std::sqrt(ev_history_var[i]) / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / ev_history[i];
     }
 
     ResultPrint print;
@@ -1100,7 +1101,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         res.volume = std::to_string(angInt);
         res.TG195Result = sim_ev_pher[i];
         res.result = cylinder.energyScoredPeriferyCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
-        res.result_std = cylinder.energyScoredPeriferyCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
+        res.result_std = Sigma * cylinder.energyScoredPeriferyCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
         res.nEvents = cylinder.energyScoredPeriferyCylinder().numberOfEvents();
         std::cout << " Pherifery: " << res.result << " sim/TG195: [" << (res.result / sim_ev_pher[i] - 1) * 100 << "%]";
         print(res, false);
@@ -1108,7 +1109,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         res.volume = std::to_string(angInt);
         res.TG195Result = sim_ev_center[i];
         res.result = cylinder.energyScoredCenterCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
-        res.result_std = cylinder.energyScoredCenterCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
+        res.result_std = Sigma * cylinder.energyScoredCenterCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
         res.nEvents = cylinder.energyScoredCenterCylinder().numberOfEvents();
         std::cout << " Center: " << res.result << " sim/TG195: [" << (res.result / sim_ev_center[i] - 1) * 100 << "%]" << std::endl;
         print(res, false);
@@ -1533,7 +1534,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
                     else
                         return 0;
                 });
-                res.result_std = std::sqrt(ei_var) / ((N_HISTORIES * N_EXPOSURES) / 1000) / res.result;
+                res.result_std = Sigma * std::sqrt(ei_var) / ((N_HISTORIES * N_EXPOSURES) / 1000) / res.result;
                 const auto events = std::transform_reduce(std::execution::par_unseq, doseScore.cbegin(), doseScore.cend(), materialIndex.cbegin(), 0.0, std::plus<>(), [matIdx](const auto& energyScored, auto ind) -> double {
                     if (ind == matIdx)
                         return energyScored.numberOfEvents();
