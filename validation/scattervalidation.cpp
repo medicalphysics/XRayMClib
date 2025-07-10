@@ -220,6 +220,49 @@ void saveHist(ResultPrint& p, const dxmc::Material<NSHELLS>& material, double en
     }
 }
 
+auto TG195_breast_tissue()
+{
+    std::map<std::size_t, double> adipose_w;
+    adipose_w[1] = 11.2;
+    adipose_w[6] = 61.9;
+    adipose_w[7] = 1.7;
+    adipose_w[8] = 25.1;
+    adipose_w[15] = 0.025;
+    adipose_w[16] = 0.025;
+    adipose_w[19] = 0.025;
+    adipose_w[20] = 0.025;
+
+    const double adipose_d = 0.93;
+
+    std::map<std::size_t, double> gland_w;
+    gland_w[1] = 10.2;
+    gland_w[6] = 18.4;
+    gland_w[7] = 3.2;
+    gland_w[8] = 67.7;
+    gland_w[15] = 0.125;
+    gland_w[16] = 0.125;
+    gland_w[19] = 0.125;
+    gland_w[20] = 0.125;
+
+    const double gland_d = 1.04;
+
+    // weighted 20% gland 80% adipose
+    std::map<std::size_t, double> w;
+    for (const auto [Z, n] : adipose_w) {
+        if (!w.contains(Z))
+            w[Z] = 0;
+        w[Z] += n * 0.8;
+    }
+    for (const auto [Z, n] : gland_w) {
+        if (!w.contains(Z))
+            w[Z] = 0;
+        w[Z] += n * 0.2;
+    }
+    const auto d = adipose_d * 0.8 + gland_d * 0.2;
+
+    return dxmc::Material<12>::byWeight(w).value();
+}
+
 int main()
 {
 
@@ -228,6 +271,7 @@ int main()
 
     std::vector<double> energies;
     //energies.push_back(15);
+    energies.push_back(16.8);
     energies.push_back(30);
     energies.push_back(50);
     energies.push_back(120);
@@ -236,11 +280,13 @@ int main()
     material_names.push_back("Water, Liquid");
     material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");    
     material_names.push_back("Gold");
+    material_names.push_back("TG195Breast");
 
     std::vector<dxmc::Material<NSHELLS>> materials;
     materials.push_back(dxmc::Material<NSHELLS>::byNistName("Water, Liquid").value());
     materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());    
     materials.push_back(dxmc::Material<NSHELLS>::byZ(79).value());
+    materials.push_back(TG195_breast_tissue());
 
     std::vector<std::jthread> threads;
     threads.reserve(materials.size() * energies.size());
