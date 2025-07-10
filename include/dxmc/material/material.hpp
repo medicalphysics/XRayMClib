@@ -502,11 +502,12 @@ protected:
 
         std::size_t nknots = 10;
         if (type == LUTType::photoelectric) {
-            nknots = 5;
-        } else if (type == LUTType::coherent) {
-            nknots = 7;
-        } else if (type == LUTType::incoherent) {
+            // nknots = 5;
             nknots = 10;
+        } else if (type == LUTType::coherent) {
+            nknots = 15;
+        } else if (type == LUTType::incoherent) {
+            nknots = 15;
         } else if (type == LUTType::scatterfactor) {
             nknots = 20;
         } else if (type == LUTType::formfactor) {
