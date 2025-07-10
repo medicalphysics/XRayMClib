@@ -198,8 +198,7 @@ def plotCase1(dt_full, kind="strip", show=False, relative=False):
     if dt.size == 0:
         return
 
-    labels = list(set(dt["Mode"]))
-    print(dt)
+    labels = ["NoneFilter", "HVLFilter", "QVLFilter"]
     g = sns.catplot(
         x="Volume",
         y="Result_relative" if relative else "Result",
