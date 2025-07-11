@@ -293,7 +293,7 @@ std::pair<double, std::map<std::size_t, double>> TG195_water()
     std::map<std::size_t, double> w;
     w[1] = 11.1898;
     w[8] = 88.8102;
-    return std::make_pair(1, w);
+    return std::make_pair(1.0, w);
 }
 
 std::pair<double, std::map<std::size_t, double>> TG195_breast_tissue()

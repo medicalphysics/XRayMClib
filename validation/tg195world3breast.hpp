@@ -241,7 +241,7 @@ public:
 
 protected:
     struct ScoreBoxChild {
-        std::array<double, 6> aabb = { -1, -1, -.5f, 1, 1, .5f };
+        std::array<double, 6> aabb = { -1, -1, -.5, 1, 1, .5 };
         EnergyScore energyScored;
         DoseScore doseScored;
     };
@@ -296,8 +296,8 @@ protected:
 
 private:
     double m_radius = 10;
-    double m_skin_thick = 0.2f;
-    double m_halfHeight = 2.5f;
+    double m_skin_thick = 0.2;
+    double m_halfHeight = 2.5;
     std::array<double, 3> m_center = { 0, 0, 0 };
     double m_skin_density = 1;
     double m_tissue_density = 1;
