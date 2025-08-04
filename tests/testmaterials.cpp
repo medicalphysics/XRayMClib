@@ -106,6 +106,8 @@ void breastAtt()
 
 int main(int argc, char* argv[])
 {
+    auto lead = dxmc::Material<12>::byZ(82);
+    breastAtt();
     std::cout << "Basic tests of materials, please run without --fast_math flags: ";
 
     auto stxt = [](bool v) -> std::string { return v ? " SUCCSESS " : " FAILED "; };
