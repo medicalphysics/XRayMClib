@@ -29,6 +29,7 @@ Copyright 2022 Erlend Andersen
 #include <array>
 #include <cctype>
 #include <execution>
+#include <utility>
 
 namespace dxmc {
 
@@ -38,6 +39,7 @@ struct MaterialShell {
     double HartreeFockOrbital_0 = 0;
     double numberOfPhotonsPerInitVacancy = 0;
     double energyOfPhotonsPerInitVacancy = 0;
+    std::vector<std::pair<double, double>> photoel;
 };
 
 struct AttenuationValues {
@@ -99,13 +101,12 @@ public:
 
     inline double scatterFactor(double momentumTransfer) const
     {
-
-        return 0.0;
+        return interpolate(m_scatterFactor, momentumTransfer);
     }
 
     inline double formFactor(const double momentumTransfer) const
     {
-        return 0.0;
+        return interpolate(m_formFactor, momentumTransfer);
     }
 
     inline double sampleSquaredMomentumTransferFromFormFactorSquared(double qsquared_max, RandomState& state) const
@@ -115,8 +116,7 @@ public:
 
     inline double meanIncoherentScatterEnergy(double energy) const
     {
-
-        return 0.0;
+        return interpolate(m_incoherentMeanEnergy, energy);
     }
 
     inline double massEnergyTransferAttenuation(double energy) const
@@ -146,9 +146,9 @@ public:
     {
 
         AttenuationValues att {
-            .photoelectric = 0,
-            .incoherent = 0,
-            .coherent = 0
+            .photoelectric = interpolate(m_photoel, energy),
+            .incoherent = interpolate(m_incoherent, energy),
+            .coherent = interpolate(m_coherent, energy)
         };
         return att;
     }
@@ -156,6 +156,7 @@ public:
     std::vector<AttenuationValues> attenuationValues(const std::vector<double>& energy) const
     {
         std::vector<AttenuationValues> att(energy.size());
+        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), att.begin(), [this](const auto& e) { return attenuationValues(e); });
         return att;
     }
     inline std::vector<double> totalAttenuationValue(const std::vector<double>& energy) const
@@ -168,12 +169,12 @@ public:
 
     inline double attenuationPhotoeletric(double energy) const
     {
-        return 0.0;
+        return interpolate(m_photoel, energy);
     }
 
     inline double attenuationPhotoelectricShell(std::uint8_t shell, double energy) const
     {
-        return 0.0;
+        return interpolate(m_shells[shell].photoel, energy);
     }
 
     inline std::uint8_t numberOfShells() const
@@ -320,6 +321,44 @@ protected:
         incoherentenergy
     };
 
+    static std::vector<std::pair<double, double>> generateLUT(const std::map<std::size_t, double>& compositionByWeight, LUTType type)
+    {
+        auto data_getter = [](const AtomicElement& atom, LUTType lut_type) {
+            if (lut_type == LUTType::coherent)
+                return atom.coherent;
+            else if (lut_type == LUTType::incoherent)
+                return atom.incoherent;
+            else if (lut_type == LUTType::scatterfactor)
+                return atom.incoherentSF;
+            else if (lut_type == LUTType::formfactor)
+                return atom.formFactor;
+            else if (lut_type == LUTType::incoherentenergy)
+                return atom.incoherentMeanScatterEnergy;
+            return atom.photoel;
+        };
+
+        std::vector<double> x;
+        for (const auto& [Z, w] : compositionByWeight) {
+            const auto& a = AtomHandler::Atom(Z);
+            const auto& d = data_getter(a, type);
+            for (std::size_t i = 0; i < d.size(); ++i)
+                x.push_back(d[i].first);
+        }
+        std::sort(x.begin(), x.end());
+        std::vector<std::pair<double, double>> res(x.size(), std::make_pair(0.0, 0.0));
+        std::transform(x.cbegin(), x.cend(), res.begin(), [](const auto v) { return std::make_pair(v, 0.0); });
+        for (const auto& [Z, w] : compositionByWeight) {
+            const auto& a = AtomHandler::Atom(Z);
+            const auto& d = data_getter(a, type);
+            const auto y = interpolate(d, x);
+            for (std::size_t i = 0; i < x.size(); ++i)
+                res[i].second += w * y[i];
+        }
+        constexpr double epsilon = 1E-6;
+        removeUnneededInterpolationPoints(res, epsilon);
+        return res;
+    }
+
     static std::optional<Material<N>> constructMaterial(const std::map<std::size_t, double>& compositionByWeight)
     {
         for (const auto& [Z, w] : compositionByWeight) {
@@ -335,42 +374,16 @@ protected:
         Material<N> m;
         m.m_effectiveZ = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& pair) -> double { return pair.first * pair.second; });
 
-        std::vector<double> photoel, coherent, incoherent;
-
-        for (const auto& [Z, w] : weight) {
-            const auto& a = AtomHandler::Atom(Z);
-            for (const auto& p : a.photoel)
-                photoel.push_back(p.first);
-            for (const auto& p : a.coherent)
-                coherent.push_back(p.first);
-            for (const auto& p : a.incoherent)
-                incoherent.push_back(p.first);
-        }
-        std::sort(photoel.begin(), photoel.end());
-        std::sort(coherent.begin(), coherent.end());
-        std::sort(incoherent.begin(), incoherent.end());
-
-        auto AddScale = [](std::vector<double>& res, const std::vector<double>& adder, double scale) {
-            std::transform(std::execution::par_unseq, adder.cbegin() adder.cend(), res.cbegin(), res.begin(), [scale](double a, double res) { return res + a * scale; });
-        };
-        std::vector<double> photoel_val(photoel.size(), 0.0);
-        std::vector<double> coherent_val(coherent.size(), 0.0);
-        std::vector<double> incoherent_val(incoherent.size(), 0.0);
-        for (const auto& [Z, w] : weight) {
-            const auto& a = AtomHandler::Atom(Z);
-            const auto p = interpolate(a.photoel, photoel);
-            AddScale(photoel_val, p, w);
-            const auto in = interpolate(a.incoherent, incoherent);
-            AddScale(incoherent_val,in, w);
-            const auto co = interpolate(a.coherent, coherent);
-            AddScale(coherent_val, co, w);
-        }
-        
-
-
-        // createMaterialAtomicShells(m, weight, offset);
+        m.m_photoel = generateLUT(compositionByWeight, LUTType::photoelectric);
+        m.m_coherent = generateLUT(compositionByWeight, LUTType::coherent);
+        m.m_incoherent = generateLUT(compositionByWeight, LUTType::incoherent);
+        m.m_formFactor = generateLUT(compositionByWeight, LUTType::formfactor);
+        m.m_scatterFactor = generateLUT(compositionByWeight, LUTType::scatterfactor);
+        m.m_incoherentMeanEnergy = generateLUT(compositionByWeight, LUTType::incoherentenergy);
 
         generateFormFactorInverseSampling(m);
+
+        createMaterialAtomicShells(m, weight);
 
         return m;
     }
@@ -390,6 +403,59 @@ protected:
 
     static void createMaterialAtomicShells(Material<N>& material, const std::map<std::size_t, double>& normalizedWeight)
     {
+        struct Shell {
+            std::uint64_t Z = 0;
+            std::uint64_t S = 0;
+            double weight = 0;
+            double bindingEnergy = 0;
+        };
+
+        std::vector<Shell> shells;
+        for (const auto& [Z, w] : normalizedWeight) {
+            const auto& atom = AtomHandler::Atom(Z);
+            for (const auto& [S, shell] : atom.shells) {
+                shells.push_back({ .Z = Z, .S = S, .weight = w, .bindingEnergy = shell.bindingEnergy });
+            }
+        }
+        std::sort(shells.begin(), shells.end(), [](const auto& lh, const auto& rh) {
+            return lh.bindingEnergy > rh.bindingEnergy;
+        });
+
+        const auto sum_weight = std::transform_reduce(shells.cbegin(), shells.cend(), 0.0, std::plus<>(), [](const auto& s) { return s.weight; });
+
+        const auto Nshells = std::min(shells.size(), N);
+        material.m_numberOfShells = static_cast<std::uint8_t>(Nshells);
+        for (std::size_t i = 0; i < Nshells; ++i) {
+            const auto& shell = AtomHandler::Atom(shells[i].Z).shells.at(shells[i].S);
+            auto& materialshell = material.m_shells[i];
+            materialshell.numberOfElectronsFraction = shells[i].weight * shell.numberOfElectrons / sum_weight;
+            materialshell.bindingEnergy = shell.bindingEnergy;
+            materialshell.HartreeFockOrbital_0 = shell.HartreeFockOrbital_0;
+            materialshell.numberOfPhotonsPerInitVacancy = shell.numberOfPhotonsPerInitVacancy;
+            materialshell.energyOfPhotonsPerInitVacancy = shell.energyOfPhotonsPerInitVacancy;
+            materialshell.photoel = shell.photoel;
+            constexpr double epsilon = 1E-6;
+            removeUnneededInterpolationPoints(materialshell.photoel, epsilon);
+        }
+        // Filling remainder shell
+        if (shells.size() > Nshells) {
+            material.m_numberOfShells++;
+            auto& materialshell = material.m_shells[Nshells];
+            const auto mean_fac = 1.0 / (shells.size() - Nshells);
+            for (std::size_t i = Nshells; i < shells.size(); ++i) {
+                const auto& shell = AtomHandler::Atom(shells[i].Z).shells.at(shells[i].S);
+                const auto w = shells[i].weight;
+                materialshell.bindingEnergy += shell.bindingEnergy * mean_fac;
+                materialshell.numberOfElectronsFraction += shell.numberOfElectrons * w / sum_weight;
+                materialshell.HartreeFockOrbital_0 += shell.HartreeFockOrbital_0 * mean_fac;
+                materialshell.numberOfPhotonsPerInitVacancy += shell.numberOfPhotonsPerInitVacancy * mean_fac;
+                materialshell.energyOfPhotonsPerInitVacancy += shell.energyOfPhotonsPerInitVacancy * mean_fac;
+            }
+        }
+
+        // normalize number og electrons fraction
+        const auto sumElFraction = std::transform_reduce(material.m_shells.cbegin(), material.m_shells.cend(), 0.0, std::plus<>(), [](const auto& s) { return s.numberOfElectronsFraction; });
+        std::for_each(material.m_shells.begin(), material.m_shells.end(), [sumElFraction](auto& s) { s.numberOfElectronsFraction /= sumElFraction; });
     }
 
 private:
@@ -397,6 +463,9 @@ private:
     std::vector<std::pair<double, double>> m_photoel;
     std::vector<std::pair<double, double>> m_coherent;
     std::vector<std::pair<double, double>> m_incoherent;
+    std::vector<std::pair<double, double>> m_scatterFactor;
+    std::vector<std::pair<double, double>> m_formFactor;
+    std::vector<std::pair<double, double>> m_incoherentMeanEnergy;
     CPDFSampling<double, 20> m_formFactorInvSamp;
     std::array<MaterialShell, N + 1> m_shells;
     std::uint8_t m_numberOfShells = 0;

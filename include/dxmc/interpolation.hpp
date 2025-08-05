@@ -129,7 +129,7 @@ inline std::vector<T> interpolate(const std::vector<std::pair<T, T>>& data, cons
 }
 
 template <Floating T>
-void removeUnneededInterpolationPoints(std::vector<std::pair<T, T>>& data, T epsilon = 0.000001)
+void removeUnneededInterpolationPoints(std::vector<std::pair<T, T>>& data, T epsilon = 1E-6)
 {
     std::size_t right = 2;
     while (right < data.size()) {
@@ -137,13 +137,14 @@ void removeUnneededInterpolationPoints(std::vector<std::pair<T, T>>& data, T eps
         const auto& v12 = data[right - 1];
         const auto& v2 = data[right];
         const auto guess = interp(v1, v2, v12.first);
-        if (std::abs(guess - v12.second) < epsilon) {
+        if (std::abs(guess - v12.second) < epsilon * v12.second) {
             // remove point
             data.erase(data.cbegin() + (right - 1));
         } else {
             right++;
         }
     }
+    data.shrink_to_fit();
 }
 
 // Variadic template to add vectors of equal size
