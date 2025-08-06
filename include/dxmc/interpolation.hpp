@@ -105,7 +105,7 @@ inline T interpolate(const std::vector<std::pair<T, T>>& data, T x)
     auto upper = std::upper_bound(data.begin() + 1, data.end() - 1, val, [](const auto& lh, const auto& rh) -> bool { return lh.first < rh.first; });
     auto lower = upper - 1;
 
-    return interp(lower->first, upper->first, lower->second, upper->second, x);
+    return interp(*lower, *upper, x);
 }
 
 template <Floating T>

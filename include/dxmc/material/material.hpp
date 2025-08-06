@@ -144,7 +144,6 @@ public:
     // photo, coherent, incoherent
     inline AttenuationValues attenuationValues(double energy) const
     {
-
         AttenuationValues att {
             .photoelectric = interpolate(m_photoel, energy),
             .incoherent = interpolate(m_incoherent, energy),
@@ -374,12 +373,12 @@ protected:
         Material<N> m;
         m.m_effectiveZ = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& pair) -> double { return pair.first * pair.second; });
 
-        m.m_photoel = generateLUT(compositionByWeight, LUTType::photoelectric);
-        m.m_coherent = generateLUT(compositionByWeight, LUTType::coherent);
-        m.m_incoherent = generateLUT(compositionByWeight, LUTType::incoherent);
-        m.m_formFactor = generateLUT(compositionByWeight, LUTType::formfactor);
-        m.m_scatterFactor = generateLUT(compositionByWeight, LUTType::scatterfactor);
-        m.m_incoherentMeanEnergy = generateLUT(compositionByWeight, LUTType::incoherentenergy);
+        m.m_photoel = generateLUT(weight, LUTType::photoelectric);
+        m.m_coherent = generateLUT(weight, LUTType::coherent);
+        m.m_incoherent = generateLUT(weight, LUTType::incoherent);
+        m.m_formFactor = generateLUT(weight, LUTType::formfactor);
+        m.m_scatterFactor = generateLUT(weight, LUTType::scatterfactor);
+        m.m_incoherentMeanEnergy = generateLUT(weight, LUTType::incoherentenergy);
 
         generateFormFactorInverseSampling(m);
 
@@ -434,8 +433,6 @@ protected:
             materialshell.numberOfPhotonsPerInitVacancy = shell.numberOfPhotonsPerInitVacancy;
             materialshell.energyOfPhotonsPerInitVacancy = shell.energyOfPhotonsPerInitVacancy;
             materialshell.photoel = shell.photoel;
-            constexpr double epsilon = 1E-6;
-            removeUnneededInterpolationPoints(materialshell.photoel, epsilon);
         }
         // Filling remainder shell
         if (shells.size() > Nshells) {
