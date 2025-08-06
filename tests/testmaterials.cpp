@@ -97,7 +97,7 @@ void breastAtt()
     const double end = 120;
 
     const auto breast = dxmc::Material<12>::byWeight(weights).value();
-    while (e <= 120) {
+    while (e <= end) {
         const auto att = breast.attenuationValues(e);
         std::cout << e << ',' << att.photoelectric << ',' << att.incoherent << ',' << att.coherent << '\n';
         e = e + step;
