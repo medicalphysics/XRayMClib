@@ -59,7 +59,6 @@ if(DXMCLIB_OPTIMIZE_FOR_NATIVE)
     endif()
 endif()
 
-
 if(MSVC)
     option(DXMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with /GL flag" ON)
     if(DXMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
@@ -176,6 +175,13 @@ target_include_directories(
     $<INSTALL_INTERFACE:include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
+
+# Set type of material class
+option(DXMCLIB_USE_LINEAR_INTERPOLATION "Use linear attenuation coeff interpolation" OFF)
+if(DXMCLIB_USE_LINEAR_INTERPOLATION)
+    target_compile_definitions(material INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
+    target_compile_definitions(libdxmc INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
+endif()
 
 # Linking to other libraries. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
