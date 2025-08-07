@@ -39,8 +39,8 @@ add_executable(EPICSparser
     EPICSParser/epicsparsermain.cpp        
 )
 
-OPTION(DXMC_USE_NIST_DATA "Use NIST attenuation data" OFF)
-if(${DXMC_USE_NIST_DATA})
+OPTION(DXMCLIB_USE_NIST_DATA "Use NIST attenuation data" OFF)
+if(${DXMCLIB_USE_NIST_DATA})
 IF(WIN32)
     set(XRAYLIB_INSTALL_PATH "C:/Program Files/xraylib 64-bit" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
     set(XRAYLIB_INCLUDES "${XRAYLIB_INSTALL_PATH}/Include")

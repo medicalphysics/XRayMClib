@@ -201,7 +201,6 @@ public:
                             scoreEnergyImparted(p, intRes.energyImparted);
                         } else {
                             p.border_translate(intTissue.intersection);
-                            cont = basicshape::cylinderZ::pointInside(p.pos, m_center, m_radius, m_halfHeight) && basicshape::AABB::pointInside(p.pos, AABB());
                         }
                     } else {
                         // starts in skin and goes to tissue
@@ -215,7 +214,6 @@ public:
                             m_skin_energy.scoreEnergy(intRes.energyImparted);
                         } else {
                             p.border_translate(intTissue.intersection);
-                            cont = basicshape::cylinderZ::pointInside(p.pos, m_center, m_radius, m_halfHeight) && basicshape::AABB::pointInside(p.pos, AABB());
                         }
                     }
                 } else {
@@ -279,10 +277,15 @@ protected:
         if (box.valid()) {
             const auto cyl = basicshape::cylinderZ::intersect(p, center, radius, halfHeight);
             if (cyl.valid()) {
-                box.rayOriginIsInsideItem = box.rayOriginIsInsideItem && cyl.rayOriginIsInsideItem;
-                if (box.rayOriginIsInsideItem) {
+                if (box.rayOriginIsInsideItem && cyl.rayOriginIsInsideItem) {
+                    // we are inside both cylinder and box
                     box.intersection = std::min(cyl.intersection, box.intersection);
+                } else if (box.rayOriginIsInsideItem && !cyl.rayOriginIsInsideItem) {
+                    // we are inside box but not cylinder
+                    box.intersection = std::min(cyl.intersection, box.intersection);
+                    box.rayOriginIsInsideItem = false;
                 } else {
+                    // we are outside box and cylinder
                     box.intersection = std::max(cyl.intersection, box.intersection);
                 }
             } else {
