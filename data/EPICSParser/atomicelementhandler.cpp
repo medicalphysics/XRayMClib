@@ -23,6 +23,10 @@ Copyright 2022 Erlend Andersen
 #include <optional>
 #include <string_view>
 
+#ifdef USE_NIST
+#include "xraylib++.h"
+#endif
+
 std::size_t lowerIdx(const std::vector<double>& data, double limit)
 {
     for (std::size_t i = 0; i < data.size() - 2; i = i + 2) {
@@ -33,7 +37,7 @@ std::size_t lowerIdx(const std::vector<double>& data, double limit)
 }
 std::size_t upperIdx(const std::vector<double>& data, double limit)
 {
-    for (int i = data.size() - 2; i >= 0; i = i - 2) {
+    for (int i = data.size() - 2; i > 0; i = i - 2) {
         if (data[i - 2] < limit)
             return i;
     }
@@ -53,7 +57,16 @@ void AtomicElementHandler::setCoherentData(const std::vector<double>& data)
     m_atom.coherent.reserve((end - start) / 2);
     for (std::size_t i = start; i <= end; i = i + 2) {
         const double e = data[i] * MeVTokeV();
+#ifdef USE_NIST
+        double a;
+        try {
+            a = xrlpp::CS_Rayl(static_cast<int>(m_atom.Z), e);
+        } catch (std::invalid_argument& e) {
+            a = data[i + 1] * barnToAtt();
+        }
+#else
         const double a = data[i + 1] * barnToAtt();
+#endif
         if (e > 0 && a > 0)
             m_atom.coherent.push_back(std::make_pair(e, a));
     }
@@ -67,7 +80,16 @@ void AtomicElementHandler::setIncoherentData(const std::vector<double>& data)
     m_atom.incoherent.reserve((end - start) / 2);
     for (std::size_t i = start; i <= end; i = i + 2) {
         const double e = data[i] * MeVTokeV();
+#ifdef USE_NIST
+        double a;
+        try {
+            a = xrlpp::CS_Compt(static_cast<int>(m_atom.Z), e);
+        } catch (std::invalid_argument& e) {
+            a = data[i + 1] * barnToAtt();
+        }
+#else
         const double a = data[i + 1] * barnToAtt();
+#endif
         if (e > 0 && a > 0)
             m_atom.incoherent.push_back(std::make_pair(e, a));
     }
@@ -149,7 +171,16 @@ void AtomicElementHandler::setPhotoelectricData(const std::vector<double>& data)
     m_atom.photoel.reserve((end - start) / 2);
     for (std::size_t i = start; i <= end; i = i + 2) {
         const double e = data[i] * MeVTokeV();
+#ifdef USE_NIST
+        double a;
+        try {
+            a = xrlpp::CS_Photo(static_cast<int>(m_atom.Z), e);
+        } catch (std::invalid_argument& e) {
+            a = data[i + 1] * barnToAtt();
+        }
+#else
         const double a = data[i + 1] * barnToAtt();
+#endif
         if (e > 0 && a > 0)
             m_atom.photoel.push_back(std::make_pair(e, a));
     }
@@ -183,7 +214,7 @@ void AtomicElementHandler::setRadiativeTransitionProbabilities(std::uint64_t she
     }
     const auto N = data.size() / 3;
     std::vector<dxmc::AtomicShellRadiativeEmission> trans(N);
-    for (std::size_t i = 0; i < N; ++i) {        
+    for (std::size_t i = 0; i < N; ++i) {
         trans[i].vacancy = static_cast<std::uint64_t>(data[i * 3 + 0]);
         trans[i].probability = (data[i * 3 + 1]);
         trans[i].energy = (data[i * 3 + 2]) * MeVTokeV();

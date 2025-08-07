@@ -39,6 +39,30 @@ add_executable(EPICSparser
     EPICSParser/epicsparsermain.cpp        
 )
 
+OPTION(DXMCLIB_USE_NIST_DATA "Use NIST attenuation data" OFF)
+if(${DXMCLIB_USE_NIST_DATA})
+IF(WIN32)
+    set(XRAYLIB_INSTALL_PATH "C:/Program Files/xraylib 64-bit" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
+    set(XRAYLIB_INCLUDES "${XRAYLIB_INSTALL_PATH}/Include")
+	set(XRAYLIB_LIBRARY_SHARED_NAME "libxrl-11.dll")
+	set(XRAYLIB_LIBRARY_SHARED_PATH "C:/Windows/sysnative/${XRAYLIB_LIBRARY_SHARED_NAME}")
+    set(XRAYLIB_LIBRARY_SHARED_PATH_64 "C:/Windows/System32/${XRAYLIB_LIBRARY_SHARED_NAME}")
+    find_library(XRAYLIB NAMES libxrl.lib libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}/LIB")
+ENDIF(WIN32)
+IF(UNIX AND NOT APPLE)
+    set(XRAYLIB_INSTALL_PATH "/usr/local/lib" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
+    set(XRAYLIB_INCLUDES "/usr/local/include/xraylib")
+    find_library(XRAYLIB NAMES libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}")
+ENDIF()
+
+target_include_directories(EPICSparser PRIVATE ${XRAYLIB_INCLUDES})
+# Make sure you link your targets with this command. It can also link libraries and
+# even flags, so linking a target that does not exist will not give a configure-time error.
+target_link_libraries(EPICSparser PRIVATE ${XRAYLIB})
+target_compile_definitions(EPICSparser PRIVATE -DUSE_NIST)
+endif()
+
+
 OPTION(DXMCLIB_ALWAYS_REBUILD_PHYSICSLISTS "Rebuild physicslists on compile" OFF)
 if(${DXMCLIB_ALWAYS_REBUILD_PHYSICSLISTS})
     target_compile_definitions(EPICSparser PUBLIC DXMCLIB_REBUILD_PHYSICSLISTS=1)

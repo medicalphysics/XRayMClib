@@ -97,7 +97,7 @@ void breastAtt()
     const double end = 120;
 
     const auto breast = dxmc::Material<12>::byWeight(weights).value();
-    while (e <= 120) {
+    while (e <= end) {
         const auto att = breast.attenuationValues(e);
         std::cout << e << ',' << att.photoelectric << ',' << att.incoherent << ',' << att.coherent << '\n';
         e = e + step;
@@ -106,15 +106,18 @@ void breastAtt()
 
 int main(int argc, char* argv[])
 {
-    std::cout << "Basic tests of materials, please run without --fast_math flags: ";
+    bool success = true;
+    // auto lead = dxmc::Material<12>::byZ(82);
+    breastAtt();
+    /*std::cout << "Basic tests of materials, please run without --fast_math flags: ";
 
     auto stxt = [](bool v) -> std::string { return v ? " SUCCSESS " : " FAILED "; };
 
-    bool success = true;
+
     success = success && testMaterials();
     success = success && testNistMaterials();
     std::cout << stxt(success) << std::endl;
-
+*/
     if (success)
         return EXIT_SUCCESS;
     return EXIT_FAILURE;

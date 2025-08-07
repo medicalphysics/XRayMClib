@@ -29,6 +29,7 @@ Copyright 2022 Erlend Andersen
 #include <array>
 #include <cctype>
 #include <execution>
+#include <utility>
 
 namespace dxmc {
 
@@ -38,6 +39,7 @@ struct MaterialShell {
     double HartreeFockOrbital_0 = 0;
     double numberOfPhotonsPerInitVacancy = 0;
     double energyOfPhotonsPerInitVacancy = 0;
+    std::vector<std::pair<double, double>> photoel;
 };
 
 struct AttenuationValues {
@@ -99,18 +101,12 @@ public:
 
     inline double scatterFactor(double momentumTransfer) const
     {
-        const auto logmomt = std::log(momentumTransfer);
-        const auto begin = m_attenuationTable.cbegin() + m_attenuationTableOffset[4];
-        const auto end = m_attenuationTable.cbegin() + m_attenuationTableOffset[5];
-        return std::exp(CubicLSInterpolator<double>::evaluateSpline(logmomt, begin, end));
+        return interpolate(m_scatterFactor, momentumTransfer);
     }
 
     inline double formFactor(const double momentumTransfer) const
     {
-        const auto logmomt = std::log(momentumTransfer);
-        const auto begin = m_attenuationTable.cbegin() + m_attenuationTableOffset[3];
-        const auto end = m_attenuationTable.cbegin() + m_attenuationTableOffset[4];
-        return std::exp(CubicLSInterpolator<double>::evaluateSpline(logmomt, begin, end));
+        return interpolate(m_formFactor, momentumTransfer);
     }
 
     inline double sampleSquaredMomentumTransferFromFormFactorSquared(double qsquared_max, RandomState& state) const
@@ -120,16 +116,7 @@ public:
 
     inline double meanIncoherentScatterEnergy(double energy) const
     {
-        const auto begin = m_attenuationTable.cbegin() + m_attenuationTableOffset[5];
-        const auto end = m_attenuationTable.cbegin() + m_attenuationTableOffset[6];
-        return std::exp(CubicLSInterpolator<double>::evaluateSpline(std::log(energy), begin, end));
-    }
-
-    inline double meanIncoherentScatterLogEnergy(double logenergy) const
-    {
-        const auto begin = m_attenuationTable.cbegin() + m_attenuationTableOffset[5];
-        const auto end = m_attenuationTable.cbegin() + m_attenuationTableOffset[6];
-        return std::exp(CubicLSInterpolator<double>::evaluateSpline(logenergy, begin, end));
+        return interpolate(m_incoherentMeanEnergy, energy);
     }
 
     inline double massEnergyTransferAttenuation(double energy) const
@@ -140,16 +127,15 @@ public:
 
     inline double massEnergyTransferAttenuation(const AttenuationValues& att, double energy) const
     {
-        const auto logEnergy = std::log(energy);
         double avg_fluro_energy = 0;
         for (std::uint_fast8_t i = 0; i < m_numberOfShells; ++i) {
             if (m_shells[i].bindingEnergy > MIN_ENERGY())
-                avg_fluro_energy += m_shells[i].energyOfPhotonsPerInitVacancy * attenuationPhotoelectricShell_logEnergy(i, logEnergy);
+                avg_fluro_energy += m_shells[i].energyOfPhotonsPerInitVacancy * attenuationPhotoelectricShell(i, energy);
         }
         avg_fluro_energy /= att.photoelectric;
 
         const auto avg_fluro_frac = avg_fluro_energy / energy;
-        const auto incoherent_scatter_energy = meanIncoherentScatterLogEnergy(logEnergy);
+        const auto incoherent_scatter_energy = meanIncoherentScatterEnergy(energy);
         const auto f_pe = 1 - avg_fluro_frac;
         const auto f_inc = 1 - (incoherent_scatter_energy + avg_fluro_energy) / energy;
         return att.photoelectric * f_pe + att.incoherent * f_inc;
@@ -158,16 +144,10 @@ public:
     // photo, coherent, incoherent
     inline AttenuationValues attenuationValues(double energy) const
     {
-        const auto logEnergy = std::log(energy);
-
-        const auto begin_p = m_attenuationTable.cbegin();
-        const auto begin_i = begin_p + m_attenuationTableOffset[1];
-        const auto begin_c = begin_p + m_attenuationTableOffset[2];
-        const auto end_c = begin_p + m_attenuationTableOffset[3];
         AttenuationValues att {
-            .photoelectric = std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin_p, begin_i)),
-            .incoherent = std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin_i, begin_c)),
-            .coherent = std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin_c, end_c))
+            .photoelectric = interpolate(m_photoel, energy),
+            .incoherent = interpolate(m_incoherent, energy),
+            .coherent = interpolate(m_coherent, energy)
         };
         return att;
     }
@@ -175,20 +155,7 @@ public:
     std::vector<AttenuationValues> attenuationValues(const std::vector<double>& energy) const
     {
         std::vector<AttenuationValues> att(energy.size());
-
-        const auto begin_p = m_attenuationTable.cbegin();
-        const auto begin_i = begin_p + m_attenuationTableOffset[1];
-        const auto begin_c = begin_p + m_attenuationTableOffset[2];
-        const auto end_c = begin_p + m_attenuationTableOffset[3];
-
-        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), att.begin(), [&](const auto e) {
-            const auto logEnergy = std::log(e);
-            AttenuationValues a {
-                .photoelectric = std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin_p, begin_i)),
-                .incoherent = std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin_i, begin_c)),
-                .coherent = std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin_c, end_c))
-            };
-            return a; });
+        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), att.begin(), [this](const auto& e) { return attenuationValues(e); });
         return att;
     }
     inline std::vector<double> totalAttenuationValue(const std::vector<double>& energy) const
@@ -201,16 +168,12 @@ public:
 
     inline double attenuationPhotoeletric(double energy) const
     {
-        const auto logEnergy = std::log(energy);
-        const auto begin = m_attenuationTable.cbegin();
-        const auto end = m_attenuationTable.cbegin() + m_attenuationTableOffset[1];
-        return std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin, end));
+        return interpolate(m_photoel, energy);
     }
 
     inline double attenuationPhotoelectricShell(std::uint8_t shell, double energy) const
     {
-        const auto logEnergy = std::log(energy);
-        return attenuationPhotoelectricShell_logEnergy(shell, logEnergy);
+        return interpolate(m_shells[shell].photoel, energy);
     }
 
     inline std::uint8_t numberOfShells() const
@@ -348,20 +311,6 @@ protected:
     {
     }
 
-    inline double attenuationPhotoelectricShell_logEnergy(std::uint8_t shell, double logEnergy) const
-    {
-        if (shell < m_numberOfShells) {
-            const auto start = m_attenuationTableOffset[6 + shell];
-            const auto stop = m_attenuationTableOffset[6 + shell + 1];
-            const auto begin = m_attenuationTable.cbegin() + start;
-            const auto end = m_attenuationTable.cbegin() + stop;
-            if (logEnergy >= (*begin)[0]) {
-                return std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin, end));
-            }
-        }
-        return 0;
-    }
-
     enum class LUTType {
         photoelectric,
         coherent,
@@ -371,150 +320,42 @@ protected:
         incoherentenergy
     };
 
-    static CubicLSInterpolator<double> constructSplineInterpolator(const std::vector<std::vector<std::pair<double, double>>>& data, const std::vector<double>& weights, bool loglog = false, std::size_t nknots = 15)
+    static std::vector<std::pair<double, double>> generateLUT(const std::map<std::size_t, double>& compositionByWeight, LUTType type)
     {
-        const auto Nvec = std::transform_reduce(data.cbegin(), data.cend(), std::size_t { 0 }, std::plus<>(), [](const auto& rh) -> std::size_t { return rh.size(); });
-
-        std::vector<double> w(data.size());
-        for (std::size_t i = 0; i < data.size(); ++i) {
-            if (data.size() != weights.size())
-                w[i] = 1;
-            else
-                w[i] = weights[i];
-        }
-        const auto sum_weights = std::reduce(w.cbegin(), w.cend(), 0.0);
-        std::transform(w.cbegin(), w.cend(), w.begin(), [sum_weights](const auto& ww) { return ww / sum_weights; });
-
-        std::vector<std::pair<double, double>> arr(Nvec);
-        std::vector<std::size_t> idx(Nvec);
-        std::size_t start = 0;
-        for (std::size_t i = 0; i < data.size(); ++i) {
-            std::copy(std::execution::par_unseq, data[i].cbegin(), data[i].cend(), arr.begin() + start);
-            std::fill(idx.begin() + start, idx.begin() + start + data[i].size(), i);
-            start += data[i].size();
-        }
-        // applying weights for first array in data
-        std::transform(std::execution::par_unseq, arr.cbegin(), arr.cend(), idx.cbegin(), arr.begin(), [&](const auto& pair, const auto i) {
-            return std::make_pair(pair.first, pair.second * w[i]);
-        });
-
-        for (std::size_t i = 0; i < data.size(); ++i) {
-            std::transform(std::execution::par, arr.begin(), arr.end(), idx.cbegin(), arr.begin(), [&](const auto& pair, const auto index) {
-                if (index == i)
-                    return pair;
-                else
-                    return std::make_pair(pair.first, pair.second + w[i] * interpolate(data[i], pair.first));
-            });
-        }
-
-        if (loglog) {
-            // removing zero and negative items
-            auto last = std::remove_if(arr.begin(), arr.end(), [](const auto& pair) -> bool {
-                constexpr auto e = std::numeric_limits<double>::epsilon() * 5;
-                return pair.first <= e || pair.second <= e;
-            });
-            arr.erase(last, arr.end());
-
-            std::for_each(std::execution::par_unseq, arr.begin(), arr.end(), [](auto& v) {
-                v.first = std::log(v.first);
-                v.second = std::log(v.second);
-            });
-        }
-        // sorting for generating interpolation lut
-        std::sort(arr.begin(), arr.end(), [](const auto& lh, const auto& rh) {
-            if (lh.first < rh.first)
-                return true;
-            else if (lh.first == rh.first)
-                return lh.second < rh.second;
-            return false;
-        });
-
-        // erasing duplicate items
-        auto erase_from = std::unique(arr.begin(), arr.end(), [](const auto& lh, const auto& rh) {
-            constexpr auto e = std::numeric_limits<double>::epsilon() * 5;
-            if (lh.first == rh.first)
-                return std::abs(lh.second - rh.second) <= e;
-            else
-                return std::abs(lh.first - rh.first) <= e;
-        });
-        if (std::distance(erase_from, arr.end()) != 0)
-            arr.erase(erase_from, arr.end());
-
-        /* This should not happen, std:isfinite is disabled anyway for fast-math
-        // we may encounter nan numbers, remove them:
-        auto last = std::remove_if(arr.begin(), arr.end(), [](const auto& pair) -> bool {
-            return !(std::isfinite(pair.first) && std::isfinite(pair.second));
-        });
-        arr.erase(last, arr.end());
-        */
-
-        auto interpolator = CubicLSInterpolator(arr, nknots, true);
-        return interpolator;
-    }
-
-    // constructs a least squares spline interpolator from attenuation data from a compound
-    // This function is a bit convoluted since we want to preserve discontiuities in the interpolation
-    // But is basicly an weighted average of attenuation coefficients for each element.
-    static CubicLSInterpolator<double> constructSplineInterpolator(const std::map<std::size_t, double>& normalizedWeight, LUTType type)
-    {
-        auto getAtomArr = [&](const AtomicElement& atom, LUTType type = LUTType::photoelectric) -> const std::vector<std::pair<double, double>>& {
-            if (type == LUTType::photoelectric)
-                return atom.photoel;
-            else if (type == LUTType::incoherent)
-                return atom.incoherent;
-            else if (type == LUTType::coherent)
+        auto data_getter = [](const AtomicElement& atom, LUTType lut_type) {
+            if (lut_type == LUTType::coherent)
                 return atom.coherent;
-            else if (type == LUTType::formfactor)
-                return atom.formFactor;
-            else if (type == LUTType::scatterfactor)
+            else if (lut_type == LUTType::incoherent)
+                return atom.incoherent;
+            else if (lut_type == LUTType::scatterfactor)
                 return atom.incoherentSF;
-            else if (type == LUTType::incoherentenergy)
+            else if (lut_type == LUTType::formfactor)
+                return atom.formFactor;
+            else if (lut_type == LUTType::incoherentenergy)
                 return atom.incoherentMeanScatterEnergy;
             return atom.photoel;
         };
 
-        std::vector<std::vector<std::pair<double, double>>> data;
-        std::vector<double> weights;
-        for (const auto& [Z, w] : normalizedWeight) {
+        std::vector<double> x;
+        for (const auto& [Z, w] : compositionByWeight) {
             const auto& a = AtomHandler::Atom(Z);
-            if (type == LUTType::coherent) {
-                // here we are finding the highest dip, energy wise, in coherent data and introduces an discontinuity
-                auto arr = getAtomArr(a, type);
-                auto max_binding_energy = MAX_ENERGY();
-                for (const auto& [sidx, shell] : a.shells) {
-                    const auto binding_energy = shell.bindingEnergy;
-                    if (max_binding_energy > MIN_ENERGY() && binding_energy < max_binding_energy) {
-                        auto pos = std::upper_bound(arr.begin(), arr.end(), shell.bindingEnergy, [](const auto v, const auto& el) { return v < el.first; });
-                        if (pos != arr.end() && pos != arr.cbegin()) {
-                            auto prev = pos - 1;
-                            arr.insert(pos, std::make_pair(prev->first, pos->second));
-                        }
-                        max_binding_energy = binding_energy - 5;
-                    }
-                }
-                data.push_back(arr);
-            } else {
-                data.push_back(getAtomArr(a, type));
-            }
-
-            weights.push_back(w);
-        };
-
-        std::size_t nknots = 10;
-        if (type == LUTType::photoelectric) {
-            nknots = 10;
-        } else if (type == LUTType::coherent) {
-            nknots = 15;
-        } else if (type == LUTType::incoherent) {
-            nknots = 40;
-        } else if (type == LUTType::scatterfactor) {
-            nknots = 20;
-        } else if (type == LUTType::formfactor) {
-            nknots = 20;
+            const auto& d = data_getter(a, type);
+            for (std::size_t i = 0; i < d.size(); ++i)
+                x.push_back(d[i].first);
         }
-        constexpr auto loglog = true;
-        auto lut = constructSplineInterpolator(data, weights, loglog, nknots);
-        return lut;
+        std::sort(x.begin(), x.end());
+        std::vector<std::pair<double, double>> res(x.size(), std::make_pair(0.0, 0.0));
+        std::transform(x.cbegin(), x.cend(), res.begin(), [](const auto v) { return std::make_pair(v, 0.0); });
+        for (const auto& [Z, w] : compositionByWeight) {
+            const auto& a = AtomHandler::Atom(Z);
+            const auto& d = data_getter(a, type);
+            const auto y = interpolate(d, x);
+            for (std::size_t i = 0; i < x.size(); ++i)
+                res[i].second += w * y[i];
+        }
+        constexpr double epsilon = 1E-6;
+        removeUnneededInterpolationPoints(res, epsilon);
+        return res;
     }
 
     static std::optional<Material<N>> constructMaterial(const std::map<std::size_t, double>& compositionByWeight)
@@ -529,36 +370,19 @@ protected:
         const auto totalWeight = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& right) -> double { return right.second; });
         std::for_each(weight.begin(), weight.end(), [=](auto& w) { w.second /= totalWeight; });
 
-        std::array<CubicLSInterpolator<double>, 6> attenuation = {
-            constructSplineInterpolator(weight, LUTType::photoelectric),
-            constructSplineInterpolator(weight, LUTType::incoherent),
-            constructSplineInterpolator(weight, LUTType::coherent),
-            constructSplineInterpolator(weight, LUTType::formfactor),
-            constructSplineInterpolator(weight, LUTType::scatterfactor),
-            constructSplineInterpolator(weight, LUTType::incoherentenergy),
-        };
         Material<N> m;
         m.m_effectiveZ = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& pair) -> double { return pair.first * pair.second; });
 
-        m.m_attenuationTable.clear();
-        std::array<std::size_t, attenuation.size() + N> offset;
-        for (std::size_t i = 0; i < attenuation.size(); ++i) {
-            const auto& table = attenuation[i].getDataTable();
-            auto begin = m.m_attenuationTable.insert(m.m_attenuationTable.end(), table.cbegin(), table.cend());
-            offset[i] = std::distance(m.m_attenuationTable.begin(), begin);
-        }
-        createMaterialAtomicShells(m, weight, offset);
+        m.m_photoel = generateLUT(weight, LUTType::photoelectric);
+        m.m_coherent = generateLUT(weight, LUTType::coherent);
+        m.m_incoherent = generateLUT(weight, LUTType::incoherent);
+        m.m_formFactor = generateLUT(weight, LUTType::formfactor);
+        m.m_scatterFactor = generateLUT(weight, LUTType::scatterfactor);
+        m.m_incoherentMeanEnergy = generateLUT(weight, LUTType::incoherentenergy);
 
-        for (std::size_t i = 0; i < offset.size(); ++i) {
-            if (i < attenuation.size() + std::min(std::uint8_t { N }, m.numberOfShells()))
-                m.m_attenuationTableOffset[i] = std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.begin() + offset[i]);
-            else
-                m.m_attenuationTableOffset[i] = std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.end());
-        }
-        m.m_attenuationTableOffset[offset.size()] = std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.end());
-
-        // creating lookuptable for inverse sampling of formfactor
         generateFormFactorInverseSampling(m);
+
+        createMaterialAtomicShells(m, weight);
 
         return m;
     }
@@ -576,7 +400,7 @@ protected:
         material.m_formFactorInvSamp = CPDFSampling<double, 20>(qmin * qmin, qmax * qmax, func);
     }
 
-    static void createMaterialAtomicShells(Material<N>& material, const std::map<std::size_t, double>& normalizedWeight, std::array<std::size_t, 6 + N>& offset)
+    static void createMaterialAtomicShells(Material<N>& material, const std::map<std::size_t, double>& normalizedWeight)
     {
         struct Shell {
             std::uint64_t Z = 0;
@@ -602,25 +426,13 @@ protected:
         material.m_numberOfShells = static_cast<std::uint8_t>(Nshells);
         for (std::size_t i = 0; i < Nshells; ++i) {
             const auto& shell = AtomHandler::Atom(shells[i].Z).shells.at(shells[i].S);
-            std::vector<std::pair<double, double>> photolog(shell.photoel.size());
-            std::transform(std::execution::par_unseq, shell.photoel.cbegin(), shell.photoel.cend(), photolog.begin(),
-                [=](const auto& p) {
-                    return std::make_pair(std::log(p.first), std::log(p.second * shells[i].weight));
-                });
-            CubicLSInterpolator<double> inter(photolog, 5, false);
-
-            auto begin = inter.getDataTable().begin();
-            auto end = inter.getDataTable().end();
-            auto table_beg = material.m_attenuationTable.insert(material.m_attenuationTable.end(), begin, end);
-            offset[i + 6] = std::distance(material.m_attenuationTable.begin(), table_beg);
-
             auto& materialshell = material.m_shells[i];
-
             materialshell.numberOfElectronsFraction = shells[i].weight * shell.numberOfElectrons / sum_weight;
             materialshell.bindingEnergy = shell.bindingEnergy;
             materialshell.HartreeFockOrbital_0 = shell.HartreeFockOrbital_0;
             materialshell.numberOfPhotonsPerInitVacancy = shell.numberOfPhotonsPerInitVacancy;
             materialshell.energyOfPhotonsPerInitVacancy = shell.energyOfPhotonsPerInitVacancy;
+            materialshell.photoel = shell.photoel;
         }
         // Filling remainder shell
         if (shells.size() > Nshells) {
@@ -630,7 +442,6 @@ protected:
             for (std::size_t i = Nshells; i < shells.size(); ++i) {
                 const auto& shell = AtomHandler::Atom(shells[i].Z).shells.at(shells[i].S);
                 const auto w = shells[i].weight;
-
                 materialshell.bindingEnergy += shell.bindingEnergy * mean_fac;
                 materialshell.numberOfElectronsFraction += shell.numberOfElectrons * w / sum_weight;
                 materialshell.HartreeFockOrbital_0 += shell.HartreeFockOrbital_0 * mean_fac;
@@ -646,8 +457,12 @@ protected:
 
 private:
     double m_effectiveZ = 0;
-    std::vector<std::array<double, 3>> m_attenuationTable;
-    std::array<std::uint_fast32_t, 6 + N + 1> m_attenuationTableOffset;
+    std::vector<std::pair<double, double>> m_photoel;
+    std::vector<std::pair<double, double>> m_coherent;
+    std::vector<std::pair<double, double>> m_incoherent;
+    std::vector<std::pair<double, double>> m_scatterFactor;
+    std::vector<std::pair<double, double>> m_formFactor;
+    std::vector<std::pair<double, double>> m_incoherentMeanEnergy;
     CPDFSampling<double, 20> m_formFactorInvSamp;
     std::array<MaterialShell, N + 1> m_shells;
     std::uint8_t m_numberOfShells = 0;

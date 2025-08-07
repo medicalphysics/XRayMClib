@@ -44,6 +44,12 @@ inline U interp(T x[2], T y[2], U xi)
 }
 
 template <Floating T>
+inline T interp(const std::pair<T, T>& v1, const std::pair<T, T>& v2, T x)
+{
+    return v1.second + (v2.second - v1.second) * (x - v1.first) / (v2.first - v1.first);
+}
+
+template <Floating T>
 inline T logloginterp(T x0, T x1, T y0, T y1, T x)
 {
     // we do not test for negative values, instead we rely on std::log10 to return NaN values
@@ -99,7 +105,7 @@ inline T interpolate(const std::vector<std::pair<T, T>>& data, T x)
     auto upper = std::upper_bound(data.begin() + 1, data.end() - 1, val, [](const auto& lh, const auto& rh) -> bool { return lh.first < rh.first; });
     auto lower = upper - 1;
 
-    return interp(lower->first, upper->first, lower->second, upper->second, x);
+    return interp(*lower, *upper, x);
 }
 
 template <Floating T>
@@ -120,6 +126,25 @@ inline std::vector<T> interpolate(const std::vector<std::pair<T, T>>& data, cons
         y[i] = interp(lower->first, upper->first, lower->second, upper->second, x[i]);
     }
     return y;
+}
+
+template <Floating T>
+void removeUnneededInterpolationPoints(std::vector<std::pair<T, T>>& data, T epsilon = 1E-6)
+{
+    std::size_t right = 2;
+    while (right < data.size()) {
+        const auto& v1 = data[right - 2];
+        const auto& v12 = data[right - 1];
+        const auto& v2 = data[right];
+        const auto guess = interp(v1, v2, v12.first);
+        if (std::abs(guess - v12.second) < epsilon * v12.second) {
+            // remove point
+            data.erase(data.cbegin() + (right - 1));
+        } else {
+            right++;
+        }
+    }
+    data.shrink_to_fit();
 }
 
 // Variadic template to add vectors of equal size
@@ -846,7 +871,7 @@ private:
 template <Floating T>
 class Matrix {
 public:
-    Matrix() {};
+    Matrix() { };
     Matrix(std::size_t R, std::size_t C)
         : m_r(R)
         , m_c(C)
@@ -1049,7 +1074,7 @@ protected:
                 m_data.push_back(val);
             }
         }
-        Spline() {};
+        Spline() { };
         Spline(const std::vector<std::array<T, 3>>& data)
             : m_data(data)
         {

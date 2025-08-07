@@ -714,17 +714,17 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     using World = World<Box, Breast>;
     using Material = Material<NShells>;
 
-    auto [water_d, water_w] = TG195_water();
-    auto [pmma_d, pmma_w] = TG195_pmma();
-    auto [air_d, air_w] = TG195_air();
-    auto [breast_d, breast_w] = TG195_breast_tissue();
-    auto [skin_d, skin_w] = TG195_skin();
+    const auto [water_d, water_w] = TG195_water();
+    const auto [pmma_d, pmma_w] = TG195_pmma();
+    const auto [air_d, air_w] = TG195_air();
+    const auto [breast_d, breast_w] = TG195_breast_tissue();
+    const auto [skin_d, skin_w] = TG195_skin();
 
-    auto water = Material::byWeight(water_w).value();
-    auto pmma = Material::byWeight(pmma_w).value();
-    auto air = Material::byWeight(air_w).value();
-    auto breasttissue = Material::byWeight(breast_w).value();
-    auto skin = Material::byWeight(skin_w).value();
+    const auto water = Material::byWeight(water_w).value();
+    const auto pmma = Material::byWeight(pmma_w).value();
+    const auto air = Material::byWeight(air_w).value();
+    const auto breasttissue = Material::byWeight(breast_w).value();
+    const auto skin = Material::byWeight(skin_w).value();
 
     World world;
     world.setMaterialByWeight(air_w, air_d);
