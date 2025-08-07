@@ -37,7 +37,7 @@ std::size_t lowerIdx(const std::vector<double>& data, double limit)
 }
 std::size_t upperIdx(const std::vector<double>& data, double limit)
 {
-    for (int i = data.size() - 2; i >= 0; i = i - 2) {
+    for (int i = data.size() - 2; i > 0; i = i - 2) {
         if (data[i - 2] < limit)
             return i;
     }
