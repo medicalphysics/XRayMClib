@@ -34,7 +34,7 @@ def readData():
         "InteractionType": str,
         "x": float,
         "y": float,
-        "Energy": int,
+        "Energy": float,
         "Material": str,
     }
     dt = pd.read_csv(

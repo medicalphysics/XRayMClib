@@ -638,7 +638,7 @@ protected:
             }
         }
 
-        // normalize number og electrons fraction
+        // normalize number of electrons fraction
         const auto sumElFraction = std::transform_reduce(material.m_shells.cbegin(), material.m_shells.cend(), 0.0, std::plus<>(), [](const auto& s) { return s.numberOfElectronsFraction; });
         std::for_each(material.m_shells.begin(), material.m_shells.end(), [sumElFraction](auto& s) { s.numberOfElectronsFraction /= sumElFraction; });
     }
