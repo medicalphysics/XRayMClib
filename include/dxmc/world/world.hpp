@@ -42,7 +42,8 @@ concept AnyWorldItemType = (... or std::same_as<U, Us>);
 // Template for at least one type of items
 template <WorldItemType F, WorldItemType... Us>
 class World {
-    using MaterialType = Material<5>;
+    static constexpr std::size_t WorldShells() { return 12; }
+    using MaterialType = Material<WorldShells()>;
 
 public:
     World()
@@ -318,7 +319,7 @@ public:
                     continueSampling = p.energy > 0;
                 } else { // Free path is closer than object, we interact in the world empty space
                     p.translate(stepLength);
-                    const auto interactionResult = interactions::template interact<5, 2>(att, p, m_fillMaterial, state);
+                    const auto interactionResult = interactions::template interact<WorldShells(), 2>(att, p, m_fillMaterial, state);
                     updateAttenuation = interactionResult.particleEnergyChanged;
                     continueSampling = interactionResult.particleAlive;
                     m_energyScored.scoreEnergy(interactionResult.energyImparted);
@@ -326,7 +327,7 @@ public:
             } else { // We do not intersect any object
                 p.translate(stepLength);
                 if (basicshape::AABB::pointInside(p.pos, m_aabb)) { // Are we still inside world?
-                    const auto interactionResult = interactions::template interact<5, 2>(att, p, m_fillMaterial, state);
+                    const auto interactionResult = interactions::template interact<WorldShells(), 2>(att, p, m_fillMaterial, state);
                     updateAttenuation = interactionResult.particleEnergyChanged;
                     continueSampling = interactionResult.particleAlive;
                     m_energyScored.scoreEnergy(interactionResult.energyImparted);
