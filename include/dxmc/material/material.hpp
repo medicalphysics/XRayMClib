@@ -1038,6 +1038,8 @@ protected:
             materialshell.numberOfPhotonsPerInitVacancy = shell.numberOfPhotonsPerInitVacancy;
             materialshell.energyOfPhotonsPerInitVacancy = shell.energyOfPhotonsPerInitVacancy;
             material.m_shell_photoel[i] = shell.photoel;
+            for (auto& v : material.m_shell_photoel[i])
+                v.second *= shells[i].weight;
         }
         // Filling remainder shell
         if (shells.size() > Nshells) {
