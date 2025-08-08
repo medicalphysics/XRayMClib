@@ -81,19 +81,19 @@ namespace interactions {
     template <std::size_t Nshells>
     int comptonScatterIA_NRC_sample_shell(const ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
-        // Binding energy og last shell should be set to zero
+        auto r = state.randomUniform();
+        double acc = 0;
         const auto& shells = material.shells();
-        int shell_idx;
+        int shell = -1;
         do {
-            shell_idx = 0;
-            const auto r = state.randomUniform();
-            double acc = shells[0].numberOfElectronsFraction;
-            while (acc < r) {
-                ++shell_idx;
-                acc += shells[shell_idx].numberOfElectronsFraction;
+            ++shell;
+            if (particle.energy < shells[shell].bindingEnergy) {
+                r -= shells[shell].numberOfElectronsFraction;
+            } else {
+                acc += shells[shell].numberOfElectronsFraction;
             }
-        } while (shells[shell_idx].bindingEnergy > particle.energy && shell_idx != material.numberOfShells());
-        return shell_idx;
+        } while (acc < r);
+        return shell;
     }
 
     template <std::size_t Nshells>
@@ -279,29 +279,27 @@ namespace interactions {
     auto photoelectricEffectIA(const double totalPhotoCrossSection, ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
         // finding shell based on photoelectric cross section
-        const std::uint_fast8_t max_shell = material.numberOfShells();
+
         std::uint_fast8_t shell = 0;
         auto prob = state.randomUniform();
-        bool next;
         do {
             const auto& sh = material.shell(shell);
-            if (sh.bindingEnergy < MIN_ENERGY()) {
-                shell = max_shell;
-            }
-            next = shell != max_shell;
-            if (next && sh.bindingEnergy < particle.energy) {
+            if (sh.bindingEnergy > particle.energy) {
+                shell++;
+            } else {
                 const auto shellCS = material.attenuationPhotoelectricShell(shell, particle.energy);
                 const auto shellProb = shellCS / totalPhotoCrossSection;
                 prob -= shellProb;
-                next = prob > 0;
+                if (prob > 0.0)
+                    ++shell;
             }
-            if (next)
-                ++shell;
-        } while (next);
+        } while (prob > 0.0 && shell != material.numberOfShells() - 1);
+        if (prob > 0)
+            ++shell;
 
         auto E = particle.energy * particle.weight;
         particle.energy = 0;
-        if (shell != max_shell) {
+        if (shell != material.numberOfShells()) {
             const auto& s = material.shell(shell);
             if (s.energyOfPhotonsPerInitVacancy > MIN_ENERGY()) {
                 particle.energy = s.energyOfPhotonsPerInitVacancy;

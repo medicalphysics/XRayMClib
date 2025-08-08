@@ -42,6 +42,7 @@ using namespace dxmc;
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
 constexpr std::size_t NShells = 12;
+constexpr std::size_t NShellsCase3 = 36;
 constexpr double Sigma = 1.96;
 
 struct ResultKeys {
@@ -709,10 +710,10 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    using Box = WorldBox<NShells, LOWENERGYCORRECTION>;
-    using Breast = TG195World3Breast<NShells, LOWENERGYCORRECTION>;
+    using Box = WorldBox<NShellsCase3, LOWENERGYCORRECTION>;
+    using Breast = TG195World3Breast<NShellsCase3, LOWENERGYCORRECTION>;
     using World = World<Box, Breast>;
-    using Material = Material<NShells>;
+    using Material = Material<NShellsCase3>;
 
     const auto [water_d, water_w] = TG195_water();
     const auto [pmma_d, pmma_w] = TG195_pmma();
@@ -1705,9 +1706,9 @@ int main(int argc, char* argv[])
     } else if (args.correction == Arguments::LECorrection::IA) {
         success = runAll<2>(args.N_threads);
     } else {
-        success = runAll<0>(args.N_threads);
-        success = runAll<1>(args.N_threads);
         success = runAll<2>(args.N_threads);
+        success = runAll<1>(args.N_threads);
+        success = runAll<0>(args.N_threads);
     }
 
     if (success)
