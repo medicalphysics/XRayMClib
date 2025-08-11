@@ -26,6 +26,7 @@ import os
 ROW = "Material"
 HUE = "Model"
 COL = "Energy"
+HUE_ORDER = ["NoneLC", "Livermore", "IA"]
 
 
 def readData():
@@ -46,13 +47,20 @@ def readData():
 def plotComptonScatter(dtt, show=True):
 
     dt = dtt[dtt["InteractionType"] == "ComptonAngle"]
+    row_order = list(set(dt[ROW]))
+    row_order.sort()
+    col_order = list(set(dt[COL]))
+    col_order.sort()
 
     g = sns.relplot(
         x="x",
         y="y",
         hue=HUE,
+        hue_order=HUE_ORDER,
         col=COL,
+        col_order=col_order,
         row=ROW,
+        row_order=row_order,
         kind="line",
         data=dt,
     )
@@ -66,13 +74,19 @@ def plotComptonScatter(dtt, show=True):
 def plotComptonEnergy(dtt, show=True):
 
     dt = dtt[dtt["InteractionType"] == "ComptonEnergy"]
-
+    row_order = list(set(dt[ROW]))
+    row_order.sort()
+    col_order = list(set(dt[COL]))
+    col_order.sort()
     g = sns.relplot(
         x="x",
         y="y",
         hue=HUE,
+        hue_order=HUE_ORDER,
         col=COL,
+        col_order=col_order,
         row=ROW,
+        row_order=row_order,
         kind="line",
         data=dt,
     )
@@ -86,13 +100,19 @@ def plotComptonEnergy(dtt, show=True):
 def plotRayleightScatter(dtt, show=True):
 
     dt = dtt[dtt["InteractionType"] == "RayleighAngle"]
-
+    row_order = list(set(dt[ROW]))
+    row_order.sort()
+    col_order = list(set(dt[COL]))
+    col_order.sort()
     g = sns.relplot(
         x="x",
         y="y",
         hue=HUE,
+        hue_order=HUE_ORDER,
         col=COL,
+        col_order=col_order,
         row=ROW,
+        row_order=row_order,
         kind="line",
         data=dt,
     )
@@ -106,13 +126,19 @@ def plotRayleightScatter(dtt, show=True):
 def plotPhotoElectricEnergyIA(dtt, show=True):
 
     dt = dtt[dtt["InteractionType"] == "PhotoElectricIA"]
-    
+    row_order = list(set(dt[ROW]))
+    row_order.sort()
+    col_order = list(set(dt[COL]))
+    col_order.sort()
     g = sns.relplot(
         x="x",
         y="y",
         hue=HUE,
+        hue_order=HUE_ORDER,
         col=COL,
+        col_order=col_order,
         row=ROW,
+        row_order=row_order,
         kind="line",
         data=dt,
     )
