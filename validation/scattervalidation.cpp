@@ -260,7 +260,7 @@ auto TG195_breast_tissue()
     }
     const auto d = adipose_d * 0.8 + gland_d * 0.2;
 
-    return dxmc::Material<12>::byWeight(w).value();
+    return dxmc::Material<NSHELLS>::byWeight(w).value();
 }
 
 int main()
