@@ -18,6 +18,8 @@ Copyright 2023 Erlend Andersen
 
 #include "dxmc/beams/isotropicbeam.hpp"
 #include "dxmc/beams/isotropicbeamcircle.hpp"
+#include "dxmc/beams/isotropiccircularbeam.hpp"
+#include "dxmc/beams/isotropiccircularmonoenergybeam.hpp"
 #include "dxmc/beams/isotropicmonoenergybeam.hpp"
 #include "dxmc/beams/isotropicmonoenergybeamcircle.hpp"
 #include "dxmc/transport.hpp"
@@ -1555,7 +1557,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 }
 
 template <BeamType B, int LOWENERGYCORRECTION = 2>
-    requires(std::same_as<B, IsotropicBeamCircle<>> || std::same_as<B, IsotropicMonoEnergyBeamCircle<>>)
+    requires(std::same_as<B, IsotropicCircularMonoEnergyBeam<>> || std::same_as<B, IsotropicCircularBeam<>>)
 bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 {
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
@@ -1581,7 +1583,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     res.modus = "Continuous";
 
     B beam;
-    if constexpr (std::same_as<B, IsotropicBeamCircle<>>) {
+    if constexpr (std::same_as<B, IsotropicCircularBeam<>>) {
         const auto specter = TG195_120KV();
         beam.setEnergySpecter(specter);
         res.specter = "120 kVp";
@@ -1591,7 +1593,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     }
 
     std::array<double, 17> tg195_doses;
-    if constexpr (std::same_as<B, IsotropicBeamCircle<>>) {
+    if constexpr (std::same_as<B, IsotropicCircularBeam<>>) {
         tg195_doses = { 11090.33, 1567.72, 852.32, 401.38, 3.39, 21.10, 94.86, 10.96, 6.33, 0.14, 1.34, 19.45, 6.43, 27.27, 370.97, 9.85, 6840.76 };
     } else {
         tg195_doses = { 10410.69, 1670.94, 889.97, 438.66, 3.57, 22.80, 103.46, 11.89, 6.71, 0.14, 1.40, 21.02, 6.75, 29.55, 305.22, 9.88, 7854.65 };
@@ -1685,8 +1687,8 @@ bool runAll(std::uint32_t N_threads)
 
     success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
-    success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads);
-    success = success && TG195Case5AbsorbedEnergy<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads);
+    success = success && TG195Case5AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
+    success = success && TG195Case5AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads);
 
     return success;
 }

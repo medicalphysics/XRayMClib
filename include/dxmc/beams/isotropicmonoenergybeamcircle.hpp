@@ -18,7 +18,7 @@ Copyright 2024 Erlend Andersen
 
 #pragma once
 
-#include "dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
+#include "dxmc/beams/utilities/spheresamplingcircularfield.hpp"
 #include "dxmc/dxmcrandom.hpp"
 #include "dxmc/floating.hpp"
 #include "dxmc/particle.hpp"
@@ -31,39 +31,38 @@ namespace dxmc {
 template <bool ENABLETRACKING = false>
 class IsotropicMonoEnergyBeamCircleExposure {
 public:
-    IsotropicMonoEnergyBeamCircleExposure(const std::array<double, 3>& pos, double energy, double radius = 0, std::uint64_t N = 1E6)
+    IsotropicMonoEnergyBeamCircleExposure(const std::array<double, 3>& pos, const std::array<double, 3>& direction, std::uint64_t N = 1E6)
         : m_pos(pos)
-        , m_energy(energy)
-        , m_radius(radius)
+        , m_dir(direction)
         , m_NParticles(N)
     {
+
+        m_dirCosines = calculateDirectionCosines(m_dir);
     }
 
     const std::array<double, 3>& position() const { return m_pos; }
 
-    void setCollimationHalfAngles(const std::array<double, 4>& angles)
+    void setCollimationHalfAngle(double angle)
     {
-        m_directionSampler.setData(angles);
+        m_directionSampler.setData(angle);
+    }
+
+    void setEnergy(double e)
+    {
+        m_energy = e;
     }
 
     std::uint64_t numberOfParticles() const { return m_NParticles; }
 
     auto sampleParticle(RandomState& state) const noexcept
     {
-        const auto angle = state.randomUniform(2 * PI_VAL());
-        const auto sang = std::sin(angle);
-        const auto cang = std::cos(angle);
-        const auto X = vectormath::rotate({ 0, 1, 0 }, { 0, 0, 1 }, sang, cang);
-        constexpr std::array<double, 3> Y = { 0, 0, 1 };
-        const auto Z = vectormath::cross(X, Y);
-        const auto pos = vectormath::add(vectormath::scale(Z, -m_radius), m_pos);
 
         const auto dirz = m_directionSampler(state);
-        const auto dir = vectormath::changeBasis(X, Y, Z, dirz);
+        const auto dir = vectormath::changeBasis(m_dirCosines[0], m_dirCosines[1], m_dir, dirz);
 
         if constexpr (ENABLETRACKING) {
             ParticleTrack p = {
-                .pos = pos,
+                .pos = m_pos,
                 .dir = dir,
                 .energy = m_energy,
                 .weight = 1
@@ -72,7 +71,7 @@ public:
             return p;
         } else {
             Particle p = {
-                .pos = pos,
+                .pos = m_pos,
                 .dir = dir,
                 .energy = m_energy,
                 .weight = 1
@@ -96,19 +95,22 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularField m_directionSampler;
+    SphereSamplingCircularField m_directionSampler;
     std::array<double, 3> m_pos = { 0, 0, 0 };
+    std::array<double, 3> m_dir = { 0, 0, 1 };
+    std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };    
     std::uint64_t m_NParticles = 100;
-    double m_radius = 0;
     double m_energy = 60;
 };
 
 template <bool ENABLETRACKING = false>
 class IsotropicMonoEnergyBeamCircle {
 public:
-    IsotropicMonoEnergyBeamCircle(const std::array<double, 3>& pos = { 0, 0, 0 })
+    IsotropicMonoEnergyBeamCircle(const std::array<double, 3>& pos = { 0, 0, 0 }, const std::array<double, 3>& dir = { 1, 0, 0 })
         : m_pos(pos)
+        , m_dir(dir)
     {
+        vectormath::normalize(m_dir);
     }
 
     std::uint64_t numberOfExposures() const { return m_Nexposures; }
@@ -120,30 +122,33 @@ public:
     void setPosition(const std::array<double, 3>& pos) { m_pos = pos; }
     const std::array<double, 3>& position() const { return m_pos; }
 
-    void setRadius(double r)
+    const std::array<double, 3>& direction() const
     {
-        m_radius = std::abs(r);
+        return m_dir;
     }
-    double radius() const { return m_radius; }
 
-    void setEnergy(double energy) { m_energy = std::min(std::max(MIN_ENERGY(), energy), MAX_ENERGY()); }
-    double energy() const { return m_energy; }
-
-    const std::array<double, 4>& collimationHalfAngles() const { return m_collimationHalfAngles; }
-
-    void setCollimationHalfAngles(const std::array<double, 4>& angles) { m_collimationHalfAngles = angles; }
-    void setCollimationHalfAngles(double minX, double minY, double maxX, double maxY)
+    void setDirection(const std::array<double, 3>& dir)
     {
-        m_collimationHalfAngles[0] = minX;
-        m_collimationHalfAngles[1] = minY;
-        m_collimationHalfAngles[2] = maxX;
-        m_collimationHalfAngles[3] = maxY;
+        m_dir = vectormath::normalized(dir);
     }
+
+    void setEnergy(double energy)
+    {
+        m_energy = std::clamp(std::abs(energy), MIN_ENERGY(), MAX_ENERGY());
+    }
+
+    void setCollimationHalfAngle(double ang)
+    {
+        m_collimationHalfAngle = std::clamp(std::abs(ang), 0.0, PI_VAL());
+    }
+
+    double collimationHalfAngle() const { return m_collimationHalfAngle; }
 
     IsotropicMonoEnergyBeamCircleExposure<ENABLETRACKING> exposure(std::size_t i) const noexcept
     {
-        IsotropicMonoEnergyBeamCircleExposure<ENABLETRACKING> exp(m_pos, m_energy, m_radius, m_particlesPerExposure);
-        exp.setCollimationHalfAngles(m_collimationHalfAngles);
+        IsotropicMonoEnergyBeamCircleExposure<ENABLETRACKING> exp(m_pos, m_dir, m_particlesPerExposure);
+        exp.setCollimationHalfAngle(m_collimationHalfAngle);
+        exp.setEnergy(m_energy);
         return exp;
     }
 
@@ -154,8 +159,8 @@ public:
 
 private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
-    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };
-    double m_radius = 0;
+    std::array<double, 3> m_dir = { 1, 0, 0 };
+    double m_collimationHalfAngle = 0;
     std::uint64_t m_Nexposures = 100;
     std::uint64_t m_particlesPerExposure = 100;
     double m_energy = 60;

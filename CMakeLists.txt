@@ -103,6 +103,8 @@ set(HEADER_LIST
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicmonoenergybeamcircle.hpp" 
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicbeam.hpp" 
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicbeamcircle.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropiccircularmonoenergybeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropiccircularbeam.hpp" 
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/cbctbeam.hpp" 
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctspiralbeam.hpp" 
     "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctsequentialbeam.hpp" 
