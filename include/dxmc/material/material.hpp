@@ -505,9 +505,9 @@ protected:
         if (type == LUTType::photoelectric) {
             nknots = 10;
         } else if (type == LUTType::coherent) {
-            nknots = 15;
+            nknots = 30;
         } else if (type == LUTType::incoherent) {
-            nknots = 40;
+            nknots = 60;
         } else if (type == LUTType::scatterfactor) {
             nknots = 20;
         } else if (type == LUTType::formfactor) {
