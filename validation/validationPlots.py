@@ -49,12 +49,10 @@ def readTG195Data(path):
     }
     dt_long = pd.read_csv(path, sep=",", engine="python", converters=converters)
 
-    dt_long["TG195"] = (
-        dt_long["EGSnrc_Result"]
-        + dt_long["Geant4_Result"]
-        + dt_long["MCNP_Result"]
-        + dt_long["Penelope_Result"]
-    ) / 4
+    ##adding mean results
+    agg_names = ["EGSnrc_Result", "Geant4_Result", "MCNP_Result", "Penelope_Result"]
+    agg = pd.DataFrame({n: dt_long[n] for n in agg_names})
+    dt_long["TG195"] = agg.mean(axis=1, skipna=True)
 
     return dt_long
 
@@ -120,7 +118,11 @@ def readData(dxmc_path, TG195_path, relative_percent=True):
     dt_long = dtg.merge(dx, how="outer")
 
     # dropping non existing data
-    dt_long = dt_long.dropna(how="any")
+    dt_long.dropna(
+        how="any",
+        subset=[k + "_Result" for k in ["IA", "Livermore", "NoneLC"]],
+        inplace=True,
+    )
 
     col = dt_long.columns
     models = ["EGSnrc", "Geant4", "MCNP", "Penelope", "IA", "Livermore", "NoneLC"]
@@ -156,6 +158,9 @@ def readData(dxmc_path, TG195_path, relative_percent=True):
     dt = melted.pop(0)
     for melt in melted:
         dt = dt.merge(melt, how="outer")
+
+    ##dropping missing TG195 results
+    dt.dropna(how="any", inplace=True)
 
     ##Remove non existing models
     for h in HUE_ORDER.copy():
@@ -449,4 +454,4 @@ if __name__ == "__main__":
     plotCase42(data, kind=kind, relative=False)
     plotCase42(data, kind=kind, relative=True)
     plotCase5(data, kind=kind, relative=True)
-    plotCase5(data, kind=kind, relative=True)
+    plotCase5(data, kind=kind, relative=False)

@@ -1554,6 +1554,105 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     return true;
 }
 
+template <BeamType B, int LOWENERGYCORRECTION = 2>
+    requires(std::same_as<B, IsotropicBeamCircle<>> || std::same_as<B, IsotropicMonoEnergyBeamCircle<>>)
+bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
+{
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
+
+    constexpr int TRANSPARENTVOXELS = 255;
+    using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
+    auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
+
+    World world;
+    auto& grid = world.addItem(grid_object, "Tissue");
+    world.build(60);
+
+    ResultPrint print;
+    ResultKeys res;
+    if (LOWENERGYCORRECTION == 0)
+        res.model = "NoneLC";
+    else if (LOWENERGYCORRECTION == 1)
+        res.model = "Livermore";
+    else
+        res.model = "IA";
+    res.rCase = "Case 5";
+    res.modus = "Continuous";
+
+    B beam;
+    if constexpr (std::same_as<B, IsotropicBeamCircle<>>) {
+        const auto specter = TG195_120KV();
+        beam.setEnergySpecter(specter);
+        res.specter = "120 kVp";
+    } else {
+        beam.setEnergy(56.4);
+        res.specter = "56.4 keV";
+    }
+
+    std::array<double, 17> tg195_doses;
+    if constexpr (std::same_as<B, IsotropicBeamCircle<>>) {
+        tg195_doses = { 11090.33, 1567.72, 852.32, 401.38, 3.39, 21.10, 94.86, 10.96, 6.33, 0.14, 1.34, 19.45, 6.43, 27.27, 370.97, 9.85, 6840.76 };
+    } else {
+        tg195_doses = { 10410.69, 1670.94, 889.97, 438.66, 3.57, 22.80, 103.46, 11.89, 6.71, 0.14, 1.40, 21.02, 6.75, 29.55, 305.22, 9.88, 7854.65 };
+    }
+
+    const auto collangle_y = std::atan(25.0 / 60);
+    const auto collangle_z = std::atan(0.5 / 60);
+    beam.setCollimationHalfAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
+    beam.setNumberOfExposures(N_EXPOSURES);
+    beam.setNumberOfParticlesPerExposure(N_HISTORIES);
+    beam.setRadius(60);
+
+    Transport transport;
+    transport.setNumberOfThreads(N_threads);
+
+    std::cout << "Case 5 specter: " << res.specter << " continuous: " << res.modus << " model: " << res.model << std::endl;
+    auto time_elapsed = runDispatcher(transport, world, beam);
+
+    res.nMilliseconds = time_elapsed.count();
+
+    const auto doseScore = grid.getEnergyScores();
+    const auto materialIndex = grid.getMaterialIndex();
+
+    std::uint8_t matIdx = 0;
+    for (const auto& [density, material_name] : matInf) {
+        if (matIdx > 2) {
+            res.volume = material_name;
+            const auto tg195_idx = matIdx - 3;
+            res.TG195Result = tg195_doses[tg195_idx];
+            const auto ei_tot = std::transform_reduce(std::execution::par_unseq, doseScore.cbegin(), doseScore.cend(), materialIndex.cbegin(), 0.0, std::plus<>(), [matIdx](const auto& energyScored, auto ind) -> double {
+                if (ind == matIdx)
+                    return energyScored.energyImparted();
+                else
+                    return 0;
+            });
+            res.result = ei_tot / ((N_HISTORIES * N_EXPOSURES) / 1000);
+
+            const auto ei_var = std::transform_reduce(std::execution::par_unseq, doseScore.cbegin(), doseScore.cend(), materialIndex.cbegin(), 0.0, std::plus<>(), [matIdx](const auto& energyScored, auto ind) -> double {
+                if (ind == matIdx)
+                    return energyScored.variance();
+                else
+                    return 0;
+            });
+            res.result_std = Sigma * std::sqrt(ei_var) / ((N_HISTORIES * N_EXPOSURES) / 1000) / res.result;
+            const auto events = std::transform_reduce(std::execution::par_unseq, doseScore.cbegin(), doseScore.cend(), materialIndex.cbegin(), 0.0, std::plus<>(), [matIdx](const auto& energyScored, auto ind) -> double {
+                if (ind == matIdx)
+                    return energyScored.numberOfEvents();
+                else
+                    return 0;
+            });
+            res.nEvents = events;
+            print(res, true);
+        }
+        matIdx++;
+    }
+    world.clearEnergyScored();
+    world.clearDoseScored();
+
+    return true;
+}
+
 template <int LOWENERGYCORRECTION>
 bool runAll(std::uint32_t N_threads)
 {
@@ -1586,6 +1685,8 @@ bool runAll(std::uint32_t N_threads)
 
     success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
+    success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads);
+    success = success && TG195Case5AbsorbedEnergy<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads);
 
     return success;
 }
