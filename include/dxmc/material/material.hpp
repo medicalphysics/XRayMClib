@@ -372,7 +372,7 @@ protected:
         incoherentenergy
     };
 
-    static CubicLSInterpolator<double> constructSplineInterpolator(const std::vector<std::vector<std::pair<double, double>>>& data, const std::vector<double>& weights, bool loglog = false, std::size_t nknots = 15)
+    static CubicLSInterpolator<double> constructSplineInterpolator(const std::vector<std::vector<std::pair<double, double>>>& data, const std::vector<double>& weights, bool loglog = false, std::size_t nknots = 15, bool maybe_discont = true)
     {
         const auto Nvec = std::transform_reduce(data.cbegin(), data.cend(), std::size_t { 0 }, std::plus<>(), [](const auto& rh) -> std::size_t { return rh.size(); });
 
@@ -408,19 +408,6 @@ protected:
             });
         }
 
-        if (loglog) {
-            // removing zero and negative items
-            auto last = std::remove_if(arr.begin(), arr.end(), [](const auto& pair) -> bool {
-                constexpr auto e = std::numeric_limits<double>::epsilon() * 5;
-                return pair.first <= e || pair.second <= e;
-            });
-            arr.erase(last, arr.end());
-
-            std::for_each(std::execution::par_unseq, arr.begin(), arr.end(), [](auto& v) {
-                v.first = std::log(v.first);
-                v.second = std::log(v.second);
-            });
-        }
         // sorting for generating interpolation lut
         std::sort(arr.begin(), arr.end(), [](const auto& lh, const auto& rh) {
             if (lh.first < rh.first)
@@ -432,7 +419,7 @@ protected:
 
         // erasing duplicate items
         auto erase_from = std::unique(arr.begin(), arr.end(), [](const auto& lh, const auto& rh) {
-            constexpr auto e = std::numeric_limits<double>::epsilon() * 5;
+            constexpr auto e = std::numeric_limits<double>::epsilon();
             if (lh.first == rh.first)
                 return std::abs(lh.second - rh.second) <= e;
             else
@@ -441,15 +428,20 @@ protected:
         if (std::distance(erase_from, arr.end()) != 0)
             arr.erase(erase_from, arr.end());
 
-        /* This should not happen, std:isfinite is disabled anyway for fast-math
-        // we may encounter nan numbers, remove them:
-        auto last = std::remove_if(arr.begin(), arr.end(), [](const auto& pair) -> bool {
-            return !(std::isfinite(pair.first) && std::isfinite(pair.second));
-        });
-        arr.erase(last, arr.end());
-        */
+        if (loglog) {
+            // removing zero and negative items
+            auto last = std::remove_if(arr.begin(), arr.end(), [](const auto& pair) -> bool {
+                return pair.first <= 0.0 || pair.second <= 0.0;
+            });
+            arr.erase(last, arr.end());
 
-        auto interpolator = CubicLSInterpolator(arr, nknots, true);
+            std::for_each(std::execution::par_unseq, arr.begin(), arr.end(), [](auto& v) {
+                v.first = std::log(v.first);
+                v.second = std::log(v.second);
+            });
+        }
+
+        auto interpolator = CubicLSInterpolator(arr, nknots, maybe_discont);
         return interpolator;
     }
 
@@ -494,6 +486,30 @@ protected:
                     }
                 }
                 data.push_back(arr);
+
+            } else if (type == LUTType::incoherent) {
+                // We increse number of datapoints for incoherent to construct a cubic spline
+                auto arr = getAtomArr(a, type);
+                std::vector<std::pair<double, double>> addon;
+                addon.reserve(arr.size());
+                for (std::size_t i = 1; i < arr.size(); ++i) {
+                    const auto& first = arr[i - 1];
+                    const auto& last = arr[i];
+                    const auto diff = last.first - first.first;
+                    constexpr std::array<double, 3> fac = {
+                        0.15,
+                        0.5,
+                        0.85,
+                    };
+                    for (const auto f : fac) {
+                        const auto x = first.first + diff * f;
+                        const auto y = interp(first, last, x);
+                        addon.push_back(std::make_pair(x, y));
+                    }
+                }
+                for (auto& a : addon)
+                    arr.push_back(a);
+                data.push_back(arr);
             } else {
                 data.push_back(getAtomArr(a, type));
             }
@@ -503,18 +519,23 @@ protected:
 
         std::size_t nknots = 10;
         if (type == LUTType::photoelectric) {
-            nknots = 10;
+            nknots = 16;
         } else if (type == LUTType::coherent) {
-            nknots = 30;
+            nknots = 32;
         } else if (type == LUTType::incoherent) {
-            nknots = 60;
+            nknots = 32;
         } else if (type == LUTType::scatterfactor) {
             nknots = 20;
         } else if (type == LUTType::formfactor) {
             nknots = 20;
         }
+
+        bool discont = false;
+        if (type == LUTType::photoelectric || type == LUTType::coherent)
+            discont = true;
+
         constexpr auto loglog = true;
-        auto lut = constructSplineInterpolator(data, weights, loglog, nknots);
+        auto lut = constructSplineInterpolator(data, weights, loglog, nknots, discont);
         return lut;
     }
 
