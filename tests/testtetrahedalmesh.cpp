@@ -239,6 +239,21 @@ bool testTransport()
     return false;
 }
 
+dxmc::TetrahedalMeshReader readICRPPregnantPhantom(bool female = false)
+{
+    const std::string name = female ? "38wF" : "38wM";
+    const std::string elefile = name + ".ele";
+    const std::string nodefile = name + ".node";
+    const std::string materialfile = name + ".material";
+
+    const auto elepath = elefile;
+    const auto nodepath = nodefile;
+    const auto materialpath = materialfile;
+
+    dxmc::TetrahedalMeshReader reader(nodepath, elepath, materialpath);
+    return reader;
+}
+
 dxmc::TetrahedalMeshData getICRP()
 {
     const std::string n = "C:/Users/ander/OneDrive/phantomsMNCP/adult/MRCP_AF/MRCP_AF.node";
@@ -340,6 +355,10 @@ bool testTransportICRP()
 
 int main()
 {
+
+    auto reader = readICRPPregnantPhantom();
+    auto& data = reader.data();
+    data.collectionNameMustContainFilter("fetal");
 
     bool success = true;
 

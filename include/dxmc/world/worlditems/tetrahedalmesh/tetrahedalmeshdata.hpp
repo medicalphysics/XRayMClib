@@ -74,5 +74,43 @@ struct TetrahedalMeshData {
             }
         }
     }
+
+    void collectionNameMustContainFilter(const std::string& filter)
+    {
+        std::vector<std::uint32_t> indicesToKeep;
+        for (std::uint32_t i = 0; i < collectionNames.size(); ++i) {
+            const auto& collname = collectionNames[i];
+            if (collname.contains(filter)) {
+                indicesToKeep.push_back(i);
+            }
+        }
+
+        if (indicesToKeep.size() == 0) {
+            return;
+        }
+        std::sort(indicesToKeep.begin(), indicesToKeep.end());
+
+        struct FilterData {
+            std::array<std::uint32_t, 4> element;
+            std::uint32_t collectionIndex;
+        };
+
+        std::vector<FilterData> filtered(elements.size());
+        std::transform(std::execution::par_unseq, elements.cbegin(), elements.cend(), collectionIndices.cbegin(), filtered.begin(), [](const auto& el, const auto i) {
+            return FilterData { .element = el, .collectionIndex = i };
+        });
+
+        auto last = std::remove_if(std::execution::par_unseq, filtered.begin(), filtered.end(), [&indicesToKeep](const auto& f) {
+            return !std::binary_search(indicesToKeep.cbegin(), indicesToKeep.cend(), f.collectionIndex);
+        });
+        filtered.erase(last, filtered.end());
+        elements.clear();
+        collectionIndices.clear();
+        for (const auto& f : filtered) {
+            elements.push_back(f.element);
+            collectionIndices.push_back(f.collectionIndex);
+        }
+
+    }
 };
 }
