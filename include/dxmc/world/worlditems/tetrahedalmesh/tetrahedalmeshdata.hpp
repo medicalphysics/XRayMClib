@@ -19,10 +19,12 @@ Copyright 2025 Erlend Andersen
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <execution>
 #include <limits>
 #include <map>
 #include <ranges>
+#include <string>
 #include <vector>
 
 namespace dxmc {
@@ -111,6 +113,28 @@ struct TetrahedalMeshData {
             collectionIndices.push_back(f.collectionIndex);
         }
 
+        // remove unneeded vertices
+        std::vector<std::uint32_t> indices_to_keep;
+        indices_to_keep.reserve(elements.size() * 4);
+        for (const auto& el : elements)
+            for (auto i : el)
+                indices_to_keep.push_back(i);
+        std::sort(indices_to_keep.begin(), indices_to_keep.end());
+        indices_to_keep.erase(std::unique(indices_to_keep.begin(), indices_to_keep.end()), indices_to_keep.end());
+        std::map<std::uint32_t, std::uint32_t> indices_map;
+        for (std::uint32_t i = 0; i < indices_to_keep.size(); ++i)
+            indices_map[indices_to_keep[i]] = i;
+        // renaming indices
+        for (auto& el : elements)
+            for (std::uint32_t i = 0; i < 4; ++i)
+                el[i] = indices_map[el[i]];
+        //removing nodes
+        std::vector<std::array<double, 3>> nodes_to_keep;
+        nodes_to_keep.reserve(indices_map.size());
+        for (std::uint32_t i = 0; i < nodes.size(); ++i)
+            if(std::binary_search(indices_to_keep.cbegin(), indices_to_keep.cend(), i))
+                nodes_to_keep.push_back(nodes[i]);
+        nodes = nodes_to_keep;
     }
 };
 }

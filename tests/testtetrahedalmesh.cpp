@@ -358,7 +358,7 @@ int main()
 
     auto reader = readICRPPregnantPhantom();
     auto& data = reader.data();
-    data.collectionNameMustContainFilter("fetal");
+    data.collectionNameMustContainFilter("Fetal");
 
     bool success = true;
 
