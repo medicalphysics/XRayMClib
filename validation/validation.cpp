@@ -44,7 +44,7 @@ using namespace dxmc;
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
 constexpr std::size_t NShells = 12;
-constexpr std::size_t NShellsCase3 = 36;
+constexpr std::size_t NShellsCase3and5 = 36;
 constexpr double Sigma = 1.96;
 
 struct ResultKeys {
@@ -712,10 +712,10 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1024;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    using Box = WorldBox<NShellsCase3, LOWENERGYCORRECTION>;
-    using Breast = TG195World3Breast<NShellsCase3, LOWENERGYCORRECTION>;
+    using Box = WorldBox<NShellsCase3and5, LOWENERGYCORRECTION>;
+    using Breast = TG195World3Breast<NShellsCase3and5, LOWENERGYCORRECTION>;
     using World = World<Box, Breast>;
-    using Material = Material<NShellsCase3>;
+    using Material = Material<NShellsCase3and5>;
 
     const auto [water_d, water_w] = TG195_water();
     const auto [pmma_d, pmma_w] = TG195_pmma();
@@ -1437,8 +1437,8 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     constexpr int TRANSPARENTVOXELS = 255;
-    using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
-    auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
+    using World = World<AAVoxelGrid<NShellsCase3and5, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
+    auto [grid_object, matInf] = generateTG195World5<NShellsCase3and5, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
 
     World world;
     auto& grid = world.addItem(grid_object, "Tissue");
@@ -1564,8 +1564,8 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     constexpr int TRANSPARENTVOXELS = 255;
-    using World = World<AAVoxelGrid<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
-    auto [grid_object, matInf] = generateTG195World5<NShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
+    using World = World<AAVoxelGrid<NShellsCase3and5, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
+    auto [grid_object, matInf] = generateTG195World5<NShellsCase3and5, LOWENERGYCORRECTION, TRANSPARENTVOXELS>();
 
     World world;
     auto& grid = world.addItem(grid_object, "Tissue");
