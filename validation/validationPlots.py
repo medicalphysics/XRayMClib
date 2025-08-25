@@ -25,11 +25,13 @@ import os
 import sys
 import re
 
-HUE_ORDER = list(["EGSnrc", "Geant4", "MCNP", "Penelope", "IA", "Livermore", "NoneLC"])
-
+HUE_ORDER = list(["EGSnrc", "Geant4", "MCNP", "Penelope", "NoneLC", "Livermore", "IA"])
+PALETTE = sns.color_palette("husl", len(HUE_ORDER))
+# Make last model black
+PALETTE[-1] = (0, 0, 0)
 
 plt.rcParams["font.family"] = "Times New Roman"
-sns.set_theme(palette="husl", font="Times New Roman", style="ticks")
+sns.set_theme(palette="husl", font="Times New Roman", style="ticks", font_scale=1.5)
 
 
 def readTG195Data(path):
@@ -187,6 +189,7 @@ def fix_axis(
     rotate_labels=True,
     ylabel=r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$",
     set_y0=False,
+    xlabel=None,
 ):
     if set_y0:
         fg.set(ylim=(0, None))
@@ -195,6 +198,8 @@ def fix_axis(
         for ax in fg.axes_dict.values():
             for tick in ax.get_xticklabels():
                 tick.set_rotation(70)
+    if xlabel is not None:
+        fg.set_axis_labels(x_var=xlabel)
     fg.tight_layout()
 
 
@@ -215,13 +220,15 @@ def plotCase1(dt_full, kind="strip", show=False, relative=False):
         data=dt,
         kind=kind,
         errorbar=lambda x: (x.min(), x.max()),
+        palette=PALETTE,
     )
     if relative:
         ylabel = "Difference from mean of TG195 [%]"
+        g.refline(y=0.0)
     else:
         ylabel = r"$\mathdefault{KERMA}_{\mathdefault{Air}} $ per history"
 
-    fix_axis(g, ylabel=ylabel)
+    fix_axis(g, ylabel=ylabel, xlabel="Filter")
 
     plt.savefig(
         "plots/Case1_{}.png".format("relative" if relative else "value"), dpi=300
@@ -256,10 +263,12 @@ def plotCase2and3(case, dt_full, kind="strip", show=False, relative=False):
         data=dt_vol,
         kind=kind,
         errorbar=lambda x: (x.min(), x.max()),
+        palette=PALETTE,
     )
 
     if relative:
         ylabel = "Difference from mean of TG195 [%]"
+        g.refline(y=0.0)
     else:
         ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
 
@@ -283,6 +292,7 @@ def plotCase2and3(case, dt_full, kind="strip", show=False, relative=False):
             data=dt_tot,
             kind=kind,
             errorbar=lambda x: (x.min(), x.max()),
+            palette=PALETTE,
         )
         fix_axis(g, False)
         plt.savefig("plots/{}_value_TotalBody.png".format(casename), dpi=300)
@@ -311,9 +321,11 @@ def plotCase41(dt_full, kind="strip", show=False, relative=False):
         data=dt,
         kind=kind,
         errorbar=lambda x: (x.min(), x.max()),
+        palette=PALETTE,
     )
     if relative:
         ylabel = "Difference from mean of TG195 [%]"
+        g.refline(y=0.0)
     else:
         ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
 
@@ -346,13 +358,15 @@ def plotCase42(dt_full, show=False, kind="strip", relative=False):
             data=dtp[dtp["Mode"] == mode],
             errorbar=lambda x: (x.min(), x.max()),
             aspect=2,
+            palette=PALETTE,
         )
         if relative:
+            g.refline(y=0.0)
             ylabel = "Difference from mean of TG195 [%]"
         else:
             ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
 
-        fix_axis(g, ylabel=ylabel)
+        fix_axis(g, ylabel=ylabel, xlabel="Beam angle [deg]")
         plt.savefig(
             "plots/Case42_Cent_{}_{}.png".format(
                 mode, "relative" if relative else "value"
@@ -377,8 +391,14 @@ def plotCase42(dt_full, show=False, kind="strip", relative=False):
             data=dtp[dtp["Mode"] == mode],
             errorbar=lambda x: (x.min(), x.max()),
             aspect=2,
+            palette=PALETTE,
         )
-        fix_axis(g, ylabel=ylabel)
+        if relative:
+            g.refline(y=0.0)
+            ylabel = "Difference from mean of TG195 [%]"
+        else:
+            ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
+        fix_axis(g, ylabel=ylabel, xlabel="Beam angle [deg]")
         plt.savefig(
             "plots/Case42_Pher_{}_{}.png".format(
                 mode, "relative" if relative else "value"
@@ -415,8 +435,10 @@ def plotCase5(dt_full, kind="strip", show=False, relative=False):
             kind=kind,
             errorbar=lambda x: (x.min(), x.max()),
             aspect=2,
+            palette=PALETTE,
         )
         if relative:
+            g.refline(y=0.0)
             ylabel = "Difference from mean of TG195 [%]"
         else:
             ylabel = r"Energy imparted $\left[ \frac{\mathdefault{eV}}{\mathdefault{history}} \right]$"
@@ -435,6 +457,10 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     data = readData("ValidationTable.txt", "TG195Results.txt")
+
+    ## If rename to XRayMC
+    # data["Model"] = data["Model"].str.replace("IA", "XRayMC", regex=False)
+    # HUE_ORDER[-1] = "XRayMC"
 
     try:
         os.mkdir("plots")
