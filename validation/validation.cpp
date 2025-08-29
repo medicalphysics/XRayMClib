@@ -1121,6 +1121,121 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     return true;
 }
 
+template <BeamType Beam, int LOWENERGYCORRECTION = 2>
+    requires(std::same_as<Beam, IsotropicCircularBeam<>> || std::same_as<Beam, IsotropicCircularMonoEnergyBeam<>>)
+bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation = false)
+{
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 2000000;
+
+    std::string model;
+    if (LOWENERGYCORRECTION == 0)
+        model = "NoneLC";
+    if (LOWENERGYCORRECTION == 1)
+        model = "Livermore";
+    if (LOWENERGYCORRECTION == 2)
+        model = "IA";
+
+    std::cout << "TG195 Case 4.2 continuous for ";
+    if (large_collimation)
+        std::cout << "80mm collimation and ";
+    else
+        std::cout << "10mm collimation and ";
+    if constexpr (std::same_as<Beam, IsotropicCircularBeam<>>)
+        std::cout << "120 kVp";
+    else
+        std::cout << "56.4 keV";
+    std::cout << " photons with low en model: " << model << std::endl;
+
+    using Cylindar = TG195World42<NShells, LOWENERGYCORRECTION>;
+    using World = World<Cylindar>;
+    using Material = Material<NShells>;
+    auto [mat_dens, mat_weights] = TG195_pmma();
+    auto mat = Material::byWeight(mat_weights).value();
+
+    World world;
+    auto [air_density, air_composition] = TG195_air();
+    world.setMaterialByWeight(air_composition, air_density);
+
+    auto& cylinder = world.template addItem<Cylindar>({ 16, 600 });
+    world.build(90);
+    cylinder.setMaterial(mat);
+    cylinder.setMaterialDensity(mat_dens);
+
+    ResultPrint print;
+    ResultKeys res;
+    if (LOWENERGYCORRECTION == 0)
+        res.model = "NoneLC";
+    else if (LOWENERGYCORRECTION == 1)
+        res.model = "Livermore";
+    else
+        res.model = "IA";
+    res.modus = large_collimation ? "80mm collimation" : "10mm collimation";
+    res.rCase = "Case 4.2";
+    res.specter = std::same_as<Beam, IsotropicCircularBeam<>> ? "120 kVp" : "56.4 keV";
+
+    Beam beam;
+    if constexpr (std::same_as<Beam, IsotropicCircularBeam<>>) {
+        const auto specter = TG195_120KV();
+        beam.setEnergySpecter(specter);
+        res.specter = "120 kVp";
+    } else {
+        beam.setEnergy(56.4);
+        res.specter = "56.4 keV";
+    }
+
+    const auto collangle_y = std::atan(16.0 / 60.0);
+    const auto collangle_z = large_collimation ? std::atan(4.0 / 60.0) : std::atan(0.5 / 60.0);
+    beam.setCollimationHalfAngles({ -collangle_y, -collangle_z, collangle_y, collangle_z });
+    beam.setNumberOfExposures(N_EXPOSURES);
+    beam.setNumberOfParticlesPerExposure(N_HISTORIES);
+    beam.setRadius(60);
+
+    // setting up benchmarking values
+    double sim_ev_center, sim_ev_pher;
+    if constexpr (std::same_as<Beam, IsotropicCircularBeam<>>) {
+        if (large_collimation) {
+            sim_ev_center = 10.82046;
+            sim_ev_pher = 38.86803;
+        } else {
+            sim_ev_center = 11.14440;
+            sim_ev_pher = 39.36083;
+        }
+    } else {
+        if (large_collimation) {
+            sim_ev_center = 11.38336;
+            sim_ev_pher = 33.94995;
+        } else {
+            sim_ev_center = 12.11276;
+            sim_ev_pher = 34.70278;
+        }
+    }
+
+    Transport transport;
+    transport.setNumberOfThreads(N_threads);
+
+    auto time_elepased = runDispatcher(transport, world, beam);
+    res.nMilliseconds = time_elepased.count();
+
+    res.modus = large_collimation ? "Pherifery 80mm collimation" : "Pherifery 10mm collimation";
+    res.volume = "Continuous";
+    res.TG195Result = sim_ev_pher;
+    res.result = cylinder.energyScoredPeriferyCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
+    res.result_std = Sigma * cylinder.energyScoredPeriferyCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
+    res.nEvents = cylinder.energyScoredPeriferyCylinder().numberOfEvents();
+    std::cout << " Pherifery: " << res.result << " sim/TG195: [" << (res.result / sim_ev_pher - 1) * 100 << "%]";
+    print(res, false);
+    res.modus = large_collimation ? "Center 80mm collimation" : "Center 10mm collimation";
+    res.TG195Result = sim_ev_center;
+    res.result = cylinder.energyScoredCenterCylinder().energyImparted() / ((N_HISTORIES * N_EXPOSURES) / 1000.0);
+    res.result_std = Sigma * cylinder.energyScoredCenterCylinder().standardDeviation() / ((N_HISTORIES * N_EXPOSURES) / 1000.0) / res.result;
+    res.nEvents = cylinder.energyScoredCenterCylinder().numberOfEvents();
+    std::cout << " Center: " << res.result << " sim/TG195: [" << (res.result / sim_ev_center - 1) * 100 << "%]" << std::endl;
+    print(res, false);
+
+    return true;
+}
+
 template <typename T>
 std::vector<T> readBinaryArray(const std::string& path, std::size_t array_size)
 {
@@ -1684,6 +1799,10 @@ bool runAll(std::uint32_t N_threads)
     success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
     success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
     success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
     success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
