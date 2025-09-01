@@ -122,7 +122,11 @@ def readData(dxmc_path, TG195_path, relative_percent=True):
     # dropping non existing data
     dt_long.dropna(
         how="any",
-        subset=[k + "_Result" for k in ["IA", "Livermore", "NoneLC"]],
+        subset=[
+            k + "_Result"
+            for k in ["IA", "Livermore", "NoneLC"]
+            if k + "_Result" in dt_long.columns
+        ],
         inplace=True,
     )
 
@@ -342,12 +346,25 @@ def plotCase42(dt_full, show=False, kind="strip", relative=False):
     dt = dt_full[dt_full["Case"] == "Case 4.2"]
     if dt.size == 0:
         return
-    dt["Volume [angle]"] = [int(d) for d in dt["Volume"]]
+
+    def angle_fixer(x):
+        try:
+            i = int(x)
+            y = f"{i:03d}"
+        except ValueError:
+            y = x
+        return y
+
+    dt["Volume [angle]"] = [angle_fixer(d) for d in dt["Volume"]]
+    order = [k for k in dt["Volume [angle]"]]
+    order.sort()
+
     dtp_ind = ["Cent" in e for e in dt["Mode"]]
     dtp = dt[dtp_ind]
     for mode in set(dtp["Mode"]):
         g = sns.catplot(
             x="Volume [angle]",
+            order=order,
             y="Result_relative" if relative else "Result",
             hue="Model",
             row="Specter",
@@ -383,6 +400,7 @@ def plotCase42(dt_full, show=False, kind="strip", relative=False):
         g = sns.catplot(
             x="Volume [angle]",
             y="Result_relative" if relative else "Result",
+            order=order,
             hue="Model",
             row="Specter",
             col=None,
