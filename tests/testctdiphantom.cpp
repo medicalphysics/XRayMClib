@@ -1,52 +1,52 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/ctdiphantom.hpp"
-#include "dxmc/world/worlditems/worldsphere.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/ctdiphantom.hpp"
+#include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <iostream>
 
 bool testTracker()
 {
 
-    using CTDI = dxmc::CTDIPhantom<5, 1, false>;
-    using Sphere = dxmc::WorldSphere<5, 1>;
-    using World = dxmc::World<CTDI, Sphere>;
+    using CTDI = xraymc::CTDIPhantom<5, 1, false>;
+    using Sphere = xraymc::WorldSphere<5, 1>;
+    using World = xraymc::World<CTDI, Sphere>;
 
     World w;
     w.reserveNumberOfItems(2);
     auto& ctdi = w.addItem<CTDI>({ 16, 15 });
-    auto& sphere = w.addItem<Sphere>({ 3, { 0, 0, 15+3.01 } });
+    auto& sphere = w.addItem<Sphere>({ 3, { 0, 0, 15 + 3.01 } });
     w.build(100);
 
-    dxmc::PencilBeam<true> beam({ -25, -25, -15 }, { 1, 1, 0.5 }, 60);
+    xraymc::PencilBeam<true> beam({ -25, -25, -15 }, { 1, 1, 0.5 }, 60);
     beam.setNumberOfExposures(16);
     beam.setNumberOfParticlesPerExposure(1e4);
 
-    dxmc::Transport transport;
-    //transport.setNumberOfThreads(1);
+    xraymc::Transport transport;
+    // transport.setNumberOfThreads(1);
     transport.runConsole(w, beam);
 
-    dxmc::VisualizeWorld viz(w);
+    xraymc::VisualizeWorld viz(w);
 
     const auto& tracker = sphere.particleTracker();
     viz.addParticleTracks(tracker, 0.02);
@@ -64,10 +64,10 @@ bool testTracker()
 
 bool testForcedinteractions()
 {
-    using CTDIf = dxmc::CTDIPhantom<5, 1, true>;
-    using CTDI = dxmc::CTDIPhantom<5, 1, false>;
-    using Worldf = dxmc::World<CTDIf>;
-    using World = dxmc::World<CTDI>;
+    using CTDIf = xraymc::CTDIPhantom<5, 1, true>;
+    using CTDI = xraymc::CTDIPhantom<5, 1, false>;
+    using Worldf = xraymc::World<CTDIf>;
+    using World = xraymc::World<CTDI>;
 
     World w;
     auto& ctdi = w.addItem<CTDI>({ 8 });
@@ -77,11 +77,11 @@ bool testForcedinteractions()
     auto& ctdif = wf.addItem<CTDIf>({ 8 });
     wf.build();
 
-    dxmc::PencilBeam beam({ -100, -100, 0 }, { 1, 1, 0 }, 60);
+    xraymc::PencilBeam beam({ -100, -100, 0 }, { 1, 1, 0 }, 60);
     beam.setNumberOfExposures(480);
     beam.setNumberOfParticlesPerExposure(1e6);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
 
     transport(wf, beam);
     transport(w, beam);
@@ -112,7 +112,7 @@ bool testForcedinteractions()
 int main(int argc, char* argv[])
 {
     auto success = true;
-    //success = success && testTracker();
+    // success = success && testTracker();
     success = success && testForcedinteractions();
 
     if (success)

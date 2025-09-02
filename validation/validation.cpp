@@ -1,36 +1,36 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/isotropicbeam.hpp"
-#include "dxmc/beams/isotropicbeamcircle.hpp"
-#include "dxmc/beams/isotropiccircularbeam.hpp"
-#include "dxmc/beams/isotropiccircularmonoenergybeam.hpp"
-#include "dxmc/beams/isotropicmonoenergybeam.hpp"
-#include "dxmc/beams/isotropicmonoenergybeamcircle.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/aavoxelgrid.hpp"
-#include "dxmc/world/worlditems/depthdose.hpp"
-#include "dxmc/world/worlditems/fluencescore.hpp"
-#include "dxmc/world/worlditems/worldbox.hpp"
-#include "dxmc/world/worlditems/worldboxgrid.hpp"
-#include "dxmc/world/worlditems/worldcylinder.hpp"
+#include "xraymc/beams/isotropicbeam.hpp"
+#include "xraymc/beams/isotropicbeamcircle.hpp"
+#include "xraymc/beams/isotropiccircularbeam.hpp"
+#include "xraymc/beams/isotropiccircularmonoenergybeam.hpp"
+#include "xraymc/beams/isotropicmonoenergybeam.hpp"
+#include "xraymc/beams/isotropicmonoenergybeamcircle.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/depthdose.hpp"
+#include "xraymc/world/worlditems/fluencescore.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
+#include "xraymc/world/worlditems/worldboxgrid.hpp"
+#include "xraymc/world/worlditems/worldcylinder.hpp"
 
 #include "tg195world3breast.hpp"
 #include "tg195world42.hpp"
@@ -39,7 +39,7 @@ Copyright 2023 Erlend Andersen
 #include <fstream>
 #include <iostream>
 
-using namespace dxmc;
+using namespace xraymc;
 
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
@@ -132,25 +132,25 @@ std::string ResultPrint::m_filename;
 template <typename W, typename B>
 void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAngle = 90, double azimuthAngle = 90, double dist = 100, double zoom = 1, double linelenght = 250, double linethick = 0.2)
 {
-    dxmc::VisualizeWorld viz(world);
+    xraymc::VisualizeWorld viz(world);
     viz.setAzimuthalAngleDeg(azimuthAngle);
     viz.setPolarAngleDeg(polarAngle);
     viz.setDistance(dist);
     viz.suggestFOV(zoom);
     auto buffer = viz.template createBuffer<double>(2048 * 2, 2048 * 2);
-    if constexpr (std::is_same_v<B, dxmc::IsotropicMonoEnergyBeamCircle<false>> || std::is_same_v<B, dxmc::IsotropicBeamCircle<false>>) {
+    if constexpr (std::is_same_v<B, xraymc::IsotropicMonoEnergyBeamCircle<false>> || std::is_same_v<B, xraymc::IsotropicBeamCircle<false>>) {
         const auto& p = beam.position();
         const auto& d = beam.direction();
         const auto a = beam.collimationHalfAngle();
         const auto x = [&d, a]() {
-            const auto ind = dxmc::vectormath::argmin3<std::size_t>(d);
+            const auto ind = xraymc::vectormath::argmin3<std::size_t>(d);
             std::array<double, 3> nr = { 0, 0, 0 };
             nr[ind] = 1;
-            return dxmc::vectormath::scale(dxmc::vectormath::normalized(dxmc::vectormath::cross(d, nr)), std::atan(a));
+            return xraymc::vectormath::scale(xraymc::vectormath::normalized(xraymc::vectormath::cross(d, nr)), std::atan(a));
         }();
         for (int ang = 0; ang < 360; ang = ang + 30) {
-            const auto xa = dxmc::vectormath::rotate(x, d, static_cast<double>(ang));
-            const auto dir = dxmc::vectormath::normalized(dxmc::vectormath::add(d, xa));
+            const auto xa = xraymc::vectormath::rotate(x, d, static_cast<double>(ang));
+            const auto dir = xraymc::vectormath::normalized(xraymc::vectormath::add(d, xa));
             viz.addLineProp(p, dir, linelenght, linethick);
         }
     } else {
@@ -347,7 +347,7 @@ std::pair<double, std::map<std::size_t, double>> TG195_breast_tissue()
 template <typename T, typename W, typename B>
 auto runDispatcher(T& transport, W& world, const B& beam)
 {
-    dxmc::TransportProgress progress;
+    xraymc::TransportProgress progress;
 
     bool running = true;
     std::thread job([&]() {
@@ -376,7 +376,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 
     using Filter = WorldCylinder<NShells, LOWENERGYCORRECTION>;
     using Scoring = FluenceScore;
-    using Material = dxmc::Material<NShells>;
+    using Material = xraymc::Material<NShells>;
 
     ResultKeys res;
     res.rCase = "Case 1";
@@ -518,7 +518,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1024;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
-    using SimpleBox = dxmc::WorldBox<NShells, LOWENERGYCORRECTION>;
+    using SimpleBox = xraymc::WorldBox<NShells, LOWENERGYCORRECTION>;
     using Box = WorldBoxGrid<NShells, LOWENERGYCORRECTION>;
     using Material = Material<NShells>;
 
@@ -540,7 +540,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     box.setMaterialDensity(mat_dens);
 
     auto& scoring_plane = world.template addItem<SimpleBox>({ { -box_halfside, -box_halfside, 180, box_halfside, box_halfside, 180.1 } });
-    scoring_plane.setMaterial(dxmc::Material<NShells>::byWeight(air_composition).value(), world.fillMaterialDensity());
+    scoring_plane.setMaterial(xraymc::Material<NShells>::byWeight(air_composition).value(), world.fillMaterialDensity());
 
     world.build(180);
 
@@ -738,11 +738,11 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     world.setMaterialByWeight(air_w, air_d);
     world.reserveNumberOfItems(5);
 
-    auto& body = world.template addItem<Box>({ { -17 - dxmc::GEOMETRIC_ERROR(), -15, -15, 0 - dxmc::GEOMETRIC_ERROR(), 15, 15 } });
+    auto& body = world.template addItem<Box>({ { -17 - xraymc::GEOMETRIC_ERROR(), -15, -15, 0 - xraymc::GEOMETRIC_ERROR(), 15, 15 } });
     body.setMaterial(water, water_d);
-    auto& uplate = world.template addItem<Box>({ { 0, -13, 2.5 + dxmc::GEOMETRIC_ERROR(), 14, 13, 2.7 + dxmc::GEOMETRIC_ERROR() } });
+    auto& uplate = world.template addItem<Box>({ { 0, -13, 2.5 + xraymc::GEOMETRIC_ERROR(), 14, 13, 2.7 + xraymc::GEOMETRIC_ERROR() } });
     uplate.setMaterial(pmma, pmma_d);
-    auto& lplate = world.template addItem<Box>({ { 0, -13, -2.7 - dxmc::GEOMETRIC_ERROR(), 14, 13, -2.5 - dxmc::GEOMETRIC_ERROR() } });
+    auto& lplate = world.template addItem<Box>({ { 0, -13, -2.7 - xraymc::GEOMETRIC_ERROR(), 14, 13, -2.5 - xraymc::GEOMETRIC_ERROR() } });
     lplate.setMaterial(pmma, pmma_d);
     auto& breast = world.template addItem<Breast>();
     breast.setSkinMaterial(skin, skin_d);
@@ -1857,7 +1857,7 @@ Arguments argparse(int argc, char* argv[])
     while (i < args_str.size()) {
         auto arg = args_str[i];
         if (arg == "-h" || arg == "--help") {
-            std::cout << "Help for validation run of dxmclib\n";
+            std::cout << "Help for validation run of xraymclib\n";
             std::cout << "-j or --jobs [N] where N is number of threads, default all available threads\n";
             std::cout << "-b or --binding [All | None | Livermore | IA]  where options is number of electron binding energy correction type\n";
             std::cout << "-f or --filename [filename]  specify output filename, default validationTable.txt\n";
@@ -1908,7 +1908,7 @@ Arguments argparse(int argc, char* argv[])
 
 void printStart(const Arguments& args)
 {
-    std::cout << "Validation run of dxmclib\n";
+    std::cout << "Validation run of xraymclib\n";
     std::cout << "Number of threads: " << args.N_threads << std::endl;
     std::cout << "Binding correction: " << args.correctionString() << std::endl;
     std::cout << "Output file: " << args.filename << std::endl;

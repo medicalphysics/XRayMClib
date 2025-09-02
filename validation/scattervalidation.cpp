@@ -1,22 +1,22 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2024 Erlend Andersen
 */
 
-#include "dxmc/interactions.hpp"
+#include "xraymc/interactions.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -138,36 +138,36 @@ private:
 };
 
 template <int Model = 1>
-Histogram comptonScatterAngle(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
+Histogram comptonScatterAngle(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     Histogram h(180, 0, 180);
     for (std::size_t i = 0; i < N; ++i) {
-        dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        dxmc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
-        const auto angle = dxmc::vectormath::angleBetween({ 0, 0, 1 }, p.dir) * dxmc::RAD_TO_DEG<>();
+        xraymc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
+        xraymc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
+        const auto angle = xraymc::vectormath::angleBetween({ 0, 0, 1 }, p.dir) * xraymc::RAD_TO_DEG<>();
         h(angle);
     }
     return h;
 }
 
 template <int Model = 1>
-Histogram comptonScatterEnergy(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
+Histogram comptonScatterEnergy(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
-    dxmc::RandomState state;
-    Histogram h(1000, .8 / (1 + energy / dxmc::ELECTRON_REST_MASS() * 2), 1);
+    xraymc::RandomState state;
+    Histogram h(1000, .8 / (1 + energy / xraymc::ELECTRON_REST_MASS() * 2), 1);
     for (std::size_t i = 0; i < N; ++i) {
-        dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        dxmc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
+        xraymc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
+        xraymc::interactions::comptonScatter<NSHELLS, Model>(p, material, state);
         h(p.energy / energy);
     }
     return h;
 }
 
 template <int Model = 1>
-Histogram photoElectricEnergyIA(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
+Histogram photoElectricEnergyIA(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     double max_en = 0;
     for (const auto& shell : material.shells()) {
         max_en = std::max(max_en, shell.energyOfPhotonsPerInitVacancy);
@@ -177,8 +177,8 @@ Histogram photoElectricEnergyIA(const dxmc::Material<NSHELLS>& material, double 
     const auto att = material.attenuationPhotoeletric(energy);
 
     for (std::size_t i = 0; i < N; ++i) {
-        dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        const auto E = dxmc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
+        xraymc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
+        const auto E = xraymc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
         if (p.energy > 0)
             h(p.energy);
     }
@@ -186,21 +186,21 @@ Histogram photoElectricEnergyIA(const dxmc::Material<NSHELLS>& material, double 
 }
 
 template <int Model = 1>
-Histogram rayleightScatterAngle(const dxmc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
+Histogram rayleightScatterAngle(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     Histogram h(180, 0, 180);
     for (std::size_t i = 0; i < N; ++i) {
-        dxmc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        dxmc::interactions::rayleightScatter<NSHELLS, Model>(p, material, state);
-        const auto angle = dxmc::vectormath::angleBetween({ 0, 0, 1 }, p.dir) * dxmc::RAD_TO_DEG<>();
+        xraymc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
+        xraymc::interactions::rayleightScatter<NSHELLS, Model>(p, material, state);
+        const auto angle = xraymc::vectormath::angleBetween({ 0, 0, 1 }, p.dir) * xraymc::RAD_TO_DEG<>();
         h(angle);
     }
     return h;
 }
 
 template <int I = 0>
-void saveHist(ResultPrint& p, const dxmc::Material<NSHELLS>& material, double energy, const std::string& matname, std::size_t N = 1E6)
+void saveHist(ResultPrint& p, const xraymc::Material<NSHELLS>& material, double energy, const std::string& matname, std::size_t N = 1E6)
 {
     auto h_en = comptonScatterEnergy<I>(material, energy, N);
     auto h_ang = comptonScatterAngle<I>(material, energy, N);
@@ -260,7 +260,7 @@ auto TG195_breast_tissue()
     }
     const auto d = adipose_d * 0.8 + gland_d * 0.2;
 
-    return dxmc::Material<NSHELLS>::byWeight(w).value();
+    return xraymc::Material<NSHELLS>::byWeight(w).value();
 }
 
 int main()
@@ -270,7 +270,7 @@ int main()
     p.header();
 
     std::vector<double> energies;
-    //energies.push_back(15);
+    // energies.push_back(15);
     energies.push_back(16.8);
     energies.push_back(30);
     energies.push_back(50);
@@ -278,14 +278,14 @@ int main()
 
     std::vector<std::string> material_names;
     material_names.push_back("Water, Liquid");
-    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");    
+    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
     material_names.push_back("Gold");
     material_names.push_back("TG195Breast");
 
-    std::vector<dxmc::Material<NSHELLS>> materials;
-    materials.push_back(dxmc::Material<NSHELLS>::byNistName("Water, Liquid").value());
-    materials.push_back(dxmc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());    
-    materials.push_back(dxmc::Material<NSHELLS>::byZ(79).value());
+    std::vector<xraymc::Material<NSHELLS>> materials;
+    materials.push_back(xraymc::Material<NSHELLS>::byNistName("Water, Liquid").value());
+    materials.push_back(xraymc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    materials.push_back(xraymc::Material<NSHELLS>::byZ(79).value());
     materials.push_back(TG195_breast_tissue());
 
     std::vector<std::jthread> threads;

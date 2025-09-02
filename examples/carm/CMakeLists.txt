@@ -1,19 +1,19 @@
 
-# testing to see if dxmclib target is defined. If it's not we will download 
-# dxmclib at configure time.
-IF( NOT TARGET libdxmc)
+# testing to see if xraymclib target is defined. If it's not we will download 
+# xraymclib at configure time.
+IF( NOT TARGET libxraymc)
 	include(FetchContent)
-	## Adding DXMClib package
+	## Adding xraymclib package
 	FetchContent_Declare(
-		libdxmc
-		GIT_REPOSITORY https://github.com/medicalphysics/DXMClib.git
+		libxraymc
+		GIT_REPOSITORY https://github.com/medicalphysics/xraymclib.git
 		GIT_TAG master
 		)
-	FetchContent_MakeAvailable(libdxmc)
+	FetchContent_MakeAvailable(libxraymc)
 ENDIF()
 
 add_executable(carm carm.cpp phantomreader.cpp phantomreader.hpp)
-target_link_libraries(carm PRIVATE libdxmc)
+target_link_libraries(carm PRIVATE libxraymc)
 
 set(CARM_ARM_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data/carmCarm.stl")
 set(CARM_TABLE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data/carmTable.stl")
@@ -48,7 +48,7 @@ add_custom_command(TARGET carm POST_BUILD
 			)
 
 #Adding interaction binary data to example 
-dxmclib_add_physics_list(carm)
+xraymclib_add_physics_list(carm)
 
 install(TARGETS carm
 	RUNTIME DESTINATION examples)

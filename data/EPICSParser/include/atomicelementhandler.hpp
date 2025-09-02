@@ -1,23 +1,23 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
 #pragma once
-#include "dxmc/material/atomicelement.hpp"
+#include "xraymc/material/atomicelement.hpp"
 
 #include <cstdint>
 #include <map>
@@ -26,17 +26,17 @@ Copyright 2022 Erlend Andersen
 
 class AtomicElementHandler {
 public:
-    AtomicElementHandler() {};
+    AtomicElementHandler() { };
     AtomicElementHandler(std::uint64_t Z);
-    AtomicElementHandler(const dxmc::AtomicElement& atom)
+    AtomicElementHandler(const xraymc::AtomicElement& atom)
         : m_atom(atom)
     {
     }
 
     bool operator==(const AtomicElementHandler& other) const;
 
-    dxmc::AtomicElement atom() const { return m_atom; }
-    void setAtom(const dxmc::AtomicElement& atom) { m_atom = atom; }
+    xraymc::AtomicElement atom() const { return m_atom; }
+    void setAtom(const xraymc::AtomicElement& atom) { m_atom = atom; }
 
     void setZ(std::uint64_t Z) { m_atom.Z = Z; }
     void setAtomicWeight(double AW) { m_atom.atomicWeight = AW; }
@@ -79,5 +79,5 @@ public:
 
 protected:
 private:
-    dxmc::AtomicElement m_atom;
+    xraymc::AtomicElement m_atom;
 };

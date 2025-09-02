@@ -1,35 +1,35 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/worldsphere.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <iostream>
 
 bool testForcedinteractions()
 {
-    using Sphere = dxmc::WorldSphere<5, 1, false>;
-    using SphereF = dxmc::WorldSphere<5, 1, true>;
+    using Sphere = xraymc::WorldSphere<5, 1, false>;
+    using SphereF = xraymc::WorldSphere<5, 1, true>;
 
-    using World = dxmc::World<Sphere>;
-    using WorldF = dxmc::World<SphereF>;
+    using World = xraymc::World<Sphere>;
+    using WorldF = xraymc::World<SphereF>;
 
     World w(2);
     WorldF wf(2);
@@ -40,7 +40,7 @@ bool testForcedinteractions()
     auto& spheref1 = wf.addItem<SphereF>({ radii });
     auto& spheref2 = wf.addItem<SphereF>({ radii, { radii * 2 + radii * 100, 0, 0 } });
 
-    auto material_water = dxmc::Material<5>::byNistName("Water, Liquid").value();
+    auto material_water = xraymc::Material<5>::byNistName("Water, Liquid").value();
     sphere1.setMaterial(material_water, 1.2);
     sphere2.setMaterial(material_water, 1.2);
     spheref1.setMaterial(material_water, 1.2);
@@ -49,11 +49,11 @@ bool testForcedinteractions()
     w.build();
     wf.build();
 
-    dxmc::PencilBeam<true> beam({ -100, 0, 0 }, { 1, 0, 0 }, 20);
+    xraymc::PencilBeam<true> beam({ -100, 0, 0 }, { 1, 0, 0 }, 20);
     beam.setNumberOfExposures(48);
     beam.setNumberOfParticlesPerExposure(1e4);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     transport.runConsole(wf, beam);
     transport.runConsole(w, beam);
 

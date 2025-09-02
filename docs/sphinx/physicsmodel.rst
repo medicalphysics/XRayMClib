@@ -1,28 +1,28 @@
 Physic model
 ============
-DXMClib is a naïve Monte Carlo implementation of photon transport. Using this library comes down to creating a world and beam sources. Beam sources can be anything from a monochromatic pencil beam to a collimated x-ray tube beam rotating in a spiral (CT scan). 
+XRayMClib is a naïve Monte Carlo implementation of photon transport. Using this library comes down to creating a world and beam sources. Beam sources can be anything from a monochromatic pencil beam to a collimated x-ray tube beam rotating in a spiral (CT scan). 
 
 This section intends to give an overview of methods and techniques used in the software and a description of the physics model. 
 
 Geometry
 --------
-DXMClib has a coordinate system that closely follow the DiCOM standard for, among others, CT scanners. A right handed coordinate system with the first axis going from left to right, second down to up and last from shallow to deep. 
+xraymclib has a coordinate system that closely follow the DiCOM standard for, among others, CT scanners. A right handed coordinate system with the first axis going from left to right, second down to up and last from shallow to deep. 
 
 .. image:: ./figures/coord.png
     :width: 200
-    :alt: DXMClib coordinate system
+    :alt: xraymclib coordinate system
 
 The world may be rotated in the basis coordinate system. Orientation of the world is described by two orientation direction cosines: :math:`\vec{x}, \vec{y}`. The third direction cosine is given by :math:`\vec{z} = \vec{x} \times \vec{y}` since the world basis must be orthonormal. A transformation matrix from a point to a rotated world is then :math:`M=\left[ \vec x \: \vec y \: \vec z \right]^{-1}`. This is used when simulating photon transport, while computing histories through the world the particles position and direction is given in the world basis. 
 
 Definition of materials
 -----------------------
-The only material properties DXMClib cares for are mass attenuation coefficients, atomic form factors, scatter factors and Hartree-Fock orbitals for chemical elements and compounds. Thankfully, Tom Schoonjans have created an excellent library providing these properties. For this reason xraylib_ is a required dependency of DXMClib. Materials can be specified by a chemical element, or a compound described by chemical symbol and number density, for example H2O or HO0.5 for water. In addition, standard NIST materials are also included. 
+The only material properties xraymclib cares for are mass attenuation coefficients, atomic form factors, scatter factors and Hartree-Fock orbitals for chemical elements and compounds. Thankfully, Tom Schoonjans have created an excellent library providing these properties. For this reason xraylib_ is a required dependency of xraymclib. Materials can be specified by a chemical element, or a compound described by chemical symbol and number density, for example H2O or HO0.5 for water. In addition, standard NIST materials are also included. 
 
 .. _xraylib: https://github.com/tschoonj/xraylib
 
 Particle transport
 ------------------
-X-ray energies above 150 keV is rarely used in diagnostic imaging, for an electron with energy 150 keV the CSDA range in soft tissue is about 0.3 mm and on par with typical voxel size in CT imaging. DXMClib assumes that all interactions creating secondary electrons positions their energy in the current voxel. All photons are described simply by a position, unit direction vector, energy and weight. Of these only the weight attribute should need an explanation. Ideally all photons will have a weight of unity or one. The weight is introduced to simplify variations in fluence from a source, for example modeling of a CT bow-tie filter. Instead of randomly sampling photons with a fluence profile mimicking a bow-tie filter a flat fluence profile can be used instead and assigning photon weight according to the bow-tie fluence profile. The expectation weight of a large number of photons is 1.0 with the added effect that same number density of photons are simulated on the filter edge as at the center of the filter. 
+X-ray energies above 150 keV is rarely used in diagnostic imaging, for an electron with energy 150 keV the CSDA range in soft tissue is about 0.3 mm and on par with typical voxel size in CT imaging. xraymclib assumes that all interactions creating secondary electrons positions their energy in the current voxel. All photons are described simply by a position, unit direction vector, energy and weight. Of these only the weight attribute should need an explanation. Ideally all photons will have a weight of unity or one. The weight is introduced to simplify variations in fluence from a source, for example modeling of a CT bow-tie filter. Instead of randomly sampling photons with a fluence profile mimicking a bow-tie filter a flat fluence profile can be used instead and assigning photon weight according to the bow-tie fluence profile. The expectation weight of a large number of photons is 1.0 with the added effect that same number density of photons are simulated on the filter edge as at the center of the filter. 
 
 For efficient photon transport in a voxelized volume there are two suitable algorithms; calculating the radiologic path to compute interaction point [#SUNDERMAN1998]_ or Woodcock tracking [#WOODCOCK1965]_. While Siddons path algorithm by calculating the radiologic path through the whole volume to find an interaction point are suitable to track even a few photons it's quite inefficient compared to Woodcock tracking for large number of voxels. Woodcock tracking are perhaps best explained by introducing photon transport in a homogeneous volume.
 To sample a path length of a photon in a homogeneous volume, draw a random number :math:`r` in interval [0, 1). The photon path length is then :math:`l= -\ln(r)/(\mu \rho)` where :math:`\mu` and :math:`\rho` is mass attenuation coefficient and density of the material. This can be extended to a heterogeneous volume by introducing virtual interactions. The path length is calculated in a similar way: :math:`l= -\ln(r)/\zeta` with
@@ -64,18 +64,18 @@ Sampling photon energies from a specter is implemented by the squaring of histog
 
 Photon transport
 ----------------
-Photon transport in DXMClib is implemented in a relatively simple manner. A source will set up one or multiple exposures where an exposure is emitting photons from a fixed point and a fixed beam direction.  A photon is created at the exposure (tube) position and the direction is sampled uniformly inside the collimation. The photon energy is either sampled from a specter or if the source is monochrome, given the selected monochrome energy. The weight of the photon is calculated based on direction and any selected filters, such as a CT bow tie filter or a Heel effect filter or both.
+Photon transport in XRayMClib is implemented in a relatively simple manner. A source will set up one or multiple exposures where an exposure is emitting photons from a fixed point and a fixed beam direction.  A photon is created at the exposure (tube) position and the direction is sampled uniformly inside the collimation. The photon energy is either sampled from a specter or if the source is monochrome, given the selected monochrome energy. The weight of the photon is calculated based on direction and any selected filters, such as a CT bow tie filter or a Heel effect filter or both.
 
 The sampled photon is first checked for intersecting the voxel volume, also called the world. If it intersects, it is transported to the world border before the Woodcock tracking starts. 
 
-Photon electron events for diaognostic x-ray energies handles in dxmclib are photoelectric-, rayleight- and compton-events. In compounds and tissues electrons are normally bound in atoms and will affect interaction events for these energy levels. dxmclib have three ways of dealing with atomic electrons with increased accuracy and computational complexity. The binding energy correction model can be set in the Transport class with the options None, Livermore and Impulse Approximation. The names are usally used for binding energy corrections for compton events. In dxmclib the options are not just for compton events but will also include corrections for photoelectric and rayleight events. For example the impulse approximation model will take into account shell binding effects and doppler broadning for compton events and characteristic radiation from exited shells in photoelectric events. This is done to avoid many and confusing switches for binding effects for each type of events and instead use three options with harmonizing accuracy. 
+Photon electron events for diaognostic x-ray energies handles in xraymclib are photoelectric-, rayleight- and compton-events. In compounds and tissues electrons are normally bound in atoms and will affect interaction events for these energy levels. xraymclib have three ways of dealing with atomic electrons with increased accuracy and computational complexity. The binding energy correction model can be set in the Transport class with the options None, Livermore and Impulse Approximation. The names are usally used for binding energy corrections for compton events. In xraymclib the options are not just for compton events but will also include corrections for photoelectric and rayleight events. For example the impulse approximation model will take into account shell binding effects and doppler broadning for compton events and characteristic radiation from exited shells in photoelectric events. This is done to avoid many and confusing switches for binding effects for each type of events and instead use three options with harmonizing accuracy. 
 
 Photoelectric effect
 _____________________
 
 Binding energy option: None
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-This is the simplest of three types of interactions handled by DXMClib. When a photoelectric event is triggered the photon transfers all it's energy to the voxel. The energy from a scattered electron and any photons from bremsstrahlung is assumed not to escape the voxel.
+This is the simplest of three types of interactions handled by xraymclib. When a photoelectric event is triggered the photon transfers all it's energy to the voxel. The energy from a scattered electron and any photons from bremsstrahlung is assumed not to escape the voxel.
 
 Binding energy option: Livermore
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -130,7 +130,7 @@ All electrons are considered unbound and the compton event is sampled according 
 
 Binding energy option: Livermore
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Ignoring any binding effects on the electron will overestimate forward scattering for low energy photons. DXMClib can use a simplified model (the Livermore model) for low energy correction. This correction takes into account a scatter function based on Hartree-Fock compton profiles averaged over all electron shell configurations. In this case the sampling is performed by the same procedure as an unbound electron except for a slighly modified rejection function:
+Ignoring any binding effects on the electron will overestimate forward scattering for low energy photons. xraymclib can use a simplified model (the Livermore model) for low energy correction. This correction takes into account a scatter function based on Hartree-Fock compton profiles averaged over all electron shell configurations. In this case the sampling is performed by the same procedure as an unbound electron except for a slighly modified rejection function:
 
 .. math::
     g = \frac{1}{g_{max}} \left( \frac{1}{\epsilon} + \epsilon -\sin^2\theta \right) \frac{SF(q)}{Z}
@@ -140,7 +140,7 @@ Where :math:`SF(q)` is the scatter factor, :math:`Z` is the atomic number for th
 .. math::
     q = \frac{E_0}{hc} \sin\left( \frac{\theta}{2}\right) 
 
-The scatter function goes from Z at zero mumentum transfer to zero for maximum momentum transfer. In dxmclib the scatter factor for composite materials is obtained by the independent atom approximation, simply put the scatter factor is a weighted average over the atoms in the material. The rejection function is then given by:
+The scatter function goes from Z at zero mumentum transfer to zero for maximum momentum transfer. In xraymclib the scatter factor for composite materials is obtained by the independent atom approximation, simply put the scatter factor is a weighted average over the atoms in the material. The rejection function is then given by:
 
 .. math::
     g = \frac{1}{g_{max}} \left( \frac{1}{\epsilon} + \epsilon -\sin^2\theta \right) \sum_i w_i \frac{SF_i(q)}{Z_i}
@@ -151,7 +151,7 @@ A lookup table for scatter factors are generated for each material and is interp
 
 Binding energy option: Impulse Approximation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-A more complex model for compton events are the impulse approximation model and is similar to how the EGSnrc monte carlo code handles compton interactions [#EGSnrc]_. This method approximate bound electrons by assuming the interacting electron have an initial momentum dependent on the current atomic shell. First a random atomic shell is sampled according to the number of electrons in each shell for the current element. The number of shells for each material in dxmclib is limited to 12 for materials consisting of one atomic element and for compounds. In cases where there are more than 12 electron shell configurations, typical in compounds with many elements or heavy elements, the shells with highest binding energies are included. For compounds an electron shell configuration is sampled according to number density of each element and number of electrons in each shell configuration. When the shell have been sampled, scatter angle and scattered photon energy is sampled according to the Klein-Nishina cross section. Note that the sampled shell must have binding energy less or equal to photon energy.
+A more complex model for compton events are the impulse approximation model and is similar to how the EGSnrc monte carlo code handles compton interactions [#EGSnrc]_. This method approximate bound electrons by assuming the interacting electron have an initial momentum dependent on the current atomic shell. First a random atomic shell is sampled according to the number of electrons in each shell for the current element. The number of shells for each material in XRayMClib is limited to 12 for materials consisting of one atomic element and for compounds. In cases where there are more than 12 electron shell configurations, typical in compounds with many elements or heavy elements, the shells with highest binding energies are included. For compounds an electron shell configuration is sampled according to number density of each element and number of electrons in each shell configuration. When the shell have been sampled, scatter angle and scattered photon energy is sampled according to the Klein-Nishina cross section. Note that the sampled shell must have binding energy less or equal to photon energy.
 
 Briefly, the electron is considered unbound but with a momentum :math:`p` corresponing to the binding energy of the electron:
 
@@ -178,7 +178,7 @@ The tricky part of the impulse approximation is sampling of a :math:`p_z` value.
 .. math::
     J(p_z) = \int dp_x dp_y \| \psi(\vec p) \|^2
 
-where :math:`\psi` is the wave function for the bound electron. In dxmclib the Hartree-Fock profiles are approximated by analytical profiles similar to the PENELOPE monte carlo code [#PENELOPE2018]_:
+where :math:`\psi` is the wave function for the bound electron. In xraymclib the Hartree-Fock profiles are approximated by analytical profiles similar to the PENELOPE monte carlo code [#PENELOPE2018]_:
 
 .. math::
     J(p_z) = J(0) (1+2J(0)|p_z|) e^{\frac 1 2 -\frac 1 2 (1+2J(0)|p_z|)^2}
@@ -226,7 +226,7 @@ The differential cross section for Rayleigh scattering is then
 .. math::
     \frac{d\rho}{d\Omega} = \frac{r_c^2}{2}\left( 1-\cos^2\theta\right) \left[F(q, Z)\right]^2
 
-For sampling of scatter angle DXMClib uses a similar approach as the EGSnrc [#EGSnrc]_ monte carlo code. By defining 
+For sampling of scatter angle xraymclib uses a similar approach as the EGSnrc [#EGSnrc]_ monte carlo code. By defining 
 
 .. math::
     A(q_{max}^2) = \int_0^{q_{max}^2} \left[F(q, Z)\right]^2 dq^2
@@ -251,7 +251,7 @@ as a rejection function. To sample a scatter angle :math:`q` is first sampled by
 .. math::
     A(q^2) = r_1 A(q_{max}^2)
     
-with :math:`r_1` as a random uniform number in interval [0,1). In dxmclib :math:`q` is found by lookup tables of the integral :math:`A(q^2)`. The sampled momentum transfer and therefore scatter angle :math:`\theta` is accepted if 
+with :math:`r_1` as a random uniform number in interval [0,1). In xraymclib :math:`q` is found by lookup tables of the integral :math:`A(q^2)`. The sampled momentum transfer and therefore scatter angle :math:`\theta` is accepted if 
 
 .. math::
     \frac{1+\cos^2 \theta}{2} > r_2
@@ -261,7 +261,7 @@ where :math:`r_2` is a random number in interval [0, 1).
 
 Radiation sources
 --------------------------
-DXMClib models a few radiation sources that should cover most setups in clinical x-ray imaging:
+xraymclib models a few radiation sources that should cover most setups in clinical x-ray imaging:
 
 - DX: A x-ray tube source with rectangular collimation.
 - CT seq: A CT source for sequental og step and shoot imaging.
@@ -272,7 +272,7 @@ DXMClib models a few radiation sources that should cover most setups in clinical
 
 All of the radiation sources can be positioned arbitrary with the use of source direction cosines and a position vector, although most sources also implements som helper functions to make life easier. Source direction cosines are three orthonormal vectors with the first (:math:`\vec x`) perpendicular to the second vector (:math:`\vec y`) along the anode cathode direction. The third vector :math:`\vec z = \vec x \times \vec y` is along the beam direction. All vectors have basis in the world coordinate system. 
 
-All sources in DXMClib uses the concept of an *exposure* meaning a static position and direction where a number of photon histories are emitted. This makes hardly any sense for conventional x-ray examinations, but for CT examinations an exposure is a position around the patient where a number of photons is emitted.  
+All sources in xraymclib uses the concept of an *exposure* meaning a static position and direction where a number of photon histories are emitted. This makes hardly any sense for conventional x-ray examinations, but for CT examinations an exposure is a position around the patient where a number of photons is emitted.  
 
 .. NOTE::
     Each exposure can run in parallell for computers with multiple cores (all computers nowadays). For optimal performance use atleast twice as many exposures as cores available. Note that number of exposures for CT sources can only be controlled indirectly by setting step angle between each exposure. 

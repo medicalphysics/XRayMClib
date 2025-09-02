@@ -1,38 +1,38 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
-#include "dxmc/beams/dxbeam.hpp"
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/transportprogress.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/aavoxelgrid.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh2.hpp"
-#include "dxmc/world/worlditems/worldbox.hpp"
+#include "xraymc/beams/dxbeam.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/transportprogress.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh2.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
 
 #include <iostream>
 #include <string>
 #include <vector>
 
-dxmc::TetrahedalMeshData tetCube()
+xraymc::TetrahedalMeshData tetCube()
 {
     std::vector<std::array<double, 3>> v(16);
     v[0] = { -1, 1, 1 };
@@ -73,7 +73,7 @@ dxmc::TetrahedalMeshData tetCube()
     t[10] = { 7 + 8, 3 + 8, 4 + 8, 0 + 8 }; //*
     t[11] = { 1 + 8, 3 + 8, 5 + 8, 0 + 8 }; //*
 
-    dxmc::TetrahedalMeshData data;
+    xraymc::TetrahedalMeshData data;
     data.nodes = v;
     data.elements = t;
     data.collectionIndices.resize(t.size(), 0);
@@ -85,33 +85,33 @@ dxmc::TetrahedalMeshData tetCube()
     return data;
 }
 template <std::size_t N = 5, int L = 2, bool Fluence = true>
-dxmc::TetrahedalMesh<N, L, Fluence> simpletetrahedron()
+xraymc::TetrahedalMesh<N, L, Fluence> simpletetrahedron()
 {
     auto tets = tetCube();
 
-    dxmc::TetrahedalMesh<N, L, Fluence> mesh(tets, { 8, 8, 8 });
+    xraymc::TetrahedalMesh<N, L, Fluence> mesh(tets, { 8, 8, 8 });
 
     return mesh;
 }
 
 template <std::size_t N = 5, int L = 2, bool F = false>
-dxmc::WorldBox<N, L, F> simplebox()
+xraymc::WorldBox<N, L, F> simplebox()
 {
-    dxmc::WorldBox<N, L, F> box({ -1, -1, -1, 1, 1, 3 });
-    auto water = dxmc::Material<N>::byNistName("Water, Liquid").value();
+    xraymc::WorldBox<N, L, F> box({ -1, -1, -1, 1, 1, 3 });
+    auto water = xraymc::Material<N>::byNistName("Water, Liquid").value();
     box.setMaterial(water, 1);
     return box;
 }
 
 template <std::size_t N = 5, int L = 2>
-dxmc::AAVoxelGrid<N, L, 255> simplegrid()
+xraymc::AAVoxelGrid<N, L, 255> simplegrid()
 {
 
-    dxmc::AAVoxelGrid<N, L, 255> grid;
+    xraymc::AAVoxelGrid<N, L, 255> grid;
     std::vector<std::uint8_t> m(1000, 0);
     std::vector<double> d(1000, 1);
-    std::vector<dxmc::Material<N>> mats;
-    mats.push_back(dxmc::Material<N>::byNistName("Water, Liquid").value());
+    std::vector<xraymc::Material<N>> mats;
+    mats.push_back(xraymc::Material<N>::byNistName("Water, Liquid").value());
     grid.setData({ 10, 10, 10 }, d, m, mats);
     grid.setSpacing({ .2, .2, .4 });
     grid.translate({ 0, 0, 1 });
@@ -121,32 +121,32 @@ dxmc::AAVoxelGrid<N, L, 255> simplegrid()
 bool testTransport()
 {
 
-    using M1 = dxmc::TetrahedalMesh<5, 1, true>;
-    using M2 = dxmc::TetrahedalMesh<5, 1, false>;
-    using T1 = dxmc::TetrahedalMesh2<5, 1, true>;
-    using T2 = dxmc::TetrahedalMesh2<5, 1, false>;
+    using M1 = xraymc::TetrahedalMesh<5, 1, true>;
+    using M2 = xraymc::TetrahedalMesh<5, 1, false>;
+    using T1 = xraymc::TetrahedalMesh2<5, 1, true>;
+    using T2 = xraymc::TetrahedalMesh2<5, 1, false>;
 
-    using B = dxmc::WorldBox<5, 1, false>;
-    using BF = dxmc::WorldBox<5, 1, true>;
-    using G = dxmc::AAVoxelGrid<5, 1, 255>;
+    using B = xraymc::WorldBox<5, 1, false>;
+    using BF = xraymc::WorldBox<5, 1, true>;
+    using G = xraymc::AAVoxelGrid<5, 1, 255>;
 
     constexpr std::size_t N_HIST = 200000;
     constexpr std::size_t N_EXP = 32;
 
-    dxmc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
+    xraymc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
     beam.setNumberOfExposures(N_EXP);
     beam.setNumberOfParticlesPerExposure(N_HIST);
 
-    dxmc::TransportProgress progress;
+    xraymc::TransportProgress progress;
 
     {
-        dxmc::World<M1> w;
+        xraymc::World<M1> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(M1 { tetCube() });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         auto coll = mesh.collectionData();
@@ -155,13 +155,13 @@ bool testTransport()
     }
 
     {
-        dxmc::World<M2> w;
+        xraymc::World<M2> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(M2 { tetCube() });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         auto coll = mesh.collectionData();
@@ -169,13 +169,13 @@ bool testTransport()
         std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
     {
-        dxmc::World<T1> w;
+        xraymc::World<T1> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(T1 { tetCube() });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         auto coll = mesh.collectionData();
@@ -184,13 +184,13 @@ bool testTransport()
     }
 
     {
-        dxmc::World<T2> w;
+        xraymc::World<T2> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(T2 { tetCube() });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         auto coll = mesh.collectionData();
@@ -199,12 +199,12 @@ bool testTransport()
     }
 
     {
-        dxmc::World<G> w;
+        xraymc::World<G> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(simplegrid<5, 1>());
         w.build();
 
-        dxmc::Transport transport;
+        xraymc::Transport transport;
         transport(w, beam, &progress);
         auto s = mesh.size();
         double dose = 0;
@@ -214,23 +214,23 @@ bool testTransport()
     }
 
     {
-        dxmc::World<B> w;
+        xraymc::World<B> w;
         w.reserveNumberOfItems(1);
         auto& box = w.addItem(simplebox<5, 1, false>());
         w.build();
 
-        dxmc::Transport transport;
+        xraymc::Transport transport;
         transport(w, beam, &progress);
         auto dose = box.doseScored().dose();
         std::cout << "Box random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
     {
-        dxmc::World<BF> w;
+        xraymc::World<BF> w;
         w.reserveNumberOfItems(1);
         auto& box = w.addItem(simplebox<5, 1, true>());
         w.build();
 
-        dxmc::Transport transport;
+        xraymc::Transport transport;
         transport(w, beam, &progress);
         auto dose = box.doseScored().dose();
         std::cout << "Box forced " << dose << " " << progress.humanTotalTime() << std::endl;
@@ -239,7 +239,7 @@ bool testTransport()
     return false;
 }
 
-dxmc::TetrahedalMeshReader readICRPPregnantPhantom(bool female = false)
+xraymc::TetrahedalMeshReader readICRPPregnantPhantom(bool female = false)
 {
     const std::string name = female ? "38wF" : "38wM";
     const std::string elefile = name + ".ele";
@@ -250,16 +250,16 @@ dxmc::TetrahedalMeshReader readICRPPregnantPhantom(bool female = false)
     const auto nodepath = nodefile;
     const auto materialpath = materialfile;
 
-    dxmc::TetrahedalMeshReader reader(nodepath, elepath, materialpath);
+    xraymc::TetrahedalMeshReader reader(nodepath, elepath, materialpath);
     return reader;
 }
 
-dxmc::TetrahedalMeshData getICRP()
+xraymc::TetrahedalMeshData getICRP()
 {
     const std::string n = "C:/Users/ander/OneDrive/phantomsMNCP/adult/MRCP_AF/MRCP_AF.node";
     const std::string e = "C:/Users/ander/OneDrive/phantomsMNCP/adult/MRCP_AF/MRCP_AF.ele";
 
-    dxmc::TetrahedalMeshReader reader(n, e);
+    xraymc::TetrahedalMeshReader reader(n, e);
     auto data = reader.data();
     data.collectionIndices.resize(data.elements.size(), 0);
     data.collectionMaterialComposition.resize(1);
@@ -273,30 +273,30 @@ dxmc::TetrahedalMeshData getICRP()
 bool testTransportICRP()
 {
 
-    using M1 = dxmc::TetrahedalMesh<5, 1, true>;
-    using M2 = dxmc::TetrahedalMesh<5, 1, false>;
-    using T1 = dxmc::TetrahedalMesh2<5, 1, true>;
-    using T2 = dxmc::TetrahedalMesh2<5, 1, false>;
+    using M1 = xraymc::TetrahedalMesh<5, 1, true>;
+    using M2 = xraymc::TetrahedalMesh<5, 1, false>;
+    using T1 = xraymc::TetrahedalMesh2<5, 1, true>;
+    using T2 = xraymc::TetrahedalMesh2<5, 1, false>;
 
     constexpr std::size_t N_HIST = 10000;
     constexpr std::size_t N_EXP = 32;
 
-    dxmc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
+    xraymc::PencilBeam<> beam({ .050, .050, -1000 }, { 0, 0, 1 }, 60);
     beam.setNumberOfExposures(N_EXP);
     beam.setNumberOfParticlesPerExposure(N_HIST);
 
-    dxmc::TransportProgress progress;
+    xraymc::TransportProgress progress;
 
     const auto data = getICRP();
 
     {
-        dxmc::World<M1> w;
+        xraymc::World<M1> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(M1 { data });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         auto coll = mesh.collectionData();
@@ -305,13 +305,13 @@ bool testTransportICRP()
     }
 
     {
-        dxmc::World<M2> w;
+        xraymc::World<M2> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(M2 { data });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         auto coll = mesh.collectionData();
@@ -319,13 +319,13 @@ bool testTransportICRP()
         std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
     {
-        dxmc::World<T1> w;
+        xraymc::World<T1> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(T1 { data });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
 
         transport(w, beam, &progress);
         for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
@@ -336,13 +336,13 @@ bool testTransportICRP()
     }
 
     {
-        dxmc::World<T2> w;
+        xraymc::World<T2> w;
         w.reserveNumberOfItems(1);
         auto& mesh = w.addItem(T2 { data });
         w.build();
 
         double dose = 0;
-        dxmc::Transport transport;
+        xraymc::Transport transport;
         // transport.setNumberOfThreads(1);
         transport(w, beam, &progress);
         for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)

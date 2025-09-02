@@ -1,15 +1,15 @@
 
-DXMClib
+xraymclib
 ===================================
-DXMClib (Diagnostic X-ray Monte Carlo) is a radiation dose scoring library for diagnostic photon energies written in C++. The main goal for this library is to provide an accurate enough physics model to describe and model x-ray sources and estimate radiation doses by the Monte-Carlo method.
+xraymclib (Diagnostic X-ray Monte Carlo) is a radiation dose scoring library for diagnostic photon energies written in C++. The main goal for this library is to provide an accurate enough physics model to describe and model x-ray sources and estimate radiation doses by the Monte-Carlo method.
 
-If you are looking for an application with graphical user interface to perform simulations, OpenDXMC_ uses this library as Monte Carlo engine and also allows for import CT images and phantoms as scoring volumes. 
+If you are looking for an application with graphical user interface to perform simulations, Openxraymc_ uses this library as Monte Carlo engine and also allows for import CT images and phantoms as scoring volumes. 
 
-.. _OpenDXMC: https://github.com/medicalphysics/OpenDXMC/releases
+.. _Openxraymc: https://github.com/medicalphysics/Openxraymc/releases
 
 Example of usage
 -----------------
-A brief example on how to use DXMClib to simulate a pencilbeam of 60 keV onto a cylindar of aluminum is shown below. 
+A brief example on how to use xraymclib to simulate a pencilbeam of 60 keV onto a cylindar of aluminum is shown below. 
 
 .. literalinclude:: ../../examples/pencilbeam/pencilbeam.cpp
    :language: c++
@@ -35,7 +35,7 @@ Check also out
 Docs
 ====
 .. doxygenclass:: CTDualSource
-   :project: DXMClib
+   :project: xraymclib
    :members:
 
 Indices and tables

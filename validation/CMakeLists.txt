@@ -1,14 +1,14 @@
 
 
 add_executable(validation validation.cpp tg195world42.hpp tg195world3breast.hpp)
-target_link_libraries(validation libdxmc)
+target_link_libraries(validation libxraymc)
 
 add_executable(scattervalidation scattervalidation.cpp)
-target_link_libraries(scattervalidation libdxmc)
+target_link_libraries(scattervalidation libxraymc)
 
 ## Adding post build step to copy physicslist.bin to validation folder
-dxmclib_add_physics_list(validation)
-dxmclib_add_physics_list(scattervalidation)
+xraymclib_add_physics_list(validation)
+xraymclib_add_physics_list(scattervalidation)
 
 set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
 set(CASE5WORLD_BINARY "case5world.bin")

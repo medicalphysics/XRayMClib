@@ -1,23 +1,23 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
 #include "epicsparser.hpp"
-#include "dxmc/material/atomserializer.hpp"
+#include "xraymc/material/atomserializer.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -344,16 +344,16 @@ void EPICSparser::readStandardDensities(const std::string& path)
 
 std::vector<char> EPICSparser::serializeElements() const
 {
-    std::map<std::uint64_t, dxmc::AtomicElement> map;
+    std::map<std::uint64_t, xraymc::AtomicElement> map;
     for (const auto& [key, element] : m_elements) {
         map[key] = element.atom();
     }
-    return dxmc::AtomSerializer::serializeAtoms(map);
+    return xraymc::AtomSerializer::serializeAtoms(map);
 }
 
 void EPICSparser::deserializeElements(std::vector<char>& data)
 {
-    auto map = dxmc::AtomSerializer::deserializeAtoms(data);
+    auto map = xraymc::AtomSerializer::deserializeAtoms(data);
     m_elements.clear();
     for (const auto& [key, atom] : map) {
         m_elements[key] = AtomicElementHandler(atom);

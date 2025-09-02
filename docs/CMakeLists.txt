@@ -1,7 +1,7 @@
 
-option(DXMCLIB_BUILD_DOCUMENTATION "Create and install the HTML based API documentation (requires Doxygen and Sphinx)" ${DOXYGEN_FOUND})
+option(XRAYMCLIB_BUILD_DOCUMENTATION "Create and install the HTML based API documentation (requires Doxygen and Sphinx)" ${DOXYGEN_FOUND})
 
-if(DXMCLIB_BUILD_DOCUMENTATION)
+if(XRAYMCLIB_BUILD_DOCUMENTATION)
     
     set(doxyfile_in ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
     set(doxyfile ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
@@ -9,7 +9,7 @@ if(DXMCLIB_BUILD_DOCUMENTATION)
     configure_file(${doxyfile_in} ${doxyfile} @ONLY)
 
     add_custom_target(doxygen ALL
-        DEPENDS libdxmc
+        DEPENDS libxraymc
         COMMAND ${DOXYGEN_EXECUTABLE} ${doxyfile}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen"
@@ -23,7 +23,7 @@ if(DXMCLIB_BUILD_DOCUMENTATION)
         DEPENDS doxygen
         COMMAND ${SPHINX_EXECUTABLE} -b html
         # Tell Breathe where to find the Doxygen output
-        -Dbreathe_projects.DXMClib=${CMAKE_CURRENT_BINARY_DIR}/xml
+        -Dbreathe_projects.xraymclib=${CMAKE_CURRENT_BINARY_DIR}/xml
         ${SPHINX_SOURCE} ${SPHINX_BUILD}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating documentation with Sphinx")

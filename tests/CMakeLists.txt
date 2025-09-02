@@ -26,9 +26,9 @@ set(TEST_SOURCES
 foreach(sourcefile ${TEST_SOURCES})
     get_filename_component(filename ${sourcefile} NAME_WLE)
     add_executable(${filename} ${sourcefile})    
-    target_link_libraries(${filename} libdxmc )
+    target_link_libraries(${filename} libxraymc )
     add_test(NAME ${filename} COMMAND ${filename})    
     
     #Adding interaction binary data to example 
-    dxmclib_add_physics_list(${filename})
+    xraymclib_add_physics_list(${filename})
 endforeach()

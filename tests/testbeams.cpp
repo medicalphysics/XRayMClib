@@ -1,56 +1,56 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
-#include "dxmc/beams/beamtype.hpp"
-#include "dxmc/beams/cbctbeam.hpp"
-#include "dxmc/beams/ctsequentialbeam.hpp"
-#include "dxmc/beams/ctspiralbeam.hpp"
-#include "dxmc/beams/ctspiraldualenergybeam.hpp"
-#include "dxmc/beams/dxbeam.hpp"
-#include "dxmc/beams/isotropicbeam.hpp"
-#include "dxmc/beams/isotropicbeamcircle.hpp"
-#include "dxmc/beams/isotropicmonoenergybeam.hpp"
-#include "dxmc/beams/isotropicmonoenergybeamcircle.hpp"
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/constants.hpp"
-#include "dxmc/vectormath.hpp"
+#include "xraymc/beams/beamtype.hpp"
+#include "xraymc/beams/cbctbeam.hpp"
+#include "xraymc/beams/ctsequentialbeam.hpp"
+#include "xraymc/beams/ctspiralbeam.hpp"
+#include "xraymc/beams/ctspiraldualenergybeam.hpp"
+#include "xraymc/beams/dxbeam.hpp"
+#include "xraymc/beams/isotropicbeam.hpp"
+#include "xraymc/beams/isotropicbeamcircle.hpp"
+#include "xraymc/beams/isotropicmonoenergybeam.hpp"
+#include "xraymc/beams/isotropicmonoenergybeamcircle.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/constants.hpp"
+#include "xraymc/vectormath.hpp"
 
 #include <fstream>
 #include <iostream>
 
-template <dxmc::BeamType B>
+template <xraymc::BeamType B>
 bool initiateBeam(B& beam)
 {
     auto e = beam.exposure(0);
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     auto p = e.sampleParticle(state);
     return true;
 }
 
 bool testIsotropicBeamCircle()
 {
-    dxmc::IsotropicBeamCircle<> beam;
+    xraymc::IsotropicBeamCircle<> beam;
 
     constexpr double angle = 10.0 * std::numbers::pi_v<double> / 180.0;
 
     beam.setCollimationHalfAngle(angle);
 
-    dxmc::Tube tube;
+    xraymc::Tube tube;
     auto specter = tube.getSpecter();
     beam.setEnergySpecter(specter);
     return initiateBeam(beam);
@@ -58,7 +58,7 @@ bool testIsotropicBeamCircle()
 
 bool testIsotropicMonoEnergyBeamCircle()
 {
-    dxmc::IsotropicMonoEnergyBeamCircle<> beam;
+    xraymc::IsotropicMonoEnergyBeamCircle<> beam;
 
     constexpr double angle = 10.0 * std::numbers::pi_v<double> / 180.0;
 
@@ -69,30 +69,30 @@ bool testIsotropicMonoEnergyBeamCircle()
 
 bool testDXBeam()
 {
-    dxmc::DXBeam<> beam;
+    xraymc::DXBeam<> beam;
     auto& tube = beam.tube();
     return initiateBeam(beam);
 }
 
 bool testpencilbeam()
 {
-    dxmc::PencilBeam<> beam;
+    xraymc::PencilBeam<> beam;
     auto e = beam.exposure(0);
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     auto p = e.sampleParticle(state);
     return initiateBeam(beam);
 }
 
 bool testIsotropicMonoEnergyBeam()
 {
-    using Beam = dxmc::IsotropicMonoEnergyBeam<>;
+    using Beam = xraymc::IsotropicMonoEnergyBeam<>;
     Beam beam;
     return initiateBeam(beam);
 }
 
 bool testCTSpiralBeam()
 {
-    using Beam = dxmc::CTSpiralBeam<>;
+    using Beam = xraymc::CTSpiralBeam<>;
     Beam beam;
     beam.setStartStopPosition({ 0, 0, 0 }, { 0, 0, 1 });
     beam.setNumberOfParticlesPerExposure(1E2);
@@ -104,7 +104,7 @@ bool testCTSpiralBeam()
 
 bool testCTSeqBeam()
 {
-    using Beam = dxmc::CTSequentialBeam<>;
+    using Beam = xraymc::CTSequentialBeam<>;
     Beam beam;
     beam.setNumberOfParticlesPerExposure(1E2);
     beam.setStepAngleDeg(5);
@@ -115,7 +115,7 @@ bool testCTSeqBeam()
 
 bool testCTSpiralDEBeam()
 {
-    using Beam = dxmc::CTSpiralDualEnergyBeam<>;
+    using Beam = xraymc::CTSpiralDualEnergyBeam<>;
     Beam beam;
     beam.setTubeAVoltage(140);
     beam.setTubeBVoltage(80);
@@ -125,7 +125,7 @@ bool testCTSpiralDEBeam()
 
 bool testCBCTBeam()
 {
-    using Beam = dxmc::CBCTBeam<>;
+    using Beam = xraymc::CBCTBeam<>;
     Beam beam;
     beam.setTubeVoltage(140);
     return initiateBeam(beam);

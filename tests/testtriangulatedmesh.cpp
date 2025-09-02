@@ -1,20 +1,20 @@
 
 
-#include "dxmc/beams/isotropicmonoenergybeam.hpp"
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/triangulatedmesh.hpp"
-#include "dxmc/world/worlditems/triangulatedopensurface.hpp"
-#include "dxmc/world/worlditems/worldbox.hpp"
-#include "dxmc/world/worlditems/worldsphere.hpp"
+#include "xraymc/beams/isotropicmonoenergybeam.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/triangulatedmesh.hpp"
+#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
+#include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <chrono>
 #include <fstream>
 #include <iostream>
 
-std::vector<dxmc::Triangle> getPyramid()
+std::vector<xraymc::Triangle> getPyramid()
 {
     std::vector<std::array<double, 3>> p;
     constexpr auto d = 30.0;
@@ -27,7 +27,7 @@ std::vector<dxmc::Triangle> getPyramid()
         for (auto& j : i)
             j *= d;
 
-    std::vector<dxmc::Triangle> t;
+    std::vector<xraymc::Triangle> t;
     t.push_back({ p[0], p[1], p[4] });
     t.push_back({ p[1], p[2], p[4] });
     t.push_back({ p[2], p[3], p[4] });
@@ -40,7 +40,7 @@ std::vector<dxmc::Triangle> getPyramid()
     return t;
 }
 
-std::vector<dxmc::Triangle> getBox(double scale = 1)
+std::vector<xraymc::Triangle> getBox(double scale = 1)
 {
     std::vector<std::array<double, 3>> p;
     p.push_back({ 1, 1, 1 }); // 0
@@ -55,7 +55,7 @@ std::vector<dxmc::Triangle> getBox(double scale = 1)
         for (auto& j : i)
             j *= scale;
 
-    std::vector<dxmc::Triangle> t;
+    std::vector<xraymc::Triangle> t;
     t.push_back({ p[0], p[3], p[4] });
     t.push_back({ p[0], p[4], p[2] });
     t.push_back({ p[6], p[2], p[4] });
@@ -70,7 +70,7 @@ std::vector<dxmc::Triangle> getBox(double scale = 1)
     t.push_back({ p[5], p[0], p[1] });
     return t;
 }
-std::vector<dxmc::Triangle> getPlane(double scale = 1)
+std::vector<xraymc::Triangle> getPlane(double scale = 1)
 {
     std::vector<std::array<double, 3>> p;
     p.push_back({ -1, -1, 0 }); // 0
@@ -84,7 +84,7 @@ std::vector<dxmc::Triangle> getPlane(double scale = 1)
         for (auto& j : i)
             j *= scale;
 
-    std::vector<dxmc::Triangle> t;
+    std::vector<xraymc::Triangle> t;
     t.push_back({ p[0], p[1], p[2] });
     t.push_back({ p[3], p[4], p[5] });
     return t;
@@ -94,13 +94,13 @@ template <std::size_t N = 5, int L = 2>
 void testMeshVisualization()
 {
 
-    using Mesh = dxmc::TriangulatedMesh<N, L>;
-    using World = dxmc::World<Mesh>;
-    using Material = dxmc::Material<N>;
+    using Mesh = xraymc::TriangulatedMesh<N, L>;
+    using World = xraymc::World<Mesh>;
+    using Material = xraymc::Material<N>;
 
     World world;
 
-    const auto waterComp = dxmc::NISTMaterials::Composition("Water, Liquid");
+    const auto waterComp = xraymc::NISTMaterials::Composition("Water, Liquid");
     auto water = Material::byWeight(waterComp).value();
 
     int option;
@@ -136,7 +136,7 @@ void testMeshVisualization()
 
     world.build();
 
-    dxmc::VisualizeWorld viz(world);
+    xraymc::VisualizeWorld viz(world);
 
     auto buffer = viz.createBuffer();
 
@@ -155,17 +155,17 @@ void testMeshVisualization()
 
 double testScoring()
 {
-    using Mesh = dxmc::TriangulatedMesh<5, 2>;
-    using Box = dxmc::WorldBox<5, 2>;
-    using World = dxmc::World<Mesh, Box>;
-    using Material = dxmc::Material<5>;
+    using Mesh = xraymc::TriangulatedMesh<5, 2>;
+    using Box = xraymc::WorldBox<5, 2>;
+    using World = xraymc::World<Mesh, Box>;
+    using Material = xraymc::Material<5>;
 
-    using Beam = dxmc::IsotropicMonoEnergyBeam<>;
+    using Beam = xraymc::IsotropicMonoEnergyBeam<>;
     Beam beam({ 0, 0, -1000 }, { 1, 0, 0, 0, 1, 0 }, 60);
     beam.setNumberOfExposures(12);
     beam.setNumberOfParticlesPerExposure(1E5);
 
-    const auto waterComp = dxmc::NISTMaterials::Composition("Water, Liquid");
+    const auto waterComp = xraymc::NISTMaterials::Composition("Water, Liquid");
     auto water = Material::byWeight(waterComp).value();
 
     {
@@ -174,8 +174,8 @@ double testScoring()
         auto& item = world.addItem<Mesh>({ tri });
         item.setMaterial(water, 1);
         world.build();
-        dxmc::Transport transport;
-        auto milli = transport.runConsole(world, beam, 1);        
+        xraymc::Transport transport;
+        auto milli = transport.runConsole(world, beam, 1);
         std::cout << "mesh: " << item.doseScored().dose() << " time: " << milli << std::endl;
     }
     {
@@ -183,7 +183,7 @@ double testScoring()
         auto& item = world.addItem<Box>({ 1 });
         item.setMaterial(water, 1);
         world.build();
-        dxmc::Transport transport;
+        xraymc::Transport transport;
         auto milli = transport.runConsole(world, beam, 1);
         std::cout << "box: " << item.doseScored().dose() << " time: " << milli << std::endl;
     }
@@ -193,7 +193,7 @@ double testScoring()
 
 bool testOpenSurface()
 {
-    /*std::vector<dxmc::Triangle> tris;
+    /*std::vector<xraymc::Triangle> tris;
     tris.push_back({ { -0.3333333, -1, 0.5743564 },
         { 0.33333337, -1, 0 },
         { 0.33333337, 0, -0.5099079 } });
@@ -224,21 +224,21 @@ bool testOpenSurface()
     constexpr int NSHELL = 12;
     constexpr int MODEL = 2;
 
-    using Sphere = dxmc::WorldSphere<NSHELL, MODEL>;
+    using Sphere = xraymc::WorldSphere<NSHELL, MODEL>;
 
     std::cout << "Test surface mesh\n";
 
-    dxmc::World<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>, Sphere> w1;
-    dxmc::World<dxmc::WorldBox<NSHELL, MODEL>, Sphere> w2;
+    xraymc::World<xraymc::TriangulatedOpenSurface<NSHELL, MODEL>, Sphere> w1;
+    xraymc::World<xraymc::WorldBox<NSHELL, MODEL>, Sphere> w2;
 
     w1.reserveNumberOfItems(2);
     w2.reserveNumberOfItems(2);
 
-    auto lead = dxmc::Material<NSHELL>::byZ(82).value();
+    auto lead = xraymc::Material<NSHELL>::byZ(82).value();
     double lead_dens = 11.34;
 
-    auto& mesh = w1.template addItem<dxmc::TriangulatedOpenSurface<NSHELL, MODEL>>(getPlane());
-    auto& box = w2.template addItem<dxmc::WorldBox<NSHELL, MODEL>>();
+    auto& mesh = w1.template addItem<xraymc::TriangulatedOpenSurface<NSHELL, MODEL>>(getPlane());
+    auto& box = w2.template addItem<xraymc::WorldBox<NSHELL, MODEL>>();
 
     auto& sphere_mesh = w1.template addItem<Sphere>({ 1, { 2, 2, -2 } });
     auto& sphere_box = w2.template addItem<Sphere>({ 1, { 2, 2, -2 } });
@@ -252,13 +252,13 @@ bool testOpenSurface()
     w1.build();
     w2.build();
 
-    dxmc::PencilBeam<false> beam;
+    xraymc::PencilBeam<false> beam;
     beam.setPosition({ 0, 0, -10 });
     beam.setDirection({ 0, 0, 1 });
     beam.setNumberOfExposures(160);
     beam.setNumberOfParticlesPerExposure(1000000);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     transport.runConsole(w1, beam, 1);
     transport.runConsole(w2, beam, 1);
 
@@ -273,7 +273,7 @@ bool testOpenSurface()
         return false;
     }
 
-    /*dxmc::VisualizeWorld viz(w1);
+    /*xraymc::VisualizeWorld viz(w1);
      auto buffer = viz.createBuffer();
 
      for (std::size_t i = 0; i < 180; i += 30) {

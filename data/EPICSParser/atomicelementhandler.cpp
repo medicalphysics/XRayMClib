@@ -1,17 +1,17 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
@@ -190,7 +190,7 @@ void AtomicElementHandler::setPhotoelectricData(const std::vector<double>& data)
 void AtomicElementHandler::setShellPhotoelectricData(std::uint64_t shell, const std::vector<double>& data)
 {
     if (!m_atom.shells.contains(shell)) {
-        m_atom.shells[shell] = dxmc::AtomicShell(shell);
+        m_atom.shells[shell] = xraymc::AtomicShell(shell);
     }
     auto start = lowerIdx(data, minPhotonEnergy() * keVToMeV());
     auto end = upperIdx(data, maxPhotonEnergy() * keVToMeV());
@@ -210,10 +210,10 @@ void AtomicElementHandler::setShellPhotoelectricData(std::uint64_t shell, const 
 void AtomicElementHandler::setRadiativeTransitionProbabilities(std::uint64_t shell, const std::vector<double>& data)
 {
     if (!m_atom.shells.contains(shell)) {
-        m_atom.shells[shell] = dxmc::AtomicShell(shell);
+        m_atom.shells[shell] = xraymc::AtomicShell(shell);
     }
     const auto N = data.size() / 3;
-    std::vector<dxmc::AtomicShellRadiativeEmission> trans(N);
+    std::vector<xraymc::AtomicShellRadiativeEmission> trans(N);
     for (std::size_t i = 0; i < N; ++i) {
         trans[i].vacancy = static_cast<std::uint64_t>(data[i * 3 + 0]);
         trans[i].probability = (data[i * 3 + 1]);
@@ -229,7 +229,7 @@ void AtomicElementHandler::setShellBindingEnergy(const std::vector<double>& data
         const auto shell = static_cast<std::uint64_t>(data[i]);
         const auto E = data[i + 1] * MeVTokeV();
         if (!m_atom.shells.contains(shell)) {
-            m_atom.shells[shell] = dxmc::AtomicShell(shell);
+            m_atom.shells[shell] = xraymc::AtomicShell(shell);
         }
         m_atom.shells[shell].bindingEnergy = E;
     }
@@ -241,7 +241,7 @@ void AtomicElementHandler::setShellKineticEnergy(const std::vector<double>& data
         const auto shell = static_cast<std::uint64_t>(data[i]);
         const auto E = data[i + 1] * MeVTokeV();
         if (!m_atom.shells.contains(shell)) {
-            m_atom.shells[shell] = dxmc::AtomicShell(shell);
+            m_atom.shells[shell] = xraymc::AtomicShell(shell);
         }
         m_atom.shells[shell].kineticEnergy = E;
     }
@@ -253,7 +253,7 @@ void AtomicElementHandler::setShellNumberOfElectrons(const std::vector<double>& 
         const auto shell = static_cast<std::uint64_t>(data[i]);
         const auto N = data[i + 1];
         if (!m_atom.shells.contains(shell)) {
-            m_atom.shells[shell] = dxmc::AtomicShell(shell);
+            m_atom.shells[shell] = xraymc::AtomicShell(shell);
         }
         m_atom.shells[shell].numberOfElectrons = N;
     }
@@ -265,7 +265,7 @@ void AtomicElementHandler::setShellNumberOfPhotonsPerInitVacancy(const std::vect
         const auto shell = static_cast<std::uint64_t>(data[i]);
         const auto N = data[i + 1];
         if (!m_atom.shells.contains(shell)) {
-            m_atom.shells[shell] = dxmc::AtomicShell(shell);
+            m_atom.shells[shell] = xraymc::AtomicShell(shell);
         }
         m_atom.shells[shell].numberOfPhotonsPerInitVacancy = N;
     }
@@ -277,7 +277,7 @@ void AtomicElementHandler::setShellEnergyOfPhotonsPerInitVacancy(const std::vect
         const auto shell = static_cast<std::uint64_t>(data[i]);
         const auto E = data[i + 1] * MeVTokeV();
         if (!m_atom.shells.contains(shell)) {
-            m_atom.shells[shell] = dxmc::AtomicShell(shell);
+            m_atom.shells[shell] = xraymc::AtomicShell(shell);
         }
         m_atom.shells[shell].energyOfPhotonsPerInitVacancy = E;
     }
@@ -318,7 +318,7 @@ constexpr double AtomicElementHandler::maxPhotonEnergy()
         else
             return std::nullopt;
     };
-    return std::min(to_double(DXMCLIB_MAXENERGY).value_or(500.0), 500.0);
+    return std::min(to_double(XRAYMCLIB_MAXENERGY).value_or(500.0), 500.0);
 }
 constexpr double AtomicElementHandler::minPhotonEnergy()
 {
@@ -328,13 +328,13 @@ constexpr double AtomicElementHandler::minPhotonEnergy()
         else
             return std::nullopt;
     };
-    return std::min(to_double(DXMCLIB_MINTABLEENERGY).value_or(1.0), 1.0);
+    return std::min(to_double(XRAYMCLIB_MINTABLEENERGY).value_or(1.0), 1.0);
 }
 
 void AtomicElementHandler::setShellHartreeFockProfile_0(std::uint64_t shell, double J)
 {
     if (!m_atom.shells.contains(shell)) {
-        m_atom.shells[shell] = dxmc::AtomicShell(shell);
+        m_atom.shells[shell] = xraymc::AtomicShell(shell);
     }
     m_atom.shells[shell].HartreeFockOrbital_0 = J;
 }
