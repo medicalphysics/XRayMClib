@@ -58,6 +58,7 @@ struct ResultKeys {
     double result_std = 0;
     std::uint64_t nEvents = 0;
     std::uint64_t nMilliseconds = 0;
+    std::uint64_t nHistories = 0;
 };
 
 class ResultPrint {
@@ -95,7 +96,7 @@ public:
             if (!empty)
                 return;
         }
-        m_myfile << "Case,Volume,Specter,Model,Mode,Result,Uncertainty,nEvents,SimulationTime\n";
+        m_myfile << "Case,Volume,Specter,Model,Mode,Result,Uncertainty,nEvents,SimulationTime,Histories\n";
     }
 
     void operator()(const ResultKeys& r, bool terminal = true, const std::string& units = "ev/hist")
@@ -113,7 +114,8 @@ public:
         m_myfile << r.result << ",";
         m_myfile << r.result_std << ",";
         m_myfile << r.nEvents << ",";
-        m_myfile << r.nMilliseconds;
+        m_myfile << r.nMilliseconds << ",";
+        m_myfile << r.nHistories;
         m_myfile << std::endl;
 
         if (terminal) {
@@ -378,6 +380,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 
     ResultKeys res;
     res.rCase = "Case 1";
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     if (LOWENERGYCORRECTION == 0)
         res.model = "NoneLC";
     if (LOWENERGYCORRECTION == 1)
@@ -568,6 +571,7 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     ResultKeys res;
     res.specter = std::same_as<Beam, IsotropicBeam<>> ? "120 kVp" : "56.4 keV";
     res.rCase = "Case 2";
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     res.modus = tomo ? "tomosynthesis" : "radiography";
     if (LOWENERGYCORRECTION == 0)
         res.model = "NoneLC";
@@ -697,10 +701,14 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1024;
+    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
+
     ResultKeys res;
     res.rCase = "Case 3";
     res.specter = std::same_as<Beam, IsotropicBeam<>> ? "30 kVp" : "16.8 keV";
     res.modus = tomo ? "tomosynthesis" : "radiography";
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     std::string model = "NoneLC";
     if (LOWENERGYCORRECTION == 1)
         model = "Livermore";
@@ -708,9 +716,6 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
         model = "IA";
 
     std::cout << "TG195 Case 3 for " << res.modus << " orientation and " << res.specter << " photons with low en model: " << model << std::endl;
-
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1024;
-    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     using Box = WorldBox<NShellsCase3and5, LOWENERGYCORRECTION>;
     using Breast = TG195World3Breast<NShellsCase3and5, LOWENERGYCORRECTION>;
@@ -965,6 +970,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
 
     ResultPrint print;
     ResultKeys res;
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     res.specter = specter ? "120 kVp" : "56.4 keV";
     res.rCase = "Case 4.1";
     res.model = model;
@@ -1039,6 +1045,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
 
     ResultPrint print;
     ResultKeys res;
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     if (LOWENERGYCORRECTION == 0)
         res.model = "NoneLC";
     else if (LOWENERGYCORRECTION == 1)
@@ -1164,6 +1171,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
 
     ResultPrint print;
     ResultKeys res;
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     if (LOWENERGYCORRECTION == 0)
         res.model = "NoneLC";
     else if (LOWENERGYCORRECTION == 1)
@@ -1561,6 +1569,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 
     ResultPrint print;
     ResultKeys res;
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     if (LOWENERGYCORRECTION == 0)
         res.model = "NoneLC";
     else if (LOWENERGYCORRECTION == 1)
@@ -1688,6 +1697,7 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 
     ResultPrint print;
     ResultKeys res;
+    res.nHistories = N_HISTORIES * N_EXPOSURES;
     if (LOWENERGYCORRECTION == 0)
         res.model = "NoneLC";
     else if (LOWENERGYCORRECTION == 1)
