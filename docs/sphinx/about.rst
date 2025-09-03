@@ -5,12 +5,9 @@ DXMClib aims to be an easy to use C++ dose scoring library for voxelized geometr
 
 It is possible to simulate dose from conventional x-ray and CT examinations in arbitrary materials. DXMClib also includes a x-ray specter generator based on the work by Gavin Poludniowski and Phil Evans; [Calculation of x‐ray spectra emerging from an x‐ray tube. Part I. Electron penetration characteristics in x‐ray targets](https://aapm.onlinelibrary.wiley.com/doi/abs/10.1118/1.2734725) and [Calculation of x‐ray spectra emerging from an x‐ray tube. Part II. X‐ray production and filtration in x‐ray targets](https://aapm.onlinelibrary.wiley.com/doi/abs/10.1118/1.2734726).
 
-DXMClib is dependent on the [xraylib library by Tom Schoonjans](https://github.com/tschoonj/xraylib) for interaction cross sections and atomic form factors. 
 
-Installation
-____________
-To compile DXMClib the xraylib library must be installed, both source and binaries for Windows and Linux are provided by the developer. [See the installation instructions for xraylib.](https://github.com/tschoonj/xraylib/wiki/Installation-instructions)
-
+Compilation
+_________
 DXMClib uses CMake as build generator, to include DXMClib in a CMake project it is recommended to use CMakes 'FetchContent' module. Example to include DXMClib in your CMakeLists.txt:
 
     include(FetchContent)
@@ -27,4 +24,6 @@ DXMClib uses CMake as build generator, to include DXMClib in a CMake project it 
     target_include_directories(your_executable PRIVATE ${libdxmc_SOURCE_DIR}/include)
     # Linking to DXMClib
     target_link_libraries(your_executable PRIVATE libdxmc)
+    # CMake function to copy material data to executable folder
+    dxmclib_add_physics_list(your_executable)
 

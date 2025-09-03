@@ -12,9 +12,15 @@ IF( NOT TARGET libdxmc)
 	FetchContent_MakeAvailable(libdxmc)
 ENDIF()
 
-
+#Define an executable
 add_executable(pencilbeam pencilbeam.cpp)
+
+#Linking to dxmclib
 target_link_libraries(pencilbeam PRIVATE libdxmc)
+
+#Adding interaction binary data to example 
+#This cmake function vil copy physicslist.bin to executable folder
+dxmclib_add_physics_list(pencilbeam)
 
 install(TARGETS pencilbeam
 	RUNTIME DESTINATION examples)

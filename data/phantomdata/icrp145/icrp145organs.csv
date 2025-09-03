@@ -1,0 +1,191 @@
+OrganID,Organ,Medium
+100,Adrenal left,1
+200,Adrenal right,1
+300,ET1 0-8um,2
+301,ET1 8-40um,2
+302,ET1 40-50um,2
+303,ET1 50um-surface,2
+400,ET2 -15-0um,52
+401,ET20-40um,2
+402,ET2 40-50um,2
+403,ET2 50-55um,2
+404,ET2 55-65um,2
+405,ET2 65um-surface,2
+500,Oralmucosa tongue,3
+501,Oralmucosa mouth floor,3
+600,Oralmucosa lips and cheeks,3
+700,Trachea,2
+800,BB1-11--6um,52
+801,BB1 -6-0um,2
+802,BB1 0-10um,2
+803,BB1 10-35um,2
+804,BB1 35-40um,2
+805,BB1 40-50um,2
+806,BB1 50-60um,2
+807,BB1 60-70um,2
+808,BB1 70um-surface,2
+900,Blood in large arteries head,4
+910,Blood in large veins head,4
+1000,Blood in large arteries trunk,4
+1010,Blood in large veins trunk,4
+1100,Blood in large arteries arms,4
+1110,Blood in large veins arms,4
+1200,Blood in large arteries legs,4
+1210,Blood in large veins legs,4
+1300,Humeri upper cortical,5
+1400,Humeri upper spongiosa,7
+1500,Humeri upper medullary cavity,6
+1600,Humeri lower cortical,5
+1700,Humeri lower spongiosa,8
+1800,Humeri lower medullary cavity,6
+1900,Ulnae and radii cortical,5
+2000,Ulnae and radii spongiosa,8
+2100,Ulnae and radii medullary cavity,6
+2200,Wrists and hand bones cortical,5
+2300,Wrists and hand bones spongiosa,8
+2400,Clavicles cortical,5
+2500,Clavicles spongiosa,9
+2600,Cranium cortical,5
+2700,Cranium spongiosa,10
+2800,Femora upper cortical,5
+2900,Femora upper spongiosa,11
+3000,Femora upper medullarycavity,6
+3100,Femora lower cortical,5
+3200,Femora lower spongiosa,8
+3300,Femora lower medullarycavity,6
+3400,Tibiae fibulae and patellae cortical,5
+3500,Tibiae fibulae and patellae spongiosa,8
+3600,Tibiae fibulae and patellae medullary cavity,6
+3700,Ankles and foot cortical,5
+3800,Ankles and foot spongiosa,8
+3900,Mandible cortical,5
+4000,Mandible spongiosa,12
+4100,Pelvis cortical,5
+4200,Pelvis spongiosa,13
+4300,Ribs cortical,5
+4400,Ribs spongiosa,14
+4500,Scapulae cortical,5
+4600,Scapulae spongiosa,15
+4700,Cervical spine cortical,5
+4800,Cervical spine spongiosa,16
+4900,Thoracicspine cortical,5
+5000,Thoracicspine spongiosa,17
+5100,Lumbarspine cortical,5
+5200,Lumbarspine spongiosa,18
+5300,Sacrum cortical,5
+5400,Sacrum spongiosa,19
+5500,Sternum cortical,5
+5600,Sternum spongiosa,20
+5700,Cartilage costal,21
+5800,Cartilage discs,21
+6100,Brain,22
+6200,Breast left adipose tissue,23
+6300,Breast left glandular tissue,24
+6400,Breast right adipose tissue,23
+6500,Breast right glandular tissue,24
+6600,Eyelens sensitive left,25
+6601,Eyelens insensitive left,25
+6700,Cornea left,26
+6701,Aqueous left,27
+6702,Vitreous left,28
+6800,Eyelens sensitive right,25
+6801,Eyelens insensitive right,25
+6900,Cornea right,26
+6901,Aqueous right,27
+6902,Vitreous right,28
+7000,Gallbladder wall,2
+7100,Gallbladder contents,29
+7200,Stomach wall 0-60um,30
+7201,Stomach wall 60-100um,30
+7202,Stomach wall 100-300um,30
+7203,Stomach wall 300um-surface,30
+7300,Stomach contents,33
+7400,Small intestine wall 0-130um,31
+7401,Small intestinewall 130-150um,31
+7402,Small intestinewall 150-200um,31
+7403,Small intestinewall 200um-surface,31
+7500,Small intestine contents -500-0um,33
+7501,Small intestine contents centre-500um,33
+7600,Ascending colon wall 0-280um,32
+7601,Ascending colon wall 280-300um,32
+7602,Ascending colon wall 300um-surface,32
+7700,Ascending colon contents,33
+7800,Transverse colon wall right 0-280um,32
+7801,Transversecolon wall right 280-300um,32
+7802,Transverse colon wall right 300um-surface,32
+7900,Transverse colon contents right,33
+8000,Transverse colon wall left 0-280um,32
+8001,Transverse colon wall left 280-300um,32
+8002,Transverse colon wall left 300um-surface,32
+8100,Transverse colon contents left,33
+8200,Descending colon wall 0-280um,32
+8201,Descending colon wall 280-300um,32
+8202,Descending colon wall 300um-surface,32
+8300,Descending colon contents,33
+8400,Sigmoid colon wall 0-280um,32
+8401,Sigmoid colon wall 280-300um,32
+8402,Sigmoid colon wall 300um-surface,32
+8500,Sigmoid colon contents,33
+8600,Rectum wall,32
+8700,Heart wall,34
+8800,Blood in heart chamber,4
+8900,Kidney left cortex,35
+9000,Kidney left medulla,35
+9100,Kidney left pelvis,35
+9200,Kidney right cortex,35
+9300,Kidney right medulla,35
+9400,Kidney right pelvis,35
+9500,Liver,36
+9700,Lung(AI) left,37
+9900,Lung(AI) right,37
+10000,Lymphatic nodes ET,38
+10100,Lymphatic nodes thoracic,38
+10200,Lymphatic nodes head,38
+10300,Lymphatic nodes trunk,38
+10400,Lymphatic nodes arms,38
+10500,Lymphatic nodes legs,38
+10600,Muscle head,39
+10700,Muscle trunk,39
+10800,Muscle arms,39
+10900,Muscle legs,39
+11000,Oesophagus wall 0-190um,40
+11001,Oesophagus wall 190-200um,40
+11002,Oesophagus wall 200um-surface,40
+11003,Oesophagus contents,33
+11100,Ovary left,41
+11200,Ovary right,41
+11300,Pancreas,42
+11400,Pituitary gland,2
+11500,Prostate,43
+11600,RST head,44
+11700,RST trunk,44
+11800,RST arms,44
+11900,RST legs,44
+12000,Salivary glands left,2
+12100,Salivary glands right,2
+12200,Skin head insensitive,45
+12201,Skin head sensitive 50-100um,45
+12300,Skin trunk insensitive,45
+12301,Skin trunk sensitive 50-100um,45
+12400,Skin arms insensitive,45
+12401,Skin arms sensitive 50-100um,45
+12500,Skin legs insensitive,45
+12501,Skin legs sensitive 50-100um,45
+12600,Spinal cord,2
+12700,Spleen,46
+12800,Teeth,47
+12801,Teeth retention region,33
+12900,Testis left,41
+13000,Testis right,41
+13100,Thymus,2
+13200,Thyroid,48
+13300,Tongue upper(food),3
+13301,Tongue lower,3
+13400,Tonsils,2
+13500,Ureter left,2
+13600,Ureter right,2
+13700,Urinary bladder wall insensitive,49
+13701,Urinary bladder wall sesitive 116-185um,49
+13800,Urinary bladder contents,50
+13900,Uterus,43
+14000,Air inside body,51

@@ -2,15 +2,11 @@
 # You should always specify a range with the newest
 # and oldest tested versions of CMake. This will ensure
 # you pick up the best policies.
-cmake_minimum_required(VERSION 3.10...3.20)
+cmake_minimum_required(VERSION 3.20)
 
-# This is your project statement. You should always list languages;
-# Listing the version is nice here since it sets lots of useful variables
 project(dxmclib VERSION 0.7.0 LANGUAGES CXX)
 
-# If you set any CMAKE_ variables, that can go here.
-# (But usually don't do this, except maybe for C++ standard)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
@@ -31,89 +27,190 @@ endfunction()
 #enable_cxx_compiler_flag_if_supported("-Wextra")
 #enable_cxx_compiler_flag_if_supported("-pedantic")
 
-option(OPTIMIZE_FOR_NATIVE "Build with -march=native" ON)
-if(OPTIMIZE_FOR_NATIVE)
-    MESSAGE("-- Trying to build for native (-march=native)")
-    enable_cxx_compiler_flag_if_supported("-march=native")    
+#MSVC fix for heavy templated code
+if(MSVC)        
+    MESSAGE("-- Building with /bigobj flag")
+    enable_cxx_compiler_flag_if_supported("/bigobj")  
 endif()
 
+option(DXMCLIB_USE_FAST_MATH "Build with -fast-math or /fp:fast" ON)
+if(DXMCLIB_USE_FAST_MATH)
+    if(MSVC)        
+        MESSAGE("-- Building with /fp:fast flag")
+        enable_cxx_compiler_flag_if_supported("/fp:fast")  
+    endif()
+    if(UNIX)
+        MESSAGE("-- Building with -ffast-math flag")
+        enable_cxx_compiler_flag_if_supported("-ffast-math")  
+    endif()
+endif()
+
+option(DXMCLIB_OPTIMIZE_FOR_NATIVE "Build with -march=native on gcc/clang or AVX_x on MSVC " ON)
+if(DXMCLIB_OPTIMIZE_FOR_NATIVE)
+    if(MSVC)
+        set(DXMCLIB_MSVC_NATIVE_OPTION "AVX2" CACHE STRING "Machine instructions support")
+        set_property(CACHE DXMCLIB_MSVC_NATIVE_OPTION PROPERTY STRINGS SSE2 AVX AVX2 AVX512)
+        MESSAGE("-- Building with /arch:${DXMCLIB_MSVC_NATIVE_OPTION} flag")
+        enable_cxx_compiler_flag_if_supported("/arch:${DXMCLIB_MSVC_NATIVE_OPTION}")          
+    endif()
+    if(UNIX)
+        MESSAGE("-- Building with -march=native flag")
+        enable_cxx_compiler_flag_if_supported("-march=native")  
+    endif()
+endif()
+
+if(MSVC)
+    option(DXMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with /GL flag" ON)
+    if(DXMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
+        MESSAGE("-- Building with /GL flag")
+        enable_cxx_compiler_flag_if_supported("/GL")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+        list(REMOVE_ITEM CMAKE_EXE_LINKER_FLAGS "/INCREMENTAL")
+        enable_cxx_compiler_flag_if_supported("/Gw")  
+        enable_cxx_compiler_flag_if_supported("/cgthreads8")  
+    endif()
+endif()
 # Find packages go here.
 find_package(Threads REQUIRED) # for threading support
 
-# Finding xraylib library
-IF(WIN32)
-    set(XRAYLIB_INSTALL_PATH "C:/Program Files/xraylib 64-bit" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
-    set(XRAYLIB_INCLUDES "${XRAYLIB_INSTALL_PATH}/Include")
-	set(XRAYLIB_LIBRARY_SHARED_NAME "libxrl-11.dll")
-	set(XRAYLIB_LIBRARY_SHARED_PATH "C:/Windows/sysnative/${XRAYLIB_LIBRARY_SHARED_NAME}")
-    set(XRAYLIB_LIBRARY_SHARED_PATH_64 "C:/Windows/System32/${XRAYLIB_LIBRARY_SHARED_NAME}")
-    find_library(XRAYLIB NAMES libxrl.lib libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}/LIB")
-ENDIF(WIN32)
-IF(UNIX AND NOT APPLE)
-    set(XRAYLIB_INSTALL_PATH "/usr/local/lib" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
-    set(XRAYLIB_INCLUDES "/usr/local/include/xraylib")
-    find_library(XRAYLIB NAMES libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}")
-ENDIF()
+## setting up material library since we use same headers for both dxmclib and EPICSparser
+set(MATERIAL_HEADER_LIST 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicelement.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicshell.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomhandler.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomserializer.hpp"
+)
 
-set(HEADER_LIST 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/attenuationinterpolator.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/attenuationlut.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beamfilters.hpp"
+add_library(material INTERFACE ${MATERIAL_HEADER_LIST})
+target_include_directories(material INTERFACE ${dxmclib_SOURCE_DIR}/include)
+
+set(HEADER_LIST         
     "${dxmclib_SOURCE_DIR}/include/dxmc/dxmcrandom.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/exposure.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/progressbar.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/source.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/interactions.hpp"    
     "${dxmclib_SOURCE_DIR}/include/dxmc/transport.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/tube.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/transportprogress.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/vectormath.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/utilities/spheresamplingcircularfield.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/bowtiefilter.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/ctaecfilter.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/ctorganaecfilter.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/tube/tube.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/tube/betheHeitlerCrossSection.hpp"  
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/beamtype.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/pencilbeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicmonoenergybeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicmonoenergybeamcircle.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicbeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicbeamcircle.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropiccircularmonoenergybeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropiccircularbeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/cbctbeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctspiralbeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctsequentialbeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctspiraldualenergybeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctdibeam.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/world.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/dosescore.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/energyscore.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/statickdtree.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtree.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtreeflat.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtreeintersectionresult.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/visualization/visualizeworld.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/visualization/vizualizationprops.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/collisions/collisiontest.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/collisions/meshcollision.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worldintersectionresult.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/ctdiphantom.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/depthdose.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worlditemtype.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/enclosedroom.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/fluencescore.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/aavoxelgrid.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldbox.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldboxgrid.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldsphere.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldcylinder.hpp"  
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedopensurface.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshstlreader.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtree.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreeflat.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreetype.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangle.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshkdtree.hpp" 
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/aabb.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/cylinder.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/cylinderz.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/sphere.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/tetrahedron.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicelement.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicshell.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomhandler.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomserializer.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/nistmaterials.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/material/material.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/floating.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/constants.hpp"
     "${dxmclib_SOURCE_DIR}/include/dxmc/particle.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/interpolation.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/lowenergycorrectionmodel.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/betheHeitlerCrossSection.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc.hpp"    
+    "${dxmclib_SOURCE_DIR}/include/dxmc/particletracker.hpp"
+    "${dxmclib_SOURCE_DIR}/include/dxmc/interpolation.hpp"        
     )
 
-add_library(libdxmc 
-    src/material.cpp    
+add_library(libdxmc INTERFACE
     ${HEADER_LIST}
 	)
-target_include_directories(libdxmc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_include_directories(libdxmc PRIVATE ${XRAYLIB_INCLUDES})
 
-# Make sure you link your targets with this command. It can also link libraries and
+target_include_directories(
+    libdxmc
+    INTERFACE
+    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+)
+
+# Set type of material class
+option(DXMCLIB_USE_LINEAR_INTERPOLATION "Use linear attenuation coeff interpolation" OFF)
+if(DXMCLIB_USE_LINEAR_INTERPOLATION)
+    target_compile_definitions(material INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
+    target_compile_definitions(libdxmc INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
+endif()
+
+# Linking to other libraries. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
-target_link_libraries(libdxmc PRIVATE 
-    Threads::Threads
-    ${XRAYLIB}
+target_link_libraries(libdxmc INTERFACE 
+    Threads::Threads # Not needed on all platforms, but doesn't hurt
     )
+
+# Must use GNUInstallDirs to install libraries into correct
+# locations on all platforms.
+include(GNUInstallDirs)
 
 ## Install
 install(TARGETS libdxmc 
-    EXPORT libdxmc
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    RUNTIME DESTINATION bin
-    INCLUDES DESTINATION include
+    EXPORT libdxmc    
     )
 
-# Due to windows not being windows on 34/64 bits and xraylib puts it's dll in system32 folder we try to install 
-# the library from system32 folder regardless of cmake or NSIS being 64 or 32 bits
-if(WIN32)
-    install(FILES ${XRAYLIB_LIBRARY_SHARED_PATH} DESTINATION bin OPTIONAL)
-    install(FILES ${XRAYLIB_LIBRARY_SHARED_PATH_64} DESTINATION bin OPTIONAL)
-endif(WIN32)
-install(FILES ${HEADER_LIST} DESTINATION include)
+# EPICS data parser and physics data
+add_subdirectory(data)
+
+# Thirdparty libraries
+# Including lodePNGwrapper for dxmc
+option(DXMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" OFF)
+add_subdirectory(thirdparty)
 
 # Testing
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    ENABLE_TESTING()
-    include(CTest)
-endif()
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING)
+option(BUILD_TESTING "Build tests" OFF)
+if(BUILD_TESTING OR CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     add_subdirectory(tests)
 endif()
 
@@ -121,7 +218,6 @@ endif()
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     add_subdirectory(validation)
 endif()
-
 
 # Docs by doxygen
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -136,8 +232,8 @@ endif()
 
 # Examples
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    option(BUILD_EXAMPLES "Build examples" ON)
-    if(BUILD_EXAMPLES)
+    option(DXMCLIB_BUILD_EXAMPLES "Build examples" ON)
+    if(DXMCLIB_BUILD_EXAMPLES)
         add_subdirectory(examples)
     endif()
 endif()

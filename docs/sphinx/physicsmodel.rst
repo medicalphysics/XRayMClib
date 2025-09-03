@@ -1,6 +1,6 @@
 Physic model
 ============
-DXMClib is a naïve Monte Carlo implementation of photon transport. Using this library comes down to creating a world and beam sources. Beam sources can be anything from a monochromatic pencil beam to a collimated beam rotating in a spiral (CT scan). The world consist of a 3D voxelized box model, where each voxel have properties such as density and type of material. 
+DXMClib is a naïve Monte Carlo implementation of photon transport. Using this library comes down to creating a world and beam sources. Beam sources can be anything from a monochromatic pencil beam to a collimated x-ray tube beam rotating in a spiral (CT scan). 
 
 This section intends to give an overview of methods and techniques used in the software and a description of the physics model. 
 
