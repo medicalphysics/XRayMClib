@@ -370,7 +370,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeamCircle<>> || std::same_as<Beam, IsotropicMonoEnergyBeamCircle<>>)
 bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 {
-    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 256;
+    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 200;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
     constexpr std::uint64_t TOTAL_HIST = N_EXPOSURES * N_HISTORIES;
 
@@ -515,7 +515,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
-    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1024;
+    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1000;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     using SimpleBox = xraymc::WorldBox<NShells, LOWENERGYCORRECTION>;
@@ -701,7 +701,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1024;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     ResultKeys res;
@@ -883,7 +883,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
         std::cout << "56.4 keV";
     std::cout << " photons with low en model: " << model << std::endl;
 
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 100000 : 1000000;
 
     using Cylindar = DepthDose<NShells, LOWENERGYCORRECTION>;
@@ -1025,7 +1025,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
         std::cout << "56.4 keV";
     std::cout << " photons with low en model: " << model << std::endl;
 
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 2000000;
 
     using Cylindar = TG195World42<NShells, LOWENERGYCORRECTION>;
@@ -1132,7 +1132,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicCircularBeam<>> || std::same_as<Beam, IsotropicCircularMonoEnergyBeam<>>)
 bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation = false)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 10000 : 2000000;
 
     std::string model;
@@ -1556,7 +1556,7 @@ template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
 bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     constexpr int TRANSPARENTVOXELS = 255;
@@ -1684,7 +1684,7 @@ template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicCircularMonoEnergyBeam<>> || std::same_as<B, IsotropicCircularBeam<>>)
 bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1024;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     constexpr int TRANSPARENTVOXELS = 255;
