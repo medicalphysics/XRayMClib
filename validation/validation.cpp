@@ -1908,7 +1908,7 @@ Arguments argparse(int argc, char* argv[])
 
 void printStart(const Arguments& args)
 {
-    std::cout << "Validation run of xraymclib\n";
+    std::cout << "Validation run of XRayMClib\n";
     std::cout << "Number of threads: " << args.N_threads << std::endl;
     std::cout << "Binding correction: " << args.correctionString() << std::endl;
     std::cout << "Output file: " << args.filename << std::endl;
