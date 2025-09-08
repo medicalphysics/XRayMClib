@@ -516,7 +516,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
 bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
     constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1000;
-    constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
+    constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 2000000;
 
     using SimpleBox = xraymc::WorldBox<NShells, LOWENERGYCORRECTION>;
     using Box = WorldBoxGrid<NShells, LOWENERGYCORRECTION>;
