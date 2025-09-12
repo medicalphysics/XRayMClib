@@ -99,7 +99,8 @@ public:
         for (auto& thread : threads) {
             thread.join();
         }
-        if (useBeamCalibration) {
+        bool cont = progress ? progress->continueSimulation() : true;
+        if (useBeamCalibration && cont) {
             const auto beamCalibrationFactor = beam.calibrationFactor(progress);
             world.addEnergyScoredToDoseScore(beamCalibrationFactor);
             world.clearEnergyScored();
