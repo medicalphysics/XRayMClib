@@ -160,6 +160,15 @@ void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAn
     std::array<std::uint8_t, 3> color;
     color = { 255, 195, 170 }; // skin
     viz.setColorOfItem(world.getItemPointerFromName("Tissue"), color);
+    color = { 169, 172, 182 }; // Aluminum
+    viz.setColorOfItem(world.getItemPointerFromName("Filter"), color);
+    color = { 135, 135, 135 }; // Carbon
+    viz.setColorOfItem(world.getItemPointerFromName("Scoring"), color);
+    color = { 137, 207, 240 }; // Water
+    viz.setColorOfItem(world.getItemPointerFromName("Water"), color);
+    color = { 244, 250, 252 }; // Plastic
+    viz.setColorOfItem(world.getItemPointerFromName("PMMA"), color);
+    viz.setColorOfItem(world.getItemPointerFromName("PMMA2"), color);
 
     viz.generate(world, buffer);
     viz.savePNG(name, buffer);
@@ -370,8 +379,8 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeamCircle<>> || std::same_as<Beam, IsotropicMonoEnergyBeamCircle<>>)
 bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 {
-    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 200;
-    constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
+    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 200;
+    constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 100000 : 1000000;
     constexpr std::uint64_t TOTAL_HIST = N_EXPOSURES * N_HISTORIES;
 
     using Filter = WorldCylinder<NShells, LOWENERGYCORRECTION>;
@@ -471,7 +480,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     // adding filter
     auto aluminum = Material::byZ(13).value();
     const auto aluminum_dens = AtomHandler::Atom(13).standardDensity;
-    auto& filter = world.template addItem<Filter>({ 2, 1, { 0, 0, 0 }, { 0, 0, 1 } });
+    auto& filter = world.template addItem<Filter>({ 2, 1, { 0, 0, 0 }, { 0, 0, 1 } }, "Filter");
     filter.setMaterial(aluminum, aluminum_dens);
 
     // HVL filter
@@ -515,7 +524,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
-    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 32 : 1000;
+    constexpr std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 8 : 1000;
     constexpr std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 2000000;
 
     using SimpleBox = xraymc::WorldBox<NShells, LOWENERGYCORRECTION>;
@@ -534,12 +543,12 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     const double box_zbegin = 155;
     const std::array box_aabb = { -box_halfside, -box_halfside, box_zbegin, box_halfside, box_halfside, box_zbegin + box_height };
     world.reserveNumberOfItems(2);
-    auto& box = world.template addItem<Box>({ box_aabb });
+    auto& box = world.template addItem<Box>({ box_aabb }, "Tissue");
     box.setVoxelDimensions({ 78, 78, 40 });
     box.setMaterial(mat);
     box.setMaterialDensity(mat_dens);
 
-    auto& scoring_plane = world.template addItem<SimpleBox>({ { -box_halfside, -box_halfside, 180, box_halfside, box_halfside, 180.1 } });
+    auto& scoring_plane = world.template addItem<SimpleBox>({ { -box_halfside, -box_halfside, 180, box_halfside, box_halfside, 180.1 } }, "Scoring");
     scoring_plane.setMaterial(xraymc::Material<NShells>::byWeight(air_composition).value(), world.fillMaterialDensity());
 
     world.build(180);
@@ -701,7 +710,7 @@ template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 240 : 1000;
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
     const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     ResultKeys res;
@@ -738,17 +747,17 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     world.setMaterialByWeight(air_w, air_d);
     world.reserveNumberOfItems(5);
 
-    auto& body = world.template addItem<Box>({ { -17 - xraymc::GEOMETRIC_ERROR(), -15, -15, 0 - xraymc::GEOMETRIC_ERROR(), 15, 15 } });
+    auto& body = world.template addItem<Box>({ { -17 - xraymc::GEOMETRIC_ERROR(), -15, -15, 0 - xraymc::GEOMETRIC_ERROR(), 15, 15 } }, "Water");
     body.setMaterial(water, water_d);
-    auto& uplate = world.template addItem<Box>({ { 0, -13, 2.5 + xraymc::GEOMETRIC_ERROR(), 14, 13, 2.7 + xraymc::GEOMETRIC_ERROR() } });
+    auto& uplate = world.template addItem<Box>({ { 0, -13, 2.5 + xraymc::GEOMETRIC_ERROR(), 14, 13, 2.7 + xraymc::GEOMETRIC_ERROR() } }, "PMMA");
     uplate.setMaterial(pmma, pmma_d);
-    auto& lplate = world.template addItem<Box>({ { 0, -13, -2.7 - xraymc::GEOMETRIC_ERROR(), 14, 13, -2.5 - xraymc::GEOMETRIC_ERROR() } });
+    auto& lplate = world.template addItem<Box>({ { 0, -13, -2.7 - xraymc::GEOMETRIC_ERROR(), 14, 13, -2.5 - xraymc::GEOMETRIC_ERROR() } }, "PMMA2");
     lplate.setMaterial(pmma, pmma_d);
-    auto& breast = world.template addItem<Breast>();
+    auto& breast = world.template addItem<Breast>("Tissue");
     breast.setSkinMaterial(skin, skin_d);
     breast.setTissueMaterial(breasttissue, breast_d);
 
-    auto& scoringplane = world.template addItem<Box>({ { 0, -13, -2.5 - 1.5 - .1, 14, 13, -2.5 - 1.5 } });
+    auto& scoringplane = world.template addItem<Box>({ { 0, -13, -2.5 - 1.5 - .1, 14, 13, -2.5 - 1.5 } }, "Scoring");
     scoringplane.setMaterial(air, air_d);
 
     world.build(70);
@@ -797,9 +806,9 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
         else
             tp = "";
         std::string name = "Case3world" + tp + ".png";
-        saveImageOfWorld(name, world, beam, 240, 60, 500, 6, 100, 0.1);
+        saveImageOfWorld(name, world, beam, 240, 80, 500, 6, 100, 0.1);
         name = "Case3world2" + tp + ".png";
-        saveImageOfWorld(name, world, beam, 180, 60, 500, 6, 100, 0.1);
+        saveImageOfWorld(name, world, beam, 180, 80, 500, 6, 100, 0.1);
     }
 
     Transport transport;
@@ -898,7 +907,7 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
     auto [air_density, air_composition] = TG195_air();
     world.setMaterialByWeight(air_composition, air_density);
 
-    auto& cylinder = world.template addItem<Cylindar>({ 16, 300, 600 });
+    auto& cylinder = world.template addItem<Cylindar>({ 16, 300, 600 }, "PMMA");
     world.build(60);
     cylinder.setMaterial(mat);
     cylinder.setMaterialDensity(mat_dens);
@@ -1164,7 +1173,7 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     auto [air_density, air_composition] = TG195_air();
     world.setMaterialByWeight(air_composition, air_density);
 
-    auto& cylinder = world.template addItem<Cylindar>({ 16, 600 });
+    auto& cylinder = world.template addItem<Cylindar>({ 16, 600 }, "PMMA");
     world.build(90);
     cylinder.setMaterial(mat);
     cylinder.setMaterialDensity(mat_dens);
