@@ -474,7 +474,7 @@ if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    data = readData("ValidationTable.txt", "TG195Results.txt")
+    data = readData("validationTable.txt", "TG195results.txt")
 
     ## If rename to XRayMC
     # data["Model"] = data["Model"].str.replace("IA", "XRayMC", regex=False)
