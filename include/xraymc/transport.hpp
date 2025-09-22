@@ -45,72 +45,7 @@ public:
     template <BeamType B, WorldItemType... Ws>
     auto operator()(World<Ws...>& world, const B& beam, TransportProgress* progress = nullptr, bool useBeamCalibration = true) const
     {
-<<<<<<< HEAD
-        Result<T> result(world.size());
-
-        if (!world.isValid())
-            return result;
-
-        if (!source)
-            return result;
-
-        source->updateFromWorld(world);
-        source->validate();
-        if (!source->isValid())
-            return result;
-
-        result.numberOfHistories = source->historiesPerExposure() * source->totalExposures();
-
-        const auto maxEnergy = source->maxPhotonEnergyProduced();
-
-        m_attenuationLut.generate(world, maxEnergy);
-
-        const std::uint64_t totalExposures = source->totalExposures();
-
-        const std::uint64_t nJobs = std::max(m_nThreads, std::uint64_t { 1 });
-        if (progressbar) {
-            progressbar->setTotalExposures(totalExposures);
-            progressbar->setDoseData(result.dose.data(), world.dimensions(), world.spacing());
-        }
-        const auto start = std::chrono::system_clock::now();
-        if (m_lowenergyCorrection == LOWENERGYCORRECTION::NONE) {
-            parallellRun<0>(world, source, result, 0, totalExposures, nJobs, progressbar);
-        } else if (m_lowenergyCorrection == LOWENERGYCORRECTION::LIVERMORE) {
-            parallellRun<1>(world, source, result, 0, totalExposures, nJobs, progressbar);
-        } else {
-            parallellRun<2>(world, source, result, 0, totalExposures, nJobs, progressbar);
-        }
-        result.simulationTime = std::chrono::system_clock::now() - start;
-
-        if (progressbar) {
-            progressbar->clearDoseData();
-            if (progressbar->cancel()) {
-                std::fill(result.dose.begin(), result.dose.end(), T { 0.0 });
-                std::fill(result.nEvents.begin(), result.nEvents.end(), 0);
-                std::fill(result.variance.begin(), result.variance.end(), T { 0.0 });
-                result.numberOfHistories = 0;
-                return result;
-            }
-        }
-        
-        if (m_outputmode == OUTPUTMODE::DOSE) {
-            if (useSourceDoseCalibration) {
-                const T calibrationValue = source->getCalibrationValue(m_lowenergyCorrection, progressbar);
-                // energy imparted to dose
-                energyImpartedToDose(world, result, calibrationValue);
-                result.dose_units = "mGy";
-            } else {
-                energyImpartedToDose(world, result);
-                result.dose_units = "keV/kg";
-            }
-        } else {
-            normalizeScoring(result);
-            result.dose_units = "eV/history";
-        }
-        return result;
-=======
         return run(world, beam, m_nThreads, progress, useBeamCalibration);
->>>>>>> develop
     }
 
     template <BeamType B, WorldItemType... Ws>
