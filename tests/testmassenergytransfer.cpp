@@ -1,22 +1,22 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
-#include "dxmc/material/material.hpp"
+#include "xraymc/material/material.hpp"
 
 #include <iostream>
 #include <string>
@@ -65,14 +65,14 @@ std::vector<NISTData> nistAir()
 bool testMassEnergyTransferAir()
 {
     const std::string air_str = "Air, Dry (near sea level)";
-    auto air = dxmc::Material<5>::byNistName(air_str).value();
+    auto air = xraymc::Material<5>::byNistName(air_str).value();
     bool success = true;
 
-    // std::cout << "Energy, NIST, dxmc\n";
+    // std::cout << "Energy, NIST, xraymc\n";
     for (const auto& d : nistAir()) {
         //    std::cout << d.energy << ", " << d.atten << ", " << air.massEnergyTransferAttenuation(d.energy) << std::endl;
-        const auto dxmc_atten = air.massEnergyTransferAttenuation(d.energy);
-        success = success && (1 - d.atten / dxmc_atten) * 100 < 1.0;
+        const auto xraymc_atten = air.massEnergyTransferAttenuation(d.energy);
+        success = success && (1 - d.atten / xraymc_atten) * 100 < 1.0;
     }
     return success;
 }

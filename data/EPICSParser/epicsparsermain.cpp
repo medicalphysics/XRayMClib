@@ -1,17 +1,17 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
@@ -26,11 +26,11 @@ Copyright 2022 Erlend Andersen
 int main()
 {
 
-    const bool always_rebuild = DXMCLIB_REBUILD_PHYSICSLISTS;
+    const bool always_rebuild = XRAYMCLIB_REBUILD_PHYSICSLISTS;
 
-    const std::string eadl(DXMCLIB_EADLPATH);
-    const std::string epdl(DXMCLIB_EPDLPATH);
-    const std::string outpath(DXMCLIB_PHYSICSLISTSPATH);
+    const std::string eadl(XRAYMCLIB_EADLPATH);
+    const std::string epdl(XRAYMCLIB_EPDLPATH);
+    const std::string outpath(XRAYMCLIB_PHYSICSLISTSPATH);
     const std::string hartreefock("ComptonProfiles.dat");
     const std::string standardensities("standarddensities.csv");
 

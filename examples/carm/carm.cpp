@@ -1,48 +1,48 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/dxbeam.hpp"
-#include "dxmc/particletracker.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/transportprogress.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/aavoxelgrid.hpp"
-#include "dxmc/world/worlditems/ctdiphantom.hpp"
-#include "dxmc/world/worlditems/enclosedroom.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
-#include "dxmc/world/worlditems/triangulatedmesh.hpp"
-#include "dxmc/world/worlditems/triangulatedopensurface.hpp"
-#include "dxmc/world/worlditems/worldbox.hpp"
-#include "dxmc/world/worlditems/worldsphere.hpp"
+#include "xraymc/beams/dxbeam.hpp"
+#include "xraymc/particletracker.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/transportprogress.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/ctdiphantom.hpp"
+#include "xraymc/world/worlditems/enclosedroom.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
+#include "xraymc/world/worlditems/triangulatedmesh.hpp"
+#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
+#include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include "phantomreader.hpp"
 
 #include <iostream>
 #include <vector>
 
-dxmc::AAVoxelGrid<5, 1, 0> testPhantom()
+xraymc::AAVoxelGrid<5, 1, 0> testPhantom()
 {
     auto d = ICRP110PhantomReader::readFemalePhantom("AF.dat", "AF_media.dat", "AF_organs.dat");
 
-    dxmc::AAVoxelGrid<5, 1, 0> phantom;
-    using Material = dxmc::Material<5>;
+    xraymc::AAVoxelGrid<5, 1, 0> phantom;
+    using Material = xraymc::Material<5>;
     std::vector<Material> materials;
     for (auto& w : d.mediaComposition()) {
         auto mat_cand = Material::byWeight(w);
@@ -57,7 +57,7 @@ dxmc::AAVoxelGrid<5, 1, 0> testPhantom()
 }
 
 template <bool TRACK>
-dxmc::TetrahedalMesh<5, 1, !TRACK> readICRP145Phantom(std::array<int, 3> depth = { 8, 8, 8 }, bool female = true)
+xraymc::TetrahedalMesh<5, 1, !TRACK> readICRP145Phantom(std::array<int, 3> depth = { 8, 8, 8 }, bool female = true)
 {
     const std::string name = female ? "MRCP_AF" : "MRCP_AM";
     const std::string elefile = name + ".ele";
@@ -65,13 +65,13 @@ dxmc::TetrahedalMesh<5, 1, !TRACK> readICRP145Phantom(std::array<int, 3> depth =
     const std::string mediafile = name + "_media.dat";
     const std::string organfile = "icrp145organs.csv";
 
-    dxmc::TetrahedalmeshReader<5, 1, !TRACK> reader(nodefile, elefile, mediafile, organfile);
+    xraymc::TetrahedalmeshReader<5, 1, !TRACK> reader(nodefile, elefile, mediafile, organfile);
     reader.rotate({ 0, 0, 1 }, std::numbers::pi_v<double>);
     return reader.getMesh(depth);
 }
 
 template <bool TRACK>
-dxmc::TetrahedalMesh<5, 1, !TRACK> readICRP145Phantom(int depth = 8, bool female = true)
+xraymc::TetrahedalMesh<5, 1, !TRACK> readICRP145Phantom(int depth = 8, bool female = true)
 {
     return readICRP145Phantom<TRACK>({ depth, depth, depth }, female);
 }
@@ -79,7 +79,7 @@ dxmc::TetrahedalMesh<5, 1, !TRACK> readICRP145Phantom(int depth = 8, bool female
 template <typename T, typename W, typename B>
 auto runDispatcher(T& transport, W& world, const B& beam)
 {
-    dxmc::TransportProgress progress;
+    xraymc::TransportProgress progress;
 
     bool running = true;
     std::thread job([&]() {
@@ -101,22 +101,22 @@ auto runDispatcher(T& transport, W& world, const B& beam)
 template <bool TRACK = false>
 void vizualize()
 {
-    using CTDIPhantom = dxmc::CTDIPhantom<5, 1>;
-    using Mesh = dxmc::TriangulatedMesh<5, 1>;
-    using Surface = dxmc::TriangulatedOpenSurface<5, 1>;
-    using Sphere = dxmc::WorldSphere<5, 1>;
-    using VGrid = dxmc::AAVoxelGrid<5, 1, 0>;
-    using Room = dxmc::EnclosedRoom<5, 1>;
-    using TetMesh = dxmc::TetrahedalMesh<5, 1, !TRACK>;
-    using Box = dxmc::WorldBox<5, 1>;
-    using World = dxmc::World<Mesh, Sphere, VGrid, Room, Surface, TetMesh, Box>;
+    using CTDIPhantom = xraymc::CTDIPhantom<5, 1>;
+    using Mesh = xraymc::TriangulatedMesh<5, 1>;
+    using Surface = xraymc::TriangulatedOpenSurface<5, 1>;
+    using Sphere = xraymc::WorldSphere<5, 1>;
+    using VGrid = xraymc::AAVoxelGrid<5, 1, 0>;
+    using Room = xraymc::EnclosedRoom<5, 1>;
+    using TetMesh = xraymc::TetrahedalMesh<5, 1, !TRACK>;
+    using Box = xraymc::WorldBox<5, 1>;
+    using World = xraymc::World<Mesh, Sphere, VGrid, Room, Surface, TetMesh, Box>;
 
     World world {};
     world.reserveNumberOfItems(8);
 
-    const auto carbon = dxmc::Material<5>::byZ(6).value();
-    const auto carbon_atom = dxmc::AtomHandler::Atom(6);
-    const auto carbon_dens = dxmc::AtomHandler::Atom(6).standardDensity;
+    const auto carbon = xraymc::Material<5>::byZ(6).value();
+    const auto carbon_atom = xraymc::AtomHandler::Atom(6);
+    const auto carbon_dens = xraymc::AtomHandler::Atom(6).standardDensity;
 
     auto& carm = world.template addItem<Mesh>({ "carm.stl" });
     carm.setMaterial(carbon, carbon_dens);
@@ -126,11 +126,11 @@ void vizualize()
     table.translate({ -30, 0, -20 });
     table.setMaterial(carbon, carbon_dens);
 
-    const auto lead = dxmc::Material<5>::byZ(82).value();
-    const auto lead_atom = dxmc::AtomHandler::Atom(82);
-    const auto lead_dens = dxmc::AtomHandler::Atom(82).standardDensity;
+    const auto lead = xraymc::Material<5>::byZ(82).value();
+    const auto lead_atom = xraymc::AtomHandler::Atom(82);
+    const auto lead_dens = xraymc::AtomHandler::Atom(82).standardDensity;
 
-    dxmc::STLReader stlreader;
+    xraymc::STLReader stlreader;
 
     stlreader.setFilePath("ceilingshield.stl");
     auto ceilingshield_tri = stlreader();
@@ -165,7 +165,7 @@ void vizualize()
     // std::for_each(std::execution::par_unseq, blanket_tri.begin(), blanket_tri.end(), [](auto& tri) { tri.rotate(std::numbers::pi_v<double>, { 0, 0, 1 }); });
     auto& blanket = world.template addItem<Surface>({ blanket_tri });
     auto bc = blanket.center();
-    blanket.translate(dxmc::vectormath::scale(bc, -1.0));
+    blanket.translate(xraymc::vectormath::scale(bc, -1.0));
     blanket.translate({ -20, 0, table_aabb[5] - phantom_aabb[2] + 7 });
     blanket.setMaterial(lead, lead_dens);
     blanket.setSurfaceThickness(0.1);
@@ -177,7 +177,7 @@ void vizualize()
     world.build();
 
     // adding beam
-    using Beam = dxmc::DXBeam<TRACK>;
+    using Beam = xraymc::DXBeam<TRACK>;
     const std::array<double, 3> source_pos = { 10, 0, -64 };
     Beam beam(source_pos);
     beam.setBeamSize(6, 6, 114);
@@ -190,7 +190,7 @@ void vizualize()
     }
     beam.setDAPvalue(25);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     runDispatcher(transport, world, beam);
 
     double max_doctor_dose = 0;
@@ -200,7 +200,7 @@ void vizualize()
 
     std::cout << "Max doctor dose " << max_doctor_dose << " mGy, dose norm: " << std::endl;
 
-    dxmc::VisualizeWorld viz(world);
+    xraymc::VisualizeWorld viz(world);
     if constexpr (TRACK) {
         viz.addParticleTracks(doctor.particleTracker(), 0.1);
     } else {

@@ -4,7 +4,7 @@
 # you pick up the best policies.
 cmake_minimum_required(VERSION 3.20)
 
-project(dxmclib VERSION 0.7.0 LANGUAGES CXX)
+project(xraymclib VERSION 0.7.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,8 +33,8 @@ if(MSVC)
     enable_cxx_compiler_flag_if_supported("/bigobj")  
 endif()
 
-option(DXMCLIB_USE_FAST_MATH "Build with -fast-math or /fp:fast" ON)
-if(DXMCLIB_USE_FAST_MATH)
+option(XRAYMCLIB_USE_FAST_MATH "Build with -fast-math or /fp:fast" ON)
+if(XRAYMCLIB_USE_FAST_MATH)
     if(MSVC)        
         MESSAGE("-- Building with /fp:fast flag")
         enable_cxx_compiler_flag_if_supported("/fp:fast")  
@@ -45,13 +45,13 @@ if(DXMCLIB_USE_FAST_MATH)
     endif()
 endif()
 
-option(DXMCLIB_OPTIMIZE_FOR_NATIVE "Build with -march=native on gcc/clang or AVX_x on MSVC " ON)
-if(DXMCLIB_OPTIMIZE_FOR_NATIVE)
+option(XRAYMCLIB_OPTIMIZE_FOR_NATIVE "Build with -march=native on gcc/clang or AVX_x on MSVC " ON)
+if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
     if(MSVC)
-        set(DXMCLIB_MSVC_NATIVE_OPTION "AVX2" CACHE STRING "Machine instructions support")
-        set_property(CACHE DXMCLIB_MSVC_NATIVE_OPTION PROPERTY STRINGS SSE2 AVX AVX2 AVX512)
-        MESSAGE("-- Building with /arch:${DXMCLIB_MSVC_NATIVE_OPTION} flag")
-        enable_cxx_compiler_flag_if_supported("/arch:${DXMCLIB_MSVC_NATIVE_OPTION}")          
+        set(XRAYMCLIB_MSVC_NATIVE_OPTION "AVX2" CACHE STRING "Machine instructions support")
+        set_property(CACHE XRAYMCLIB_MSVC_NATIVE_OPTION PROPERTY STRINGS SSE2 AVX AVX2 AVX512)
+        MESSAGE("-- Building with /arch:${XRAYMCLIB_MSVC_NATIVE_OPTION} flag")
+        enable_cxx_compiler_flag_if_supported("/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")          
     endif()
     if(UNIX)
         MESSAGE("-- Building with -march=native flag")
@@ -60,8 +60,8 @@ if(DXMCLIB_OPTIMIZE_FOR_NATIVE)
 endif()
 
 if(MSVC)
-    option(DXMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with /GL flag" ON)
-    if(DXMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
+    option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with /GL flag" ON)
+    if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
         MESSAGE("-- Building with /GL flag")
         enable_cxx_compiler_flag_if_supported("/GL")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
@@ -73,121 +73,121 @@ endif()
 # Find packages go here.
 find_package(Threads REQUIRED) # for threading support
 
-## setting up material library since we use same headers for both dxmclib and EPICSparser
+## setting up material library since we use same headers for both xraymclib and EPICSparser
 set(MATERIAL_HEADER_LIST 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicelement.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicshell.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomhandler.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomserializer.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomicelement.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomicshell.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomhandler.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomserializer.hpp"
 )
 
 add_library(material INTERFACE ${MATERIAL_HEADER_LIST})
-target_include_directories(material INTERFACE ${dxmclib_SOURCE_DIR}/include)
+target_include_directories(material INTERFACE ${xraymclib_SOURCE_DIR}/include)
 
 set(HEADER_LIST         
-    "${dxmclib_SOURCE_DIR}/include/dxmc/dxmcrandom.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/interactions.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/transport.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/transportprogress.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/vectormath.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/utilities/spheresamplingrectangularfield.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/utilities/spheresamplingcircularfield.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/bowtiefilter.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/ctaecfilter.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/filters/ctorganaecfilter.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/tube/tube.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/tube/betheHeitlerCrossSection.hpp"  
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/beamtype.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/pencilbeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicmonoenergybeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicmonoenergybeamcircle.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicbeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropicbeamcircle.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropiccircularmonoenergybeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/isotropiccircularbeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/cbctbeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctspiralbeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctsequentialbeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctspiraldualenergybeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/beams/ctdibeam.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/world.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/dosescore.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/energyscore.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/statickdtree.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtree.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtreeflat.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/kdtreeintersectionresult.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/visualization/visualizeworld.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/visualization/vizualizationprops.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/collisions/collisiontest.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/collisions/meshcollision.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worldintersectionresult.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/ctdiphantom.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/depthdose.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worlditemtype.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/enclosedroom.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/fluencescore.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/aavoxelgrid.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldbox.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldboxgrid.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldsphere.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/worldcylinder.hpp"  
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedopensurface.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshstlreader.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtree.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreeflat.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreetype.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/triangulatedmesh/triangle.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"    
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshkdtree.hpp" 
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/aabb.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/cylinder.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/cylinderz.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/sphere.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/world/basicshapes/tetrahedron.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicelement.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomicshell.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomhandler.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/atomserializer.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/nistmaterials.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/material/material.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/floating.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/constants.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/particle.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/particletracker.hpp"
-    "${dxmclib_SOURCE_DIR}/include/dxmc/interpolation.hpp"        
+    "${xraymclib_SOURCE_DIR}/include/xraymc/xraymcrandom.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/interactions.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/transport.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/transportprogress.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/vectormath.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/utilities/spheresamplingrectangularfield.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/utilities/spheresamplingcircularfield.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/filters/bowtiefilter.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/filters/ctaecfilter.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/filters/ctorganaecfilter.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/tube/tube.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/tube/betheHeitlerCrossSection.hpp"  
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/beamtype.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/pencilbeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/isotropicmonoenergybeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/isotropicmonoenergybeamcircle.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/isotropicbeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/isotropicbeamcircle.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/isotropiccircularmonoenergybeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/isotropiccircularbeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/cbctbeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctspiralbeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctsequentialbeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctspiraldualenergybeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctdibeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/world.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/dosescore.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/energyscore.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/statickdtree.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/kdtree.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/kdtreeflat.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/kdtreeintersectionresult.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/visualization/visualizeworld.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/visualization/vizualizationprops.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/collisions/collisiontest.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/collisions/meshcollision.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worldintersectionresult.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/ctdiphantom.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/depthdose.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worlditemtype.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/enclosedroom.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/fluencescore.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/aavoxelgrid.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldbox.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldboxgrid.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldsphere.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldcylinder.hpp"  
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedopensurface.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedmesh.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedmesh/triangulatedmeshstlreader.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedmesh/triangulatedmeshkdtree.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreeflat.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreetype.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/triangulatedmesh/triangle.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh2.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"    
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshkdtree.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/aabb.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/cylinder.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/cylinderz.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/sphere.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/tetrahedron.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomicelement.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomicshell.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomhandler.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomserializer.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/nistmaterials.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/material/material.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/floating.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/constants.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/particle.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/particletracker.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/interpolation.hpp"        
     )
 
-add_library(libdxmc INTERFACE
+add_library(libxraymc INTERFACE
     ${HEADER_LIST}
 	)
 
 target_include_directories(
-    libdxmc
+    libxraymc
     INTERFACE
     $<INSTALL_INTERFACE:include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
 # Set type of material class
-option(DXMCLIB_USE_LINEAR_INTERPOLATION "Use linear attenuation coeff interpolation" OFF)
-if(DXMCLIB_USE_LINEAR_INTERPOLATION)
+option(XRAYMCLIB_USE_LINEAR_INTERPOLATION "Use linear attenuation coeff interpolation" OFF)
+if(XRAYMCLIB_USE_LINEAR_INTERPOLATION)
     target_compile_definitions(material INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
-    target_compile_definitions(libdxmc INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
+    target_compile_definitions(libxraymc INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
 endif()
 
 # Linking to other libraries. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
-target_link_libraries(libdxmc INTERFACE 
+target_link_libraries(libxraymc INTERFACE 
     Threads::Threads # Not needed on all platforms, but doesn't hurt
     )
 
@@ -196,16 +196,16 @@ target_link_libraries(libdxmc INTERFACE
 include(GNUInstallDirs)
 
 ## Install
-install(TARGETS libdxmc 
-    EXPORT libdxmc    
+install(TARGETS libxraymc 
+    EXPORT libxraymc    
     )
 
 # EPICS data parser and physics data
 add_subdirectory(data)
 
 # Thirdparty libraries
-# Including lodePNGwrapper for dxmc
-option(DXMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" OFF)
+# Including lodePNGwrapper for xraymc
+option(XRAYMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" OFF)
 add_subdirectory(thirdparty)
 
 # Testing
@@ -232,8 +232,8 @@ endif()
 
 # Examples
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    option(DXMCLIB_BUILD_EXAMPLES "Build examples" ON)
-    if(DXMCLIB_BUILD_EXAMPLES)
+    option(XRAYMCLIB_BUILD_EXAMPLES "Build examples" ON)
+    if(XRAYMCLIB_BUILD_EXAMPLES)
         add_subdirectory(examples)
     endif()
 endif()

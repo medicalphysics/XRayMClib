@@ -1,35 +1,32 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
-#include "dxmc/interactions.hpp"
-#include "dxmc/material/material.hpp"
+#include "xraymc/interactions.hpp"
+#include "xraymc/material/material.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <thread>
-#include <chrono>
 #include <utility>
 
 using TimeType = std::chrono::high_resolution_clock::time_point;
 auto timeNow = []() { return std::chrono::high_resolution_clock::now(); };
 auto duration = [](const auto a) { return std::chrono::duration_cast<std::chrono::nanoseconds>(a).count(); };
-
-
-
 
 std::pair<double, std::map<std::size_t, double>> TG195_air()
 {
@@ -44,10 +41,10 @@ std::pair<double, std::map<std::size_t, double>> TG195_air()
 
 double testS()
 {
-   const dxmc::Particle particle = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
+    const xraymc::Particle particle = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
     const auto [air_dens, air_comp] = TG195_air();
-    const auto material = dxmc::Material<5>::byWeight(air_comp).value();
-    dxmc::RandomState state;
+    const auto material = xraymc::Material<5>::byWeight(air_comp).value();
+    xraymc::RandomState state;
 
     double S;
     double cosTheta;
@@ -61,11 +58,11 @@ double testS()
     int shell_idx;
     double pz;
     do {
-        const auto k = particle.energy / dxmc::ELECTRON_REST_MASS();
+        const auto k = particle.energy / xraymc::ELECTRON_REST_MASS();
         const auto E = particle.energy;
         do {
             // sample cosTheta
-            shell_idx = dxmc::interactions::comptonScatterIA_NRC_sample_shell(particle, material, state);
+            shell_idx = xraymc::interactions::comptonScatterIA_NRC_sample_shell(particle, material, state);
             const auto e_min = 1 / (1 + 2 * k);
             const auto g_max = 1 / e_min + e_min;
             double g;
@@ -79,7 +76,7 @@ double testS()
             } while (state.randomUniform(g_max) > g);
 
             // Binding energy in units of mec2
-            U = shell_idx < material.numberOfShells() - 1 ? material.shells()[shell_idx].bindingEnergy / dxmc::ELECTRON_REST_MASS() : 0.0;
+            U = shell_idx < material.numberOfShells() - 1 ? material.shells()[shell_idx].bindingEnergy / xraymc::ELECTRON_REST_MASS() : 0.0;
 
             // calculate pz max value; pi
             pi = (k * (k - U) * (1 - cosTheta) - U) / std::sqrt(2 * k * (k - U) * (1 - cosTheta) + U * U);
@@ -123,7 +120,6 @@ double testS()
                 S = 1 - (1 + alpha * p) * expb * 0.5;
             }
         } while (state.randomUniform() > S);
-        
 
         constexpr bool F_CORRECTION = false;
         if constexpr (F_CORRECTION) {
@@ -153,7 +149,7 @@ double testS()
             } while (state.randomUniform(Fmax) > F);
         } else {
             const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
-            const double r = std::nextafter(0.0, 0.5);            //state.randomUniform(S);
+            const double r = std::nextafter(0.0, 0.5); // state.randomUniform(S);
             if (r < 0.5) {
                 pz = (1 - std::sqrt(1 - 2 * std::log(2 * r))) / (2 * J0);
             } else {
@@ -169,15 +165,15 @@ bool longTestComptonIA()
 
     constexpr std::size_t N = 1E7;
     const auto [air_dens, air_comp] = TG195_air();
-    const auto m = dxmc::Material<5>::byWeight(air_comp).value();
-    dxmc::RandomState state;
+    const auto m = xraymc::Material<5>::byWeight(air_comp).value();
+    xraymc::RandomState state;
 
     bool res = true;
     for (std::size_t i = 0; i < N; ++i) {
-        dxmc::Particle p = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
+        xraymc::Particle p = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
         int teller = 50;
         while (p.energy > 1.0 && teller > 0 && res) {
-            auto E = dxmc::interactions::comptonScatterIA<5>(p, m, state);
+            auto E = xraymc::interactions::comptonScatterIA<5>(p, m, state);
             if (p.energy < 0.0 || p.energy > 56.4) {
                 std::cout << p.energy << " " << E << std::endl;
                 res = false;
@@ -191,16 +187,16 @@ bool longTestInteractions()
 {
     constexpr std::size_t N = 1E8;
     const auto [air_dens, air_comp] = TG195_air();
-    const auto m = dxmc::Material<5>::byWeight(air_comp).value();
-    dxmc::RandomState state;
-    dxmc::Particle p;
-    dxmc::interactions::InteractionResult res;
+    const auto m = xraymc::Material<5>::byWeight(air_comp).value();
+    xraymc::RandomState state;
+    xraymc::Particle p;
+    xraymc::interactions::InteractionResult res;
     for (std::size_t i = 0; i < N; ++i) {
         p = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
         bool alive = true;
         while (alive) {
             const auto att = m.attenuationValues(p.energy);
-            res = dxmc::interactions::interact<5, 2>(att, p, m, state);
+            res = xraymc::interactions::interact<5, 2>(att, p, m, state);
             alive = res.particleAlive;
             if (p.energy < 0 || p.energy > 56.4) {
                 std::cout << p.energy << std::endl;

@@ -1,24 +1,24 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/filters/bowtiefilter.hpp"
-#include "dxmc/beams/filters/ctorganaecfilter.hpp"
-#include "dxmc/dxmcrandom.hpp"
+#include "xraymc/beams/filters/bowtiefilter.hpp"
+#include "xraymc/beams/filters/ctorganaecfilter.hpp"
+#include "xraymc/xraymcrandom.hpp"
 
 #include <iostream>
 
@@ -159,7 +159,7 @@ bool testBowtie()
         0.340129958
     };
 
-    dxmc::BowtieFilter filter(angle, weight);
+    xraymc::BowtieFilter filter(angle, weight);
     /*
         // test values
         std::cout << "a, f1, f1s, f2, f2s, f3, f3s\n";
@@ -173,7 +173,7 @@ bool testBowtie()
 
     double w = 0;
     constexpr std::size_t N = 1E6;
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     for (std::size_t i = 0; i < N; ++i) {
         const auto ang = state.randomUniform(0.340129958);
         w += filter(ang);
@@ -192,10 +192,10 @@ bool testBowtie()
 bool testOrganAECfilter()
 {
 
-    dxmc::CTOrganAECFilter f;
+    xraymc::CTOrganAECFilter f;
 
     const auto deg45 = std::numbers::pi_v<double> / 4;
-    const auto deg10 = dxmc::DEG_TO_RAD<double>() * 10;
+    const auto deg10 = xraymc::DEG_TO_RAD<double>() * 10;
     f.setLowWeightFactor(0.25);
     f.setStartStopAngles(-deg45, deg45);
     f.setRampAngle(deg10);
@@ -203,7 +203,7 @@ bool testOrganAECfilter()
     constexpr std::size_t N = 1E6;
 
     double acc = 0;
-    dxmc::RandomState state;
+    xraymc::RandomState state;
     for (std::size_t i = 0; i < N; ++i) {
         const auto ang = state.randomUniform(-std::numbers::pi_v<double> * 1, std ::numbers::pi_v<double> * 1);
         acc += f(ang);

@@ -1,29 +1,29 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
-#include "dxmc/beams/isotropicbeam.hpp"
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/beams/tube/tube.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/fluencescore.hpp"
-#include "dxmc/world/worlditems/worldbox.hpp"
+#include "xraymc/beams/isotropicbeam.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/beams/tube/tube.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/fluencescore.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
 
 #include <iostream>
 #include <string>
@@ -32,7 +32,7 @@ Copyright 2022 Erlend Andersen
 template <typename T, typename W, typename B>
 auto runDispatcher(T& transport, W& world, const B& beam)
 {
-    dxmc::TransportProgress progress;
+    xraymc::TransportProgress progress;
 
     bool running = true;
     std::thread job([&]() {
@@ -54,10 +54,10 @@ auto runDispatcher(T& transport, W& world, const B& beam)
 template <std::size_t N = 5, int L = 2>
 void testfluencescore()
 {
-    using Box = dxmc::WorldBox<N, L>;
-    using FluenceScore = dxmc::FluenceScore;
-    using World = dxmc::World<Box, FluenceScore>;
-    using Material = dxmc::Material<N>;
+    using Box = xraymc::WorldBox<N, L>;
+    using FluenceScore = xraymc::FluenceScore;
+    using World = xraymc::World<Box, FluenceScore>;
+    using Material = xraymc::Material<N>;
 
     World world;
 
@@ -69,7 +69,7 @@ void testfluencescore()
 
     world.build();
 
-    dxmc::VisualizeWorld viz(world);
+    xraymc::VisualizeWorld viz(world);
     viz.addLineProp({ -1000, 0, 0 }, { 1, 0, 0 }, 1000, 0.1);
     int height = 528;
     int width = 528;
@@ -84,20 +84,20 @@ void testfluencescore()
         viz.savePNG(name, buffer, width, height);
     }
 
-    dxmc::Tube tube;
+    xraymc::Tube tube;
     tube.setVoltage(140);
     tube.setAlFiltration(8);
     tube.setEnergyResolution(1);
     const auto ts = tube.getSpecter();
 
-    dxmc::IsotropicBeam<> beam({ -1000, 0, 0 }, { 0, 1, 0, 0, 0, 1 });
+    xraymc::IsotropicBeam<> beam({ -1000, 0, 0 }, { 0, 1, 0, 0, 0, 1 });
     beam.setEnergySpecter(ts);
     beam.setCollimationHalfAngles(0, 0, 0, 0);
 
     beam.setNumberOfParticlesPerExposure(1E6);
     beam.setNumberOfExposures(100);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     runDispatcher(transport, world, beam);
 
     const auto specter = fluence.getSpecter();

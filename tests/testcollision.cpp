@@ -1,26 +1,26 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2025 Erlend Andersen
 */
 
-#include "dxmc/world/collisions/collisiontest.hpp"
+#include "xraymc/world/collisions/collisiontest.hpp"
 
 #include <iostream>
 
-std::vector<dxmc::Tetrahedron> tetCube()
+std::vector<xraymc::Tetrahedron> tetCube()
 {
     std::vector<std::array<double, 3>> v(16);
     v[0] = { -1, 1, 1 };
@@ -45,7 +45,7 @@ std::vector<dxmc::Tetrahedron> tetCube()
         for (auto& n : i)
             n *= 1;
 
-    std::vector<dxmc::Tetrahedron> t(12);
+    std::vector<xraymc::Tetrahedron> t(12);
 
     t[0] = { v[1], v[7], v[0], v[2], 0, 0 }; //*
     t[1] = { v[7], v[3], v[0], v[6], 0, 0 }; //*
@@ -70,16 +70,16 @@ std::vector<dxmc::Tetrahedron> tetCube()
     return t;
 }
 template <std::size_t N = 5, int L = 2, bool Fluence = true>
-dxmc::TetrahedalMesh<N, L, Fluence> cubetetrahedron()
+xraymc::TetrahedalMesh<N, L, Fluence> cubetetrahedron()
 {
     auto tets = tetCube();
 
-    std::vector<dxmc::Material<N>> mats;
-    mats.push_back(dxmc::Material<N>::byNistName("Water, Liquid").value());
+    std::vector<xraymc::Material<N>> mats;
+    mats.push_back(xraymc::Material<N>::byNistName("Water, Liquid").value());
     std::vector<double> dens(tets.size(), 1);
 
     std::vector<std::string> names(1);
-    dxmc::TetrahedalMesh<N, L, Fluence> mesh(tets, dens, mats, names, 8);
+    xraymc::TetrahedalMesh<N, L, Fluence> mesh(tets, dens, mats, names, 8);
 
     return mesh;
 }
@@ -92,7 +92,7 @@ bool testTetCube()
     auto a1 = c1.AABB();
     auto a2 = c2.AABB();
 
-    auto hit = dxmc::CollisionTests::test(c1, c2);
+    auto hit = xraymc::CollisionTests::test(c1, c2);
     return hit;
 }
 

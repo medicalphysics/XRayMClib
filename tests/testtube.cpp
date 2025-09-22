@@ -4,9 +4,9 @@
 #include <iostream>
 #include <numeric>
 
-#include "dxmc/beams/tube/tube.hpp"
+#include "xraymc/beams/tube/tube.hpp"
 
-using namespace dxmc;
+using namespace xraymc;
 
 constexpr double DOUBLEERRF = 1E-6;
 

@@ -1,29 +1,29 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/filters/ctaecfilter.hpp"
+#include "xraymc/beams/filters/ctaecfilter.hpp"
 
 #include <iostream>
 
 bool testAECCTFilter()
 {
 
-    dxmc::CTAECFilter f;
+    xraymc::CTAECFilter f;
 
     std::vector<double> w = { 5, 6, 7, 6, 3, 5, 6, 2, 6, 5, 6, 7, 8, 9, 9, 9 };
 
@@ -40,7 +40,7 @@ bool testAECCTFilter()
 bool testAECCTFilterBetween()
 {
 
-    dxmc::CTAECFilter f;
+    xraymc::CTAECFilter f;
 
     std::vector<double> w(100, 2.0); //{ 5, 6, 7, 6, 3, 5, 6, 2, 6, 5, 6, 7, 8, 9, 9, 9 };
 

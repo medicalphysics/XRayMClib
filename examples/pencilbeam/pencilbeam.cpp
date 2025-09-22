@@ -1,12 +1,12 @@
 
 
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/material/material.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/depthdose.hpp"
-#include "dxmc/world/worlditems/enclosedroom.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/material/material.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/depthdose.hpp"
+#include "xraymc/world/worlditems/enclosedroom.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -21,11 +21,11 @@ void example()
     constexpr int N_ATOMIC_SHELLS = 5; // Number of atomic shells to consider binding energies for (5 is more than sufficient).
     constexpr int LOW_ENERGY_CORRECTION = 1; /* 0: No binding energy correction, 1: Livermore correction, 2; impulse approx. correction*/
 
-    using Cylinder = dxmc::DepthDose<N_ATOMIC_SHELLS, LOW_ENERGY_CORRECTION>;
-    using Room = dxmc::EnclosedRoom<N_ATOMIC_SHELLS, LOW_ENERGY_CORRECTION>;
+    using Cylinder = xraymc::DepthDose<N_ATOMIC_SHELLS, LOW_ENERGY_CORRECTION>;
+    using Room = xraymc::EnclosedRoom<N_ATOMIC_SHELLS, LOW_ENERGY_CORRECTION>;
 
     // Create a world that can consist of one or more depthdose objects
-    dxmc::World<Cylinder, Room> world;
+    xraymc::World<Cylinder, Room> world;
     // Reserve number of items in world.
     world.reserveNumberOfItems(2);
 
@@ -34,20 +34,20 @@ void example()
 
     // Set material and density
 
-    auto aluminium = dxmc::Material<N_ATOMIC_SHELLS>::byZ(13).value();
+    auto aluminium = xraymc::Material<N_ATOMIC_SHELLS>::byZ(13).value();
     cylinder.setMaterial(aluminium, 2.27 /* g/cm3 */);
 
     // Optional set cylinder material to water
-    // auto water = dxmc::Material<N_ATOMIC_SHELLS>::byChemicalFormula("H2O").value();
+    // auto water = xraymc::Material<N_ATOMIC_SHELLS>::byChemicalFormula("H2O").value();
     // cylinder.setMaterial(water, 1.0);
 
     // Adding room with walls of concrete
     auto& room = world.template addItem<Room>({ 2 /*cm wall thickness*/, 200 /*cm inner walls sizes*/ }, "Room");
-    auto concrete = dxmc::Material<N_ATOMIC_SHELLS>::byNistName("Concrete, Ordinary").value();
-    auto concrete_density = dxmc::NISTMaterials::density("Concrete, Ordinary");
+    auto concrete = xraymc::Material<N_ATOMIC_SHELLS>::byNistName("Concrete, Ordinary").value();
+    auto concrete_density = xraymc::NISTMaterials::density("Concrete, Ordinary");
     room.setMaterial(concrete, concrete_density);
     //    Example for constructing other materials
-    //    auto water = dxmc::Material<N_ATOMIC_SHELLS>::byChemicalFormula("H2O").value();
+    //    auto water = xraymc::Material<N_ATOMIC_SHELLS>::byChemicalFormula("H2O").value();
 
     std::cout << "with radius " << cylinder.radius() << " cm and height " << cylinder.length() << " cm\n";
 
@@ -55,13 +55,13 @@ void example()
     world.build();
 
     // Define a radiation source
-    dxmc::PencilBeam<> beam({ 0, 0, -10 } /* position */, { 0, 0, 1 } /* direction */);
+    xraymc::PencilBeam<> beam({ 0, 0, -10 } /* position */, { 0, 0, 1 } /* direction */);
     beam.setNumberOfExposures(64); // number of jobs
     beam.setNumberOfParticlesPerExposure(1000000); // histories per job
 
     // Run simulation
     auto nThreads = std::max(std::thread::hardware_concurrency(), std::uint32_t { 1 });
-    auto time_elapsed = dxmc::Transport::runConsole(world, beam, nThreads, true);
+    auto time_elapsed = xraymc::Transport::runConsole(world, beam, nThreads, true);
 
     // Get max dose and print some values
     std::cout << "Depth dose in cylinder for " << beam.numberOfParticles() << " photons of " << beam.energy() << " keV\n";
@@ -78,7 +78,7 @@ void example()
     }
 
     // Generate some images
-    dxmc::VisualizeWorld viz(world);
+    xraymc::VisualizeWorld viz(world);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
     viz.setDistance(60);
     viz.setAzimuthalAngleDeg(90);

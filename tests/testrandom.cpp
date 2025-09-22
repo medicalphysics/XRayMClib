@@ -1,22 +1,22 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/dxmcrandom.hpp"
+#include "xraymc/xraymcrandom.hpp"
 
 #include <algorithm>
 #include <array>
@@ -27,7 +27,7 @@ Copyright 2023 Erlend Andersen
 #include <numeric>
 #include <vector>
 
-using namespace dxmc;
+using namespace xraymc;
 
 constexpr double ERRF = 1e-4;
 inline bool isEqual(double a, double b)
@@ -45,7 +45,7 @@ bool testDistribution()
         x.push_back(w);
     }
 
-    dxmc::RandomDistribution dist(x);
+    xraymc::RandomDistribution dist(x);
 
     constexpr std::size_t N = 1e6;
 
@@ -87,7 +87,7 @@ bool testSpecterDistribution()
         pos.push_back(val);
     }
 
-    dxmc::SpecterDistribution dist(x);
+    xraymc::SpecterDistribution dist(x);
 
     constexpr std::size_t N = 1e6;
 
@@ -236,8 +236,8 @@ bool testCPDFdist(bool print = false)
     const T xmin = -3;
     const T xmax = 3;
     const std::size_t N = 50;
-    dxmc::CPDFSampling samp(xmin, xmax, f);
-    dxmc::RandomState state;
+    xraymc::CPDFSampling samp(xmin, xmax, f);
+    xraymc::RandomState state;
     std::vector<T> hist(N, T { 0 });
     const auto step = (xmax - xmin) / (N);
     constexpr std::size_t Nsamp = 1E7;

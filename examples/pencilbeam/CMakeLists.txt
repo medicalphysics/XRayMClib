@@ -1,26 +1,26 @@
 
-# testing to see if dxmclib target is defined. If it's not we will download 
-# dxmclib at configure time.
-IF( NOT TARGET libdxmc)
+# testing to see if xraymclib target is defined. If it's not we will download 
+# xraymclib at configure time.
+IF( NOT TARGET libxraymc)
 	include(FetchContent)
-	## Adding DXMClib package
+	## Adding xraymclib package
 	FetchContent_Declare(
-		libdxmc
-		GIT_REPOSITORY https://github.com/medicalphysics/DXMClib.git
+		libxraymc
+		GIT_REPOSITORY https://github.com/medicalphysics/xraymclib.git
 		GIT_TAG master
 		)
-	FetchContent_MakeAvailable(libdxmc)
+	FetchContent_MakeAvailable(libxraymc)
 ENDIF()
 
 #Define an executable
 add_executable(pencilbeam pencilbeam.cpp)
 
-#Linking to dxmclib
-target_link_libraries(pencilbeam PRIVATE libdxmc)
+#Linking to xraymclib
+target_link_libraries(pencilbeam PRIVATE libxraymc)
 
 #Adding interaction binary data to example 
 #This cmake function vil copy physicslist.bin to executable folder
-dxmclib_add_physics_list(pencilbeam)
+xraymclib_add_physics_list(pencilbeam)
 
 install(TARGETS pencilbeam
 	RUNTIME DESTINATION examples)

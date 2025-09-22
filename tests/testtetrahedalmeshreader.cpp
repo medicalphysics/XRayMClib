@@ -1,23 +1,23 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2022 Erlend Andersen
 */
 
-#include "dxmc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
-#include "dxmc/world/worlditems/tetrahedalmesh2.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh2.hpp"
 
 #include <iostream>
 #include <string>
@@ -26,10 +26,10 @@ Copyright 2022 Erlend Andersen
 void test()
 {
 
-    dxmc::TetrahedalmeshReader reader;
+    xraymc::TetrahedalmeshReader reader;
 
     std::string node = R"(C:\Users\ander\OneDrive\phantomsMNCP\Pregnant_MRCPs\Pregnant_MRCPs\2. TM-version MRCPs\38wM.node)";
-    std::string ele =  R"(C:\Users\ander\OneDrive\phantomsMNCP\Pregnant_MRCPs\Pregnant_MRCPs\2. TM-version MRCPs\38wM.ele)";
+    std::string ele = R"(C:\Users\ander\OneDrive\phantomsMNCP\Pregnant_MRCPs\Pregnant_MRCPs\2. TM-version MRCPs\38wM.ele)";
     std::string matorg = R"(C:\Users\ander\OneDrive\phantomsMNCP\Pregnant_MRCPs\Pregnant_MRCPs\3. Material Files (for TM-version MRCPs)\38wM.material)";
 
     reader.readICRPPregnantPhantom(node, ele, matorg);
@@ -37,9 +37,8 @@ void test()
 
 bool testtetmesh2()
 {
-    using TetMesh = dxmc::TetrahedalMesh2<5, 1, false>;
-    using Data = dxmc::TetrahedalMeshData;
-    
+    using TetMesh = xraymc::TetrahedalMesh2<5, 1, false>;
+    using Data = xraymc::TetrahedalMeshData;
 
     std::vector<std::array<double, 3>> v(16);
     v[0] = { -1, 1, 1 };
@@ -84,7 +83,6 @@ bool testtetmesh2()
     data.collectionNames.resize(1, "Carbon");
     TetMesh mesh(data);
 
-    
     return false;
 }
 

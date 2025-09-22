@@ -1,40 +1,40 @@
-/*This file is part of DXMClib.
+/*This file is part of XRayMClib.
 
-DXMClib is free software : you can redistribute it and/or modify
+XRayMClib is free software : you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-DXMClib is distributed in the hope that it will be useful,
+XRayMClib is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 Copyright 2023 Erlend Andersen
 */
 
-#include "dxmc/beams/isotropicmonoenergybeam.hpp"
-#include "dxmc/beams/pencilbeam.hpp"
-#include "dxmc/transport.hpp"
-#include "dxmc/world/visualization/visualizeworld.hpp"
-#include "dxmc/world/world.hpp"
-#include "dxmc/world/worlditems/aavoxelgrid.hpp"
-#include "dxmc/world/worlditems/ctdiphantom.hpp"
-#include "dxmc/world/worlditems/depthdose.hpp"
-#include "dxmc/world/worlditems/triangulatedmesh.hpp"
-#include "dxmc/world/worlditems/worldbox.hpp"
-#include "dxmc/world/worlditems/worldcylinder.hpp"
-#include "dxmc/world/worlditems/worldsphere.hpp"
+#include "xraymc/beams/isotropicmonoenergybeam.hpp"
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/ctdiphantom.hpp"
+#include "xraymc/world/worlditems/depthdose.hpp"
+#include "xraymc/world/worlditems/triangulatedmesh.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
+#include "xraymc/world/worlditems/worldcylinder.hpp"
+#include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <iostream>
 
 template <typename T, typename W, typename B>
 auto runDispatcher(T& transport, W& world, const B& beam)
 {
-    dxmc::TransportProgress progress;
+    xraymc::TransportProgress progress;
 
     bool running = true;
     std::thread job([&]() {
@@ -63,10 +63,10 @@ void saveBinaryArray(const std::vector<double>& data, const std::string& name)
 
 bool testTriangularMesh()
 {
-    using Mesh = dxmc::TriangulatedMesh<5, 1>;
-    using World = dxmc::World<Mesh>;
-    using Triangle = dxmc::Triangle;
-    using Box = dxmc::WorldBox<5, 1>;
+    using Mesh = xraymc::TriangulatedMesh<5, 1>;
+    using World = xraymc::World<Mesh>;
+    using Triangle = xraymc::Triangle;
+    using Box = xraymc::WorldBox<5, 1>;
 
     std::vector<Triangle> triangles;
     /* triangles.push_back({ { 1, 1, 1 }, { -1, 1, 1 }, { -1, -1, 1 } });
@@ -94,12 +94,12 @@ bool testTriangularMesh()
     mesh.setNistMaterial("Water, Liquid");
     world.build();
 
-    dxmc::World<Box> worldBox;
+    xraymc::World<Box> worldBox;
     auto& box = worldBox.template addItem<Box>({ 1 });
     box.setNistMaterial("Water, Liquid");
     worldBox.build();
 
-    using Beam = dxmc::IsotropicMonoEnergyBeam<>;
+    using Beam = xraymc::IsotropicMonoEnergyBeam<>;
 
     Beam beam;
     beam.setPosition({ 0, 0, -1 });
@@ -108,7 +108,7 @@ bool testTriangularMesh()
     beam.setNumberOfExposures(32);
     beam.setNumberOfParticlesPerExposure(1E5);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     // transport(world, beam);
     // transport(worldBox, beam);
 
@@ -120,7 +120,7 @@ bool testTriangularMesh()
     auto test = (dose.dose() - doseBox.dose()) / std::sqrt((dose.variance() + doseBox.variance()) / 2);
     std::cout << "t-test: " << test << "\n";
 
-    dxmc::VisualizeWorld viz(world);
+    xraymc::VisualizeWorld viz(world);
     viz.setPolarAngle(std::numbers::pi_v<double> * 1.0f / 3.0f);
     viz.setAzimuthalAngle(std::numbers::pi_v<double> * 1.0f / 3.0f);
     viz.setDistance(60);
@@ -137,22 +137,22 @@ bool testTriangularMesh()
 
 bool testCylinder()
 {
-    using Cylinder = dxmc::WorldCylinder<5, 1>;
+    using Cylinder = xraymc::WorldCylinder<5, 1>;
 
-    dxmc::World<Cylinder> world;
+    xraymc::World<Cylinder> world;
 
     auto& cylinder = world.template addItem<Cylinder>({ 4, 60 });
 
     world.build(120);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
 
     std::uint64_t nPart = 0;
     std::chrono::milliseconds time;
 
     constexpr double dist = 60;
 
-    dxmc::IsotropicMonoEnergyBeam<> beam;
+    xraymc::IsotropicMonoEnergyBeam<> beam;
     const auto collAngleY = std::atan(2.0f / dist);
     const auto collAngleZ = std::atan(2.0f / dist);
     beam.setCollimationHalfAngles({ -collAngleY, -collAngleZ, collAngleY, collAngleZ });
@@ -162,17 +162,17 @@ bool testCylinder()
 
     std::cout << "Angle, EnergyImparted, nEvents, StdDev*2" << std::endl;
 
-    std::vector<dxmc::EnergyScore> res(8 * 3);
+    std::vector<xraymc::EnergyScore> res(8 * 3);
     const double angStep = 360 / res.size();
     for (int ang = 0; ang < res.size(); ++ang) {
-        const auto a = dxmc::DEG_TO_RAD() * ang * angStep;
+        const auto a = xraymc::DEG_TO_RAD() * ang * angStep;
         constexpr std::array<double, 3> pos = { -dist, 0, 0 };
         constexpr std::array<double, 3> cosy = { 0, 1, 0 };
         constexpr std::array<double, 3> cosz = { 0, 0, 1 };
 
-        auto rpos = dxmc::vectormath::rotate(pos, { 0, 0, 1 }, a);
-        auto rcosy = dxmc::vectormath::rotate(cosy, { 0, 0, 1 }, a);
-        auto rcosz = dxmc::vectormath::rotate(cosz, { 0, 0, 1 }, a);
+        auto rpos = xraymc::vectormath::rotate(pos, { 0, 0, 1 }, a);
+        auto rcosy = xraymc::vectormath::rotate(cosy, { 0, 0, 1 }, a);
+        auto rcosz = xraymc::vectormath::rotate(cosz, { 0, 0, 1 }, a);
         beam.setPosition(rpos);
         beam.setDirectionCosines(rcosy, rcosz);
 
@@ -190,22 +190,22 @@ bool testCylinder()
 
 bool testCTDI()
 {
-    using CTDI = dxmc::CTDIPhantom<5, 1>;
-    using Box = dxmc::WorldBox<4, 1>;
+    using CTDI = xraymc::CTDIPhantom<5, 1>;
+    using Box = xraymc::WorldBox<4, 1>;
 
-    dxmc::World<CTDI, Box> world;
+    xraymc::World<CTDI, Box> world;
     auto& phantom = world.template addItem<CTDI>({});
 
-    phantom.setHoleMaterial("Polymethyl Methacralate (Lucite, Perspex)", dxmc::NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)"));
+    phantom.setHoleMaterial("Polymethyl Methacralate (Lucite, Perspex)", xraymc::NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)"));
 
     world.build(30);
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
 
     std::uint64_t nPart = 0;
     std::chrono::milliseconds time;
 
-    dxmc::IsotropicMonoEnergyBeam<> beam;
+    xraymc::IsotropicMonoEnergyBeam<> beam;
 
     const auto collAngleY = std::atan(16.0 / 60);
     const auto collAngleZ = 0; //    std::atan(4.0f / 60);
@@ -216,14 +216,14 @@ bool testCTDI()
     std::vector<std::array<double, 6>> res(8);
     constexpr double angStep = 45;
     for (int ang = 0; ang < res.size(); ++ang) {
-        const auto a = dxmc::DEG_TO_RAD() * ang * angStep;
+        const auto a = xraymc::DEG_TO_RAD() * ang * angStep;
         constexpr std::array<double, 3> pos = { -60, 0, 0 };
         constexpr std::array<double, 3> cosy = { 0, 1, 0 };
         constexpr std::array<double, 3> cosz = { 0, 0, 1 };
 
-        auto rpos = dxmc::vectormath::rotate(pos, { 0, 0, 1 }, a);
-        auto rcosy = dxmc::vectormath::rotate(cosy, { 0, 0, 1 }, a);
-        auto rcosz = dxmc::vectormath::rotate(cosz, { 0, 0, 1 }, a);
+        auto rpos = xraymc::vectormath::rotate(pos, { 0, 0, 1 }, a);
+        auto rcosy = xraymc::vectormath::rotate(cosy, { 0, 0, 1 }, a);
+        auto rcosz = xraymc::vectormath::rotate(cosz, { 0, 0, 1 }, a);
         beam.setPosition(rpos);
         beam.setDirectionCosines(rcosy, rcosz);
 
@@ -253,13 +253,13 @@ bool testCTDI()
 
 bool testDepth(bool print = false)
 {
-    using Cylinder = dxmc::DepthDose<5, 2>;
-    using World = dxmc::World<Cylinder>;
-    using Beam = dxmc::PencilBeam<>;
+    using Cylinder = xraymc::DepthDose<5, 2>;
+    using World = xraymc::World<Cylinder>;
+    using Beam = xraymc::PencilBeam<>;
 
     World world;
     auto& cylinder = world.template addItem<Cylinder>({ 0.1, 20, 20 });
-    auto material = dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)");
+    auto material = xraymc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)");
     if (material) {
         cylinder.setMaterial(material.value());
         cylinder.setMaterialDensity(1.19);
@@ -278,7 +278,7 @@ bool testDepth(bool print = false)
 
     // beam.setParticleWeight(T { 0.5 });
 
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     auto time = runDispatcher(transport, world, beam);
 
     if (print)
@@ -372,19 +372,19 @@ bool testAAVoxelGridTransport()
 {
     bool success = true;
 
-    using AAVoxelGrid = dxmc::AAVoxelGrid<5, 1, TRANSPARENT>;
-    using Cylinder = dxmc::WorldCylinder<5, 2>;
-    using Sphere = dxmc::WorldSphere<5, 2>;
-    using World = dxmc::World<AAVoxelGrid, Sphere>;
+    using AAVoxelGrid = xraymc::AAVoxelGrid<5, 1, TRANSPARENT>;
+    using Cylinder = xraymc::WorldCylinder<5, 2>;
+    using Sphere = xraymc::WorldSphere<5, 2>;
+    using World = xraymc::World<AAVoxelGrid, Sphere>;
 
     World world;
     auto& grid = world.addItem(AAVoxelGrid());
     auto& sphere = world.addItem(Sphere(3));
 
-    auto air = dxmc::Material<5>::byNistName("Air, Dry (near sea level)").value();
-    auto pmma = dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value();
-    const auto air_dens = dxmc::NISTMaterials::density("Air, Dry (near sea level)");
-    const auto pmma_dens = dxmc::NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)");
+    auto air = xraymc::Material<5>::byNistName("Air, Dry (near sea level)").value();
+    auto pmma = xraymc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value();
+    const auto air_dens = xraymc::NISTMaterials::density("Air, Dry (near sea level)");
+    const auto pmma_dens = xraymc::NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)");
 
     sphere.setMaterial(pmma);
     sphere.setMaterialDensity(pmma_dens);
@@ -398,16 +398,16 @@ bool testAAVoxelGridTransport()
     // auto matInd = generateEdges<std::uint8_t>(dim, spacing);
     std::vector<double> dens(size, air_dens);
     std::transform(matInd.cbegin(), matInd.cend(), dens.begin(), [=](const auto i) { return i == 0 ? air_dens : pmma_dens; });
-    std::vector<dxmc::Material<5>> materials;
+    std::vector<xraymc::Material<5>> materials;
     materials.push_back(air);
     materials.push_back(pmma);
     grid.setData(dim, dens, matInd, materials);
     grid.setSpacing(spacing);
 
-    dxmc::PencilBeam<> beam({ 0, 0, -100 }, { 0, 0, 1 }, 60);
+    xraymc::PencilBeam<> beam({ 0, 0, -100 }, { 0, 0, 1 }, 60);
     beam.setNumberOfExposures(64);
     beam.setNumberOfParticlesPerExposure(100000);
-    dxmc::Transport transport;
+    xraymc::Transport transport;
     world.build();
     auto time = runDispatcher(transport, world, beam);
     std::cout << std::format("Total time: {}", time) << std::endl;
@@ -424,12 +424,12 @@ bool testAAVoxelGridTransport()
 
 bool testAAVoxelGrid()
 {
-    dxmc::AAVoxelGrid<5> item;
+    xraymc::AAVoxelGrid<5> item;
 
-    auto air = dxmc::Material<5>::byNistName("Air, Dry (near sea level)").value();
-    auto pmma = dxmc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value();
-    const auto air_dens = dxmc::NISTMaterials::density("Air, Dry (near sea level)");
-    const auto pmma_dens = dxmc::NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)");
+    auto air = xraymc::Material<5>::byNistName("Air, Dry (near sea level)").value();
+    auto pmma = xraymc::Material<5>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value();
+    const auto air_dens = xraymc::NISTMaterials::density("Air, Dry (near sea level)");
+    const auto pmma_dens = xraymc::NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)");
 
     const std::array<std::size_t, 3> dim = { 64, 64, 64 };
     const auto size = std::reduce(dim.cbegin(), dim.cend(), size_t { 1 }, std::multiplies<>());
@@ -438,7 +438,7 @@ bool testAAVoxelGrid()
     // material arrays
     std::vector<double> dens(size, air_dens);
     std::vector<std::uint8_t> materialIdx(size, 0);
-    std::vector<dxmc::Material<5>> materials;
+    std::vector<xraymc::Material<5>> materials;
     materials.push_back(air);
     materials.push_back(pmma);
 
@@ -470,7 +470,7 @@ bool testAAVoxelGrid()
     item.setData(dim, dens, materialIdx, materials);
     item.setSpacing(spacing);
 
-    dxmc::Particle p;
+    xraymc::Particle p;
 
     p.pos = { -100, 0, 0 };
     p.dir = { 1, 0, 0 };
@@ -484,7 +484,7 @@ bool testAAVoxelGrid()
 
     p.pos = { -100, -100, -100 };
     p.dir = { 1, 1, 1 };
-    dxmc::vectormath::normalize(p.dir);
+    xraymc::vectormath::normalize(p.dir);
     res = item.intersect(p);
     auto val = std::sqrt(3 * 100 * 100.0) - std::sqrt(3 * spacing[0] * spacing[0] / 4);
     success = success && res.valid() && val - res.intersection < 1E-6;

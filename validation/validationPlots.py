@@ -1,17 +1,17 @@
-# This file is part of DXMClib.
+# This file is part of XRayMClib.
 
-# DXMClib is free software : you can redistribute it and/or modify
+# XRayMClib is free software : you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-# DXMClib is distributed in the hope that it will be useful,
+# XRayMClib is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 
 # You should have received a copy of the GNU General Public License
-# along with DXMClib. If not, see < https://www.gnu.org/licenses/>.
+# along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
 # Copyright 2024 Erlend Andersen
 
@@ -59,7 +59,7 @@ def readTG195Data(path):
     return dt_long
 
 
-def readdxmcData(path):
+def readxraymcData(path):
     converters = {
         "Case": str,
         "Volume": str,
@@ -113,9 +113,9 @@ def readdxmcData(path):
     return dxl
 
 
-def readData(dxmc_path, TG195_path, relative_percent=True):
+def readData(xraymc_path, TG195_path, relative_percent=True):
 
-    dx = readdxmcData(dxmc_path)
+    dx = readxraymcData(xraymc_path)
     dtg = readTG195Data(TG195_path)
     dt_long = dtg.merge(dx, how="outer")
 
@@ -474,7 +474,7 @@ if __name__ == "__main__":
     # Setting current path to this file folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    data = readData("ValidationTable.txt", "TG195Results.txt")
+    data = readData("validationTable.txt", "TG195results.txt")
 
     ## If rename to XRayMC
     # data["Model"] = data["Model"].str.replace("IA", "XRayMC", regex=False)
