@@ -81,7 +81,7 @@ namespace interactions {
     template <std::size_t Nshells>
     int comptonScatterIA_NRC_sample_shell(const ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
-        auto r = state.randomUniform();
+        /*auto r = state.randomUniform();
         double acc = 0;
         const auto& shells = material.shells();
         int shell = -1;
@@ -94,6 +94,21 @@ namespace interactions {
             }
         } while (acc < r);
         return shell;
+*/
+        const auto& shells = material.shells();
+        int shell = 0;
+        double min_acc = 0;
+        while (particle.energy < shells[shell].bindingEnergy) {
+            min_acc += shells[shell].numberOfElectronsFraction;
+            ++shell;
+        }
+        const auto r = state.randomUniform(min_acc, 1.0);
+        do {
+            min_acc += shells[shell].numberOfElectronsFraction;
+            ++shell;
+        } while (r > min_acc);
+
+        return shell - 1;
     }
 
     template <std::size_t Nshells>
@@ -146,7 +161,7 @@ namespace interactions {
             if (pi < -p) {
                 S = (1 - alpha * p) * expb * 0.5;
             } else if (pi <= 0) {
-                const auto S1 = (1 - alpha * pi) * expb * 0.5;
+                const auto S1 = (1 + alpha * pi) * expb * 0.5;
                 if constexpr (USE_SECOND_ORDER_APPROXIMATION) {
                     const double pik = std::exp(0.5) / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
                     const auto S2 = -alpha / (4 * J0) * pik;
@@ -157,7 +172,7 @@ namespace interactions {
                     S = S1;
                 }
             } else if (pi < p) {
-                const auto S1 = (1 - alpha * pi) * expb * 0.5;
+                const auto S1 = (1 + alpha * pi) * expb * 0.5;
                 if constexpr (USE_SECOND_ORDER_APPROXIMATION) {
                     const double pik = std::exp(0.5) / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
                     const auto S2 = -alpha / (4 * J0) * pik;
@@ -187,6 +202,7 @@ namespace interactions {
                 Fmax = 1 + alpha * p;
             }
             do {
+                // const auto r = state.randomUniform(expb);
                 const auto r = state.randomUniform(S);
                 if (r < 0.5) {
                     const auto logarg = std::max(2 * r, std::numeric_limits<double>::epsilon());
@@ -204,9 +220,10 @@ namespace interactions {
                 } else {
                     F = 1 + alpha * p;
                 }
-            } while (state.randomUniform(Fmax) > F);
+            } while (state.randomUniform() > F / Fmax);
         } else {
             const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
+            // const auto r = state.randomUniform(expb);
             const auto r = state.randomUniform(S);
             if (r < 0.5) {
                 const auto logarg = std::max(2 * r, std::numeric_limits<double>::epsilon());
@@ -219,14 +236,15 @@ namespace interactions {
             }
         }
 
+        // calculating kbar
+        const auto bar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
+        const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
+        particle.energy = std::min(kbar * ELECTRON_REST_MASS(), E);
+
         const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
         const auto theta = std::acos(cosTheta);
         particle.dir = vectormath::peturb(particle.dir, theta, phi);
 
-        // calculating kbar
-        const auto bar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
-        const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
-        particle.energy = kbar * ELECTRON_REST_MASS();
         return (E - particle.energy) * particle.weight;
     }
 

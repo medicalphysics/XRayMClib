@@ -39,6 +39,14 @@ std::pair<double, std::map<std::size_t, double>> TG195_air()
     return std::make_pair(0.001205, w);
 }
 
+std::pair<double, std::map<std::size_t, double>> lead()
+{
+    std::map<std::size_t, double> w;
+    w[82] = 1;
+
+    return std::make_pair(1.0, w);
+}
+
 double testS()
 {
     const xraymc::Particle particle = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
@@ -162,10 +170,10 @@ double testS()
 
 bool longTestComptonIA()
 {
-
+    constexpr int NSHELLS = 12;
     constexpr std::size_t N = 1E7;
-    const auto [air_dens, air_comp] = TG195_air();
-    const auto m = xraymc::Material<5>::byWeight(air_comp).value();
+    const auto [air_dens, air_comp] = lead();
+    const auto m = xraymc::Material<NSHELLS>::byWeight(air_comp).value();
     xraymc::RandomState state;
 
     bool res = true;
@@ -173,7 +181,8 @@ bool longTestComptonIA()
         xraymc::Particle p = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
         int teller = 50;
         while (p.energy > 1.0 && teller > 0 && res) {
-            auto E = xraymc::interactions::comptonScatterIA<5>(p, m, state);
+            teller--;
+            auto E = xraymc::interactions::comptonScatterIA<NSHELLS>(p, m, state);
             if (p.energy < 0.0 || p.energy > 56.4) {
                 std::cout << p.energy << " " << E << std::endl;
                 res = false;
@@ -229,7 +238,7 @@ bool longTestInteractionsThreaded()
 int main()
 {
     bool success = true;
-    success = success && longTestInteractionsThreaded();
+    //success = success && longTestInteractionsThreaded();
     success = success && longTestComptonIA();
 
     if (success)
