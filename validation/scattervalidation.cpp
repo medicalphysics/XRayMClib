@@ -25,7 +25,7 @@ Copyright 2024 Erlend Andersen
 #include <iostream>
 #include <thread>
 
-constexpr int NSHELLS = 12;
+constexpr int NSHELLS = 36;
 constexpr std::size_t N = 5E7;
 
 struct Histogram {
@@ -273,18 +273,18 @@ int main()
     // energies.push_back(15);
     energies.push_back(16.8);
     energies.push_back(30);
-    energies.push_back(50);
+    //energies.push_back(50);
     energies.push_back(120);
 
     std::vector<std::string> material_names;
-    material_names.push_back("Water, Liquid");
-    material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
+    //material_names.push_back("Water, Liquid");
+    //material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
     material_names.push_back("Gold");
     material_names.push_back("TG195Breast");
 
     std::vector<xraymc::Material<NSHELLS>> materials;
-    materials.push_back(xraymc::Material<NSHELLS>::byNistName("Water, Liquid").value());
-    materials.push_back(xraymc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
+    //materials.push_back(xraymc::Material<NSHELLS>::byNistName("Water, Liquid").value());
+    //materials.push_back(xraymc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
     materials.push_back(xraymc::Material<NSHELLS>::byZ(79).value());
     materials.push_back(TG195_breast_tissue());
 
