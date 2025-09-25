@@ -132,24 +132,6 @@ public:
         }
     }
 
-    void mirror(const std::array<double, 3>& point)
-    {
-        std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
-            tri.mirror(point);
-        });
-        m_kdtree.mirror(point);
-        calculateAABB();
-    }
-
-    void mirror(const double value, const std::uint_fast32_t dim)
-    {
-        std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
-            tri.mirror(value, dim);
-        });
-        m_kdtree.mirror(value, dim);
-        calculateAABB();
-    }
-
     void rotate(const double angle, const std::array<double, 3>& axis, const std::array<double, 3>& point)
     {
         const auto depth = m_kdtree.maxDepth();
