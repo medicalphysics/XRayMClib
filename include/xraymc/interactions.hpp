@@ -81,20 +81,6 @@ namespace interactions {
     template <std::size_t Nshells>
     int comptonScatterIA_NRC_sample_shell(const ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
-        /*auto r = state.randomUniform();
-        double acc = 0;
-        const auto& shells = material.shells();
-        int shell = -1;
-        do {
-            ++shell;
-            if (particle.energy < shells[shell].bindingEnergy) {
-                r -= shells[shell].numberOfElectronsFraction;
-            } else {
-                acc += shells[shell].numberOfElectronsFraction;
-            }
-        } while (acc < r);
-        return shell;
-*/
         const auto& shells = material.shells();
         int shell = 0;
         double min_acc = 0;
@@ -239,7 +225,11 @@ namespace interactions {
         // calculating kbar
         const auto bar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
         const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
-        particle.energy = std::min(kbar * ELECTRON_REST_MASS(), E);
+
+        // For high Z materials and low energy photons, we can have |pz| > 1. This is not
+        // valid for our non relativistic treatment of pz and tehre is a small chance of
+        // ketting a negative kbar. Hence we limit the photon energy
+        particle.energy = std::clamp(kbar * ELECTRON_REST_MASS(), 0.0, E);
 
         const auto phi = state.randomUniform(PI_VAL() + PI_VAL());
         const auto theta = std::acos(cosTheta);
