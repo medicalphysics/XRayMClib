@@ -19,6 +19,7 @@ Copyright 2025 Erlend Andersen
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace xraymc {
@@ -26,6 +27,8 @@ struct TetrahedalMeshCollection {
     double density = 0;
     double volume = 0;
     double dose = 0;
+    double doseVariance = 0;
+    std::uint64_t numberOfEvents = 0;
     std::string name;
 };
 }

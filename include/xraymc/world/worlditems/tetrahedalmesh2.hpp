@@ -228,11 +228,12 @@ public:
                     const auto& v3 = nodes[elements[nIdx][3]];
                     const auto vol = basicshape::tetrahedron::volume(v0, v1, v2, v3);
                     data[i].volume += vol;
-                    data[i].dose += m_doseScore[nIdx].dose() * data[i].density * vol;
+                    // We can simply add dose since density is constant for each collection
+                    data[i].dose += m_doseScore[nIdx].dose();
+                    data[i].doseVariance += m_doseScore[nIdx].variance();
+                    data[i].numberOfEvents += m_doseScore[nIdx].numberOfEvents();
                 }
             }
-
-            data[i].dose /= (data[i].density * data[i].volume);
         }
         return data;
     }
