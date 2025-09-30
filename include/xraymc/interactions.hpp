@@ -137,7 +137,7 @@ namespace interactions {
             const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
             kc = k * e;
             const auto qc = std::sqrt(k * k + kc * kc - 2 * k * kc * cosTheta);
-            alpha = qc / k + kc * (kc - k * cosTheta) / (k * qc);
+            alpha = std::max(0.0, qc / k + kc * (kc - k * cosTheta) / (k * qc)); // alpha must be >= 0
             const auto b_part = (1 + 2 * J0 * std::abs(pi));
             expb = std::exp(-(0.5 * b_part * b_part - 0.5));
 
@@ -188,7 +188,6 @@ namespace interactions {
                 Fmax = 1 + alpha * p;
             }
             do {
-                // const auto r = state.randomUniform(expb);
                 const auto r = state.randomUniform(S);
                 if (r < 0.5) {
                     const auto logarg = std::max(2 * r, std::numeric_limits<double>::epsilon());
@@ -209,7 +208,6 @@ namespace interactions {
             } while (state.randomUniform() > F / Fmax);
         } else {
             const auto J0 = material.shells()[shell_idx].HartreeFockOrbital_0;
-            // const auto r = state.randomUniform(expb);
             const auto r = state.randomUniform(S);
             if (r < 0.5) {
                 const auto logarg = std::max(2 * r, std::numeric_limits<double>::epsilon());
