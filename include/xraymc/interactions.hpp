@@ -144,33 +144,46 @@ namespace interactions {
             p = std::sqrt((U + 1) * (U + 1) - 1);
 
             constexpr bool USE_SECOND_ORDER_APPROXIMATION = false;
-            if (pi < -p) {
-                S = (1 - alpha * p) * expb * 0.5;
-            } else if (pi <= 0) {
-                const auto S1 = (1 + alpha * pi) * expb * 0.5;
-                if constexpr (USE_SECOND_ORDER_APPROXIMATION) {
-                    const double pik = std::exp(0.5) / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
+            if constexpr (USE_SECOND_ORDER_APPROXIMATION) {
+                auto Erf = [](const auto expb_arg, const auto J0_arg, const auto pi_arg) -> double {
+                    // approximation of the error function
+                    constexpr double sqrt_e = 1.648721270;
+                    const auto t = 1.0 / (1.0 + 0332673 * (1 + 2 * J0_arg * std::abs(pi_arg)));
+                    constexpr auto a1 = 0.34802;
+                    constexpr auto a2 = -0.0958798;
+                    constexpr auto a3 = 0.7478556;
+                    return sqrt_e - expb_arg * t * (a1 + a2 * t + a3 * t * t);
+                };
+                if (pi < -p) {
+                    S = (1 - alpha * p) * expb * 0.5;
+                } else if (pi <= 0) {
+                    const auto S1 = (1 + alpha * pi) * expb * 0.5;
+                    constexpr double pik = 1.0 / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
                     const auto S2 = -alpha / (4 * J0) * pik;
-                    const auto errf1 = std::erf((1 + 2 * J0 * p) / std::numbers::sqrt2);
-                    const auto errf2 = std::erf((1 + 2 * J0 * std::abs(pi)) / std::numbers::sqrt2);
+                    const auto errf1 = Erf(expb, J0, p);
+                    const auto errf2 = Erf(expb, J0, pi);
                     S = S1 + S2 * (errf1 - errf2);
-                } else {
-                    S = S1;
-                }
-            } else if (pi < p) {
-                const auto S1 = (1 + alpha * pi) * expb * 0.5;
-                if constexpr (USE_SECOND_ORDER_APPROXIMATION) {
-                    const double pik = std::exp(0.5) / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
+                } else if (pi < p) {
+                    const auto S1 = (1 + alpha * pi) * expb * 0.5;
+                    constexpr double pik = 1.0 / (std::numbers::sqrt2 * std::numbers::inv_sqrtpi);
                     const auto S2 = -alpha / (4 * J0) * pik;
-                    const auto errf1 = std::erf((1 + 2 * J0 * p) / std::numbers::sqrt2);
-                    const auto errf2 = std::erf((1 + 2 * J0 * std::abs(pi)) / std::numbers::sqrt2);
+                    const auto errf1 = Erf(expb, J0, p);
+                    const auto errf2 = Erf(expb, J0, pi);
                     S = 1 - S1 + S2 * (errf1 - errf2);
                 } else {
-                    S = 1 - S1;
+                    S = 1 - (1 + alpha * p) * expb * 0.5;
                 }
             } else {
-                S = 1 - (1 + alpha * p) * expb * 0.5;
-            }
+                if (pi < -p) {
+                    S = (1 - alpha * p) * expb * 0.5;
+                } else if (pi <= 0) {
+                    S = (1 + alpha * pi) * expb * 0.5;
+                } else if (pi < p) {
+                    S = 1 - (1 + alpha * pi) * expb * 0.5;
+                } else {
+                    S = 1 - (1 + alpha * p) * expb * 0.5;
+                }
+            }          
         } while (state.randomUniform() > S);
 
         // sample pz

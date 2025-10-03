@@ -273,27 +273,23 @@ int main()
     // energies.push_back(15);
     energies.push_back(16.8);
     energies.push_back(30);
-    //energies.push_back(50);
+    energies.push_back(50);
     energies.push_back(120);
 
-    std::vector<std::string> material_names;
-    //material_names.push_back("Water, Liquid");
-    //material_names.push_back("Polymethyl Methacralate (Lucite, Perspex)");
-    material_names.push_back("Gold");
-    material_names.push_back("TG195Breast");
+    std::vector<std::pair<std::string, xraymc::Material<NSHELLS>>> materials;
 
-    std::vector<xraymc::Material<NSHELLS>> materials;
-    //materials.push_back(xraymc::Material<NSHELLS>::byNistName("Water, Liquid").value());
-    //materials.push_back(xraymc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value());
-    materials.push_back(xraymc::Material<NSHELLS>::byZ(79).value());
-    materials.push_back(TG195_breast_tissue());
+    // materials.push_back(std::make_pair("Water, Liquid",
+    //     xraymc::Material<NSHELLS>::byNistName("Water, Liquid").value()));
+    materials.push_back(std::make_pair("Polymethyl Methacralate (Lucite, Perspex)",
+        xraymc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value()));
+    materials.push_back(std::make_pair("TG195Breast", TG195_breast_tissue()));
+    // materials.push_back(std::make_pair("Gold", xraymc::Material<NSHELLS>::byZ(79).value()));
+    materials.push_back(std::make_pair("Lead", xraymc::Material<NSHELLS>::byZ(82).value()));
 
     std::vector<std::jthread> threads;
     threads.reserve(materials.size() * energies.size());
 
-    for (std::size_t i = 0; i < materials.size(); ++i) {
-        const auto& material_name = material_names[i];
-        const auto& material = materials[i];
+    for (const auto& [material_name, material] : materials) {
         for (auto energy : energies) {
             threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
             threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
