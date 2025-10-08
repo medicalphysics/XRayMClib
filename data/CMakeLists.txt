@@ -1,5 +1,10 @@
 
 
+# Option to specify max energy range
+set(XRAYMCLIB_MAX_ENERGY_KEV "151.0" CACHE STRING "Max energy in keV for photon energies.")
+set(XRAYMCLIB_MIN_ENERGY_KEV "1.0")
+set(XRAYMCLIB_MIN_TABLE_ENERGY_KEV "1.0")
+
 # EPICS data parser
 SET(XRAYMCLIB_EPICS_PHYSICSLISTS "${CMAKE_CURRENT_BINARY_DIR}/physicslists.bin" CACHE INTERNAL "Path to EPICS physicslists")
 
@@ -28,11 +33,6 @@ if(XRAYMCLIB_EPICS_DATA_DIRPATH)
     message(STATUS "Using EADL file: ${XRAYMCLIB_EPICS_DATA_EADLPATH}")
 endif()
 
-# Option to specify max energy range
-set(XRAYMCLIB_MAX_ENERGY_KEV "500.0" CACHE STRING "Max energy in keV for photon energies.")
-set(XRAYMCLIB_MIN_ENERGY_KEV "1.0")
-set(XRAYMCLIB_MIN_TABLE_ENERGY_KEV "1.0")
-
 add_executable(EPICSparser         
     EPICSParser/atomicelementhandler.cpp 
     EPICSParser/epicsparser.cpp 
@@ -41,25 +41,25 @@ add_executable(EPICSparser
 
 OPTION(XRAYMCLIB_USE_NIST_DATA "Use NIST attenuation data" OFF)
 if(${XRAYMCLIB_USE_NIST_DATA})
-IF(WIN32)
-    set(XRAYLIB_INSTALL_PATH "C:/Program Files/xraylib 64-bit" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
-    set(XRAYLIB_INCLUDES "${XRAYLIB_INSTALL_PATH}/Include")
-	set(XRAYLIB_LIBRARY_SHARED_NAME "libxrl-11.dll")
-	set(XRAYLIB_LIBRARY_SHARED_PATH "C:/Windows/sysnative/${XRAYLIB_LIBRARY_SHARED_NAME}")
-    set(XRAYLIB_LIBRARY_SHARED_PATH_64 "C:/Windows/System32/${XRAYLIB_LIBRARY_SHARED_NAME}")
-    find_library(XRAYLIB NAMES libxrl.lib libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}/LIB")
-ENDIF(WIN32)
-IF(UNIX AND NOT APPLE)
-    set(XRAYLIB_INSTALL_PATH "/usr/local/lib" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
-    set(XRAYLIB_INCLUDES "/usr/local/include/xraylib")
-    find_library(XRAYLIB NAMES libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}")
-ENDIF()
+    IF(WIN32)
+        set(XRAYLIB_INSTALL_PATH "C:/Program Files/xraylib 64-bit" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
+        set(XRAYLIB_INCLUDES "${XRAYLIB_INSTALL_PATH}/Include")
+        set(XRAYLIB_LIBRARY_SHARED_NAME "libxrl-11.dll")
+        set(XRAYLIB_LIBRARY_SHARED_PATH "C:/Windows/sysnative/${XRAYLIB_LIBRARY_SHARED_NAME}")
+        set(XRAYLIB_LIBRARY_SHARED_PATH_64 "C:/Windows/System32/${XRAYLIB_LIBRARY_SHARED_NAME}")
+        find_library(XRAYLIB NAMES libxrl.lib libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}/LIB")
+    ENDIF()
+    IF(UNIX AND NOT APPLE)
+        set(XRAYLIB_INSTALL_PATH "/usr/local/lib" CACHE PATH "Install path for xraylib (https://github.com/tschoonj/xraylib)")
+        set(XRAYLIB_INCLUDES "/usr/local/include/xraylib")
+        find_library(XRAYLIB NAMES libxrl libxrl-11 xrl HINTS "${XRAYLIB_INSTALL_PATH}")
+    ENDIF()
 
-target_include_directories(EPICSparser PRIVATE ${XRAYLIB_INCLUDES})
-# Make sure you link your targets with this command. It can also link libraries and
-# even flags, so linking a target that does not exist will not give a configure-time error.
-target_link_libraries(EPICSparser PRIVATE ${XRAYLIB})
-target_compile_definitions(EPICSparser PRIVATE -DUSE_NIST)
+    target_include_directories(EPICSparser PRIVATE ${XRAYLIB_INCLUDES})
+    # Make sure you link your targets with this command. It can also link libraries and
+    # even flags, so linking a target that does not exist will not give a configure-time error.
+    target_link_libraries(EPICSparser PRIVATE ${XRAYLIB})
+    target_compile_definitions(EPICSparser PRIVATE -DUSE_NIST)
 endif()
 
 
