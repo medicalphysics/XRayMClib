@@ -317,6 +317,8 @@ public:
 
                     std::visit([&p, &state](auto& it) { it.transport(p, state); }, *intersection.item);
                     continueSampling = p.energy > 0;
+                    // most likely the eergy of the particle has changed when interacting with world items
+                    updateAttenuation = true;
                 } else { // Free path is closer than object, we interact in the world empty space
                     p.translate(stepLength);
                     const auto interactionResult = interactions::template interact<WorldShells(), 2>(att, p, m_fillMaterial, state);
