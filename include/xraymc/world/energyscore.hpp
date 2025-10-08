@@ -18,6 +18,7 @@ Copyright 2022 Erlend Andersen
 
 #pragma once
 #include <atomic>
+#include <cmath>
 
 namespace xraymc {
 
@@ -66,7 +67,7 @@ public:
             const auto var_per_event = (e2 - e * e) / (numberOfEvents() - 1);
 
             // variance of sum of events
-            auto var = var_per_event * numberOfEvents() * numberOfEvents();
+            auto var = var_per_event * numberOfEvents();
             return var;
         }
 
