@@ -457,6 +457,14 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
         }
         return kerma;
     };
+    auto AirKermaVariance = [](const auto& spec) {
+        const auto u = TG195_mass_en_abs_air();
+        double kerma = 0;
+        for (std::size_t i = 0; i < u.size(); ++i) {
+            kerma += spec[i].second * (u[i].first * u[i].second / 100) * (u[i].first * u[i].second / 100);
+        }
+        return kerma;
+    };
 
     std::cout << "TG195 Case 1 for " << res.modus << " " << res.specter << " photons with low en model: " << res.model << std::endl;
 
@@ -470,7 +478,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
 
     res.volume = "NoneFilter";
     res.result = AirKerma(fluenceNone);
-    res.result_std = 0;
+    res.result_std = Sigma * std::sqrt(AirKermaVariance(scoring.getFluenceVariance(TOTAL_HIST)));
     res.TG195Result = TG195result[0];
     res.nEvents = scoring.energyScored().numberOfEvents();
     res.nMilliseconds = time_elapsed1.count();
@@ -491,7 +499,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     auto fluenceHVL = scoring.getFluenceSpecter(TOTAL_HIST);
     res.volume = "HVLFilter";
     res.result = AirKerma(fluenceHVL);
-    res.result_std = 0;
+    res.result_std = Sigma * std::sqrt(AirKermaVariance(scoring.getFluenceVariance(TOTAL_HIST)));
     res.TG195Result = TG195result[1];
     res.nEvents = scoring.energyScored().numberOfEvents();
     res.nMilliseconds = time_elapsed2.count();
@@ -506,7 +514,7 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     auto fluenceQVL = scoring.getFluenceSpecter(TOTAL_HIST);
     res.volume = "QVLFilter";
     res.result = AirKerma(fluenceQVL);
-    res.result_std = 0;
+    res.result_std = Sigma * std::sqrt(AirKermaVariance(scoring.getFluenceVariance(TOTAL_HIST)));
     res.TG195Result = TG195result[2];
     res.nEvents = scoring.energyScored().numberOfEvents();
     res.nMilliseconds = time_elapsed3.count();

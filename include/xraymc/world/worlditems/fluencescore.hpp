@@ -110,10 +110,24 @@ public:
         const auto specter = getSpecter();
         std::vector<std::pair<double, double>> fluence(specter.size());
         const auto a = area();
-        const auto norm = N_primaries > 0 ? static_cast<double>(N_primaries) : 0.0;
+        const auto norm = N_primaries > 0 ? static_cast<double>(N_primaries) : 1.0;
         const auto norm_inv = 1.0 / norm;
         std::transform(std::execution::par_unseq, specter.cbegin(), specter.cend(), fluence.begin(), [a, norm_inv](const auto& s) {
             return std::make_pair(s.first, s.second * norm_inv / a);
+        });
+        return fluence;
+    }
+
+    std::vector<std::pair<double, double>> getFluenceVariance(std::uint64_t N_primaries = 1) const
+    {
+        const auto specter = getSpecter();
+        std::vector<std::pair<double, double>> fluence(specter.size());
+        const auto a = area();
+        const auto norm = N_primaries > 0 ? static_cast<double>(N_primaries) : 1.0;
+        const auto norm_inv = 1.0 / norm;
+        std::transform(std::execution::par_unseq, specter.cbegin(), specter.cend(), fluence.begin(), [a, norm_inv](const auto& s) {
+            auto var = norm_inv * (s.second * norm_inv * (1 - s.second * norm_inv));
+            return std::make_pair(s.first, var / (a * a));
         });
         return fluence;
     }
