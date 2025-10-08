@@ -45,7 +45,7 @@ using namespace xraymc;
 constexpr bool SAMPLE_RUN = false;
 constexpr std::size_t NShells = 12;
 constexpr std::size_t NShellsCase3and5 = 36;
-constexpr double Sigma = 1.96;
+constexpr double Sigma = 3.0;
 
 struct ResultKeys {
     std::string rCase = "unknown";

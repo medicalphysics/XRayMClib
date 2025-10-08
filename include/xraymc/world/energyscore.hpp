@@ -55,6 +55,18 @@ public:
 
     double variance() const
     {
+        // We will calculate the the variance of a random sum Sn = X1+X2+...+Xn
+        // where N is random integer larger than 0
+        // X1, ..., Xn is a random varaible that is normal distributed
+
+        // The law of total variance states that
+        // Var(Sn) = E[N] * Var(X) + E(X)*E(X) * Var(N)
+        // let number of interaction  events be Z
+        // Assuming N is poisson distributed with E[N] = Z, and
+        // Var(N) = Z
+        // Var(Sn) = Z*Var(X) + E(X)*E(X) * Z
+        // E(X) is the expectation value of X, i.e (energy imparted) / (number of events)
+        // Var(X) is the variance of X
         if (numberOfEvents() > 1) {
 
             // expected energy per event
@@ -63,14 +75,14 @@ public:
             // expected squared energy per event
             const auto e2 = energyImpartedSquared() / numberOfEvents();
 
-            // variance of dose per event
+            // variance of X per event
             const auto var_per_event = (e2 - e * e) / (numberOfEvents() - 1);
 
             // variance of sum of events
-            auto var = var_per_event * numberOfEvents();
+            auto var = numberOfEvents() * var_per_event + e * e * numberOfEvents();
+
             return var;
         }
-
         return 0;
     }
 
