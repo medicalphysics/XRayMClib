@@ -57,7 +57,7 @@ public:
     {
         // We will calculate the the variance of a random sum Sn = X1+X2+...+Xn
         // where N is random integer larger than 0
-        // X1, ..., Xn is a random varaible that is normal distributed
+        // X1, ..., Xn is a random variable that is normal distributed
 
         // The law of total variance states that
         // Var(Sn) = E[N] * Var(X) + E(X)*E(X) * Var(N)
@@ -66,7 +66,7 @@ public:
         // Var(N) = Z
         // Var(Sn) = Z*Var(X) + E(X)*E(X) * Z
         // E(X) is the expectation value of X, i.e (energy imparted) / (number of events)
-        // Var(X) is the variance of X
+        // Var(X) is the variance of X, Var(X) = ( E(X**2) - E(X)*E(X) ) / ( N-1 ) 
         if (numberOfEvents() > 1) {
 
             // expected energy per event
@@ -82,6 +82,10 @@ public:
             auto var = numberOfEvents() * var_per_event + e * e * numberOfEvents();
 
             return var;
+
+            // For a fixed number of N the variance is simply the Var(X)*N*N
+            // Var(Sn) = N*(e2-e*e)/(N-1)
+
         }
         return 0;
     }
