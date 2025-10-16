@@ -329,6 +329,27 @@ protected:
         m_gridIndices[N] = teller;
     }
 
+    void identifyOutsideTetrahedrons()
+    {
+
+        std::vector<std::array<std::array<std::uint32_t, 3>, 4>> faces(m_elements.size());
+        std::transform(std::execution::par_unseq, m_elements.cbegin(), m_elements.cend(), faces.begin(), [](const auto& tet) {
+            std::array<std::array<std::uint32_t, 3>, 4> res;
+            res[0] = { tet[0], tet[1], tet[2] };
+            res[1] = { tet[0], tet[1], tet[3] };
+            res[2] = { tet[0], tet[2], tet[3] };
+            res[3] = { tet[1], tet[2], tet[3] };
+            for (auto& r : res)
+                std::sort(r.begin(), r.end());
+            std::sort(res.begin(), res.end(), [](const auto& lh, const auto& rh) { return lh[0] < rh[0]; });
+            return res;
+        });
+
+        std::vector<std::array<std::uint32_t, 4>> counts(faces.size());
+        // count faces (find duplicates)
+        // if a tet cointains faces that are listed only once its an outsode tet
+    }
+
 private:
     std::vector<std::array<double, 3>> m_nodes;
     std::vector<std::array<std::uint32_t, 4>> m_elements;
