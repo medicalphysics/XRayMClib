@@ -53,6 +53,16 @@ namespace basicshape {
             return aabb;
         }
 
+        static constexpr std::array<double, 6> triangleAABB(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2)
+        {
+            std::array<double, 6> aabb;
+            for (std::size_t i = 0; i < 3; ++i) {
+                aabb[i] = std::min({ v0[i], v1[i], v2[i] });
+                aabb[i + 3] = std::max({ v0[i], v1[i], v2[i] });
+            }
+            return aabb;
+        }
+
         static bool pointInside(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& point)
         {
             // F3 (V0V1V2), F2 (V1V0V3), F1 (V2V3V0), F0 (V3V2V1)

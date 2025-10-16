@@ -23,6 +23,7 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/world/basicshapes/tetrahedron.hpp"
 #include "xraymc/world/kdtreeintersectionresult.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh2/tetmeshouterkdtreeflat.hpp"
 
 #include <algorithm>
 #include <execution>
@@ -52,6 +53,7 @@ public:
     {
         m_nodes = data.nodes;
         m_elements = data.elements;
+        identifyOutsideTetrahedrons();
         calculateAABB();
         updateGrid();
     }
@@ -60,6 +62,7 @@ public:
         m_gridDimensions = dimensions;
         m_nodes = data.nodes;
         m_elements = data.elements;
+        identifyOutsideTetrahedrons();
         calculateAABB();
         updateGrid();
     }
@@ -112,6 +115,12 @@ public:
     {
         return ind[0] + m_gridDimensions[0] * (ind[1] + m_gridDimensions[1] * ind[2]);
     }
+
+    std::uint32_t gridIndex(std::uint32_t x, std::uint32_t y, std::uint32_t z) const
+    {
+        return x + m_gridDimensions[0] * (y + m_gridDimensions[1] * z);
+    }
+
     std::uint32_t numberOfTetrahedrons(std::uint32_t index) const
     {
         auto start = m_gridIndices[index];
@@ -163,7 +172,18 @@ public:
     KDTreeIntersectionResult<const std::uint32_t> intersect(const ParticleType auto& particle) const
     {
         const auto inter = basicshape::AABB::intersectForwardInterval<false>(particle, m_aabb);
-        return inter ? intersect(particle, *inter) : KDTreeIntersectionResult<const std::uint32_t> {};
+        auto res = KDTreeIntersectionResult<const std::uint32_t> {};
+        if (inter) {
+            if ((*inter)[0] > 0.0) {
+                auto resk = m_kdtree.intersect(particle, m_nodes, m_outer_triangles, *inter);
+                res.intersection = resk.intersection;
+                res.rayOriginIsInsideItem = false;
+                res.item = &m_gridElements[0];
+                FIX THIS
+            } else
+                res = intersect(particle, *inter);
+        }
+        return res;
     }
 
 protected:
@@ -281,25 +301,7 @@ protected:
             for (std::uint32_t z = find[2]; z <= rind[2]; ++z)
                 for (std::uint32_t y = find[1]; y <= rind[1]; ++y)
                     for (std::uint32_t x = find[0]; x <= rind[0]; ++x) {
-                        /*std::array<double, 6> vox_aabb = {
-                            x * m_gridSpacing[0] + m_aabb[0],
-                            y * m_gridSpacing[1] + m_aabb[1],
-                            z * m_gridSpacing[2] + m_aabb[2],
-                            (x + 1) * m_gridSpacing[0] + m_aabb[0],
-                            (y + 1) * m_gridSpacing[1] + m_aabb[1],
-                            (z + 1) * m_gridSpacing[2] + m_aabb[2],
-                        };
-                        const auto& v0 = m_nodes[m_elements[i][0]];
-                        const auto& v1 = m_nodes[m_elements[i][1]];
-                        const auto& v2 = m_nodes[m_elements[i][2]];
-                        const auto& v3 = m_nodes[m_elements[i][3]];
-                        if (basicshape::tetrahedron::insideAABB(v0, v1, v2, v3, vox_aabb)) {
-                            const std::array ind = { x, y, z };
-                            const auto ind_flat = gridIndex(ind);
-                            indices[ind_flat].push_back(i);
-                        }*/
-                        const std::array ind = { x, y, z };
-                        const auto ind_flat = gridIndex(ind);
+                        const auto ind_flat = gridIndex(x, y, z);
                         indices[ind_flat].push_back(i);
                     }
         }
@@ -331,23 +333,69 @@ protected:
 
     void identifyOutsideTetrahedrons()
     {
+        struct Face {
+            Face(std::uint32_t x, std::uint32_t y, std::uint32_t z, std::size_t i, std::uint32_t num)
+            {
+                nodes = { x, y, z };
+                idx = i;
+                number = num;
+            }
+            auto operator<=>(const Face& other) const
+            {
+                return nodes <=> other.nodes;
+            }
+            bool operator==(const Face& other) const
+            {
+                return nodes == other.nodes;
+                // return nodes[0] == other.nodes[0] && nodes[1] == other.nodes[1] && nodes[2] == other.nodes[2];
+            }
+            std::array<std::uint32_t, 3> nodes;
+            std::size_t idx = 0;
+            std::uint32_t number = 0;
+            bool outer = true;
+        };
 
-        std::vector<std::array<std::array<std::uint32_t, 3>, 4>> faces(m_elements.size());
-        std::transform(std::execution::par_unseq, m_elements.cbegin(), m_elements.cend(), faces.begin(), [](const auto& tet) {
-            std::array<std::array<std::uint32_t, 3>, 4> res;
-            res[0] = { tet[0], tet[1], tet[2] };
-            res[1] = { tet[0], tet[1], tet[3] };
-            res[2] = { tet[0], tet[2], tet[3] };
-            res[3] = { tet[1], tet[2], tet[3] };
-            for (auto& r : res)
-                std::sort(r.begin(), r.end());
-            std::sort(res.begin(), res.end(), [](const auto& lh, const auto& rh) { return lh[0] < rh[0]; });
-            return res;
+        std::vector<Face> faces;
+        faces.reserve(m_elements.size() * 4);
+        for (std::size_t i = 0; i < m_elements.size(); ++i) {
+            const auto& tet = m_elements[i];
+            faces.push_back({ tet[0], tet[1], tet[2], i, 0 });
+            faces.push_back({ tet[1], tet[0], tet[3], i, 1 });
+            faces.push_back({ tet[2], tet[3], tet[0], i, 2 });
+            faces.push_back({ tet[3], tet[2], tet[1], i, 3 });
+        }
+        std::for_each(std::execution::par_unseq, faces.begin(), faces.end(), [](auto& f) {
+            std::sort(f.nodes.begin(), f.nodes.end());
         });
+        std::sort(std::execution::par_unseq, faces.begin(), faces.end());
 
-        std::vector<std::array<std::uint32_t, 4>> counts(faces.size());
-        // count faces (find duplicates)
-        // if a tet cointains faces that are listed only once its an outsode tet
+        auto first = faces.begin();
+        auto second = first + 1;
+        do {
+            if (*first == *second) {
+                first->outer = false;
+                second->outer = false;
+            }
+            first = second++;
+        } while (second != faces.end());
+
+        m_outer_triangles.clear();
+        m_outer_triangles.reserve(m_elements.size());
+        for (const auto& face : faces) {
+            if (face.outer) {
+                const auto& tet = m_elements[face.idx];
+                if (face.number == 0)
+                    m_outer_triangles.push_back({ tet[0], tet[1], tet[2] });
+                else if (face.number == 1)
+                    m_outer_triangles.push_back({ tet[1], tet[0], tet[3] });
+                else if (face.number == 2)
+                    m_outer_triangles.push_back({ tet[2], tet[3], tet[0] });
+                else
+                    m_outer_triangles.push_back({ tet[3], tet[2], tet[1] });
+            }
+        }
+        m_outer_triangles.shrink_to_fit();
+        m_kdtree.setData(m_nodes, m_outer_triangles, 8);
     }
 
 private:
@@ -359,5 +407,8 @@ private:
     std::array<std::uint32_t, 3> m_gridDimensions = { 8, 8, 8 };
     std::vector<std::uint32_t> m_gridIndices; // same size as grid + 1;
     std::vector<std::uint32_t> m_gridElements; // most likely larger than elements
+
+    std::vector<std::array<std::uint32_t, 3>> m_outer_triangles; // outer triangles
+    TetMeshOuterKDTreeFlat m_kdtree;
 };
 }

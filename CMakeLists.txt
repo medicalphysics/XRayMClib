@@ -142,6 +142,7 @@ set(HEADER_LIST
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh2.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh2/tetmeshouterkdtreeflat.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"    
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"    
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
