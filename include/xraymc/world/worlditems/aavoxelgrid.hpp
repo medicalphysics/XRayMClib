@@ -496,7 +496,7 @@ protected:
                     xyz[dIdx] += xyz_step[dIdx];
                     if (xyz[dIdx] < m_dim[dIdx]) {
                         // true if we are in a not ignored material.
-                        still_inside = m_data[index_flat].materialIndex != IGNOREIDX
+                        still_inside = m_data[index_flat].materialIndex != IGNOREIDX;
                     } else {
                         still_inside = false;
                     }
