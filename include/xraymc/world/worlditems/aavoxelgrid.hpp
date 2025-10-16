@@ -494,8 +494,13 @@ protected:
 
                 } else {
                     xyz[dIdx] += xyz_step[dIdx];
-                    index_flat += xyz_step_flat[dIdx];
-                    still_inside = xyz[dIdx] < m_dim[dIdx] && m_data[index_flat].materialIndex != IGNOREIDX;
+                    if (xyz[dIdx] < m_dim[dIdx]) {
+                        // true if we are in a not ignored material.
+                        still_inside = m_data[index_flat].materialIndex != IGNOREIDX
+                    } else {
+                        still_inside = false;
+                    }
+
                     if (!still_inside) {
                         // next step is outside, we exits
                         p.border_translate(tMax[dIdx]);
