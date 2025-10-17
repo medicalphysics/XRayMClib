@@ -91,6 +91,7 @@ public:
         std::for_each(std::execution::par_unseq, m_nodes.begin(), m_nodes.end(), [&vec](auto& n) {
             n = vectormath::add(n, vec);
         });
+        m_kdtree.translate(vec);
     }
 
     void rotate(const std::array<double, 3>& axis, double angle)
@@ -100,6 +101,7 @@ public:
         });
         calculateAABB();
         updateGrid();
+        m_kdtree.setData(m_nodes, m_outer_triangles, m_kdtree.maxDepth());
     }
 
     std::array<std::uint32_t, 3> gridIndex(const std::array<double, 3>& p) const

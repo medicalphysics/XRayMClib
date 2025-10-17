@@ -59,14 +59,6 @@ public:
             }
         }
     }
-    void scale(double s)
-    {
-        for (auto& node : m_nodes) {
-            if (!node.isLeaf()) {
-                node.split_nelements.split *= s;
-            }
-        }
-    }
 
     KDTreeIntersectionResult<const std::array<std::uint32_t, 3>> intersect(const ParticleType auto& particle, const std::vector<std::array<double, 3>>& vertices, const std::vector<std::array<std::uint32_t, 3>>& elements, const std::array<double, 6>& aabb) const
     {

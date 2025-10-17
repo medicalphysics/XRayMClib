@@ -101,7 +101,9 @@ void showPhantom()
 
     using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
     xraymc::World<Mesh> world;
-    world.template addItem<Mesh>(testreader.data());
+    auto& item = world.template addItem<Mesh>(testreader.data());
+    item.translate({ 1, 1, 1 });
+    item.rotate({ 0, 0, 1 }, 3.14 / 2);
     world.build();
 
     xraymc::VisualizeWorld viz(world);
