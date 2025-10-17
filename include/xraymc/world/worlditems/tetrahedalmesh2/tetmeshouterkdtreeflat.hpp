@@ -68,13 +68,13 @@ public:
         }
     }
 
-    KDTreeIntersectionResult<std::uint32_t> intersect(const ParticleType auto& particle, const std::vector<std::array<double, 3>>& vertices, const std::vector<std::array<std::uint32_t, 3>>& elements, const std::array<double, 6>& aabb) const
+    KDTreeIntersectionResult<const std::array<std::uint32_t, 3>> intersect(const ParticleType auto& particle, const std::vector<std::array<double, 3>>& vertices, const std::vector<std::array<std::uint32_t, 3>>& elements, const std::array<double, 6>& aabb) const
     {
         auto inter = basicshape::AABB::intersectForwardInterval(particle, aabb);
-        return inter ? intersect(particle, vertices, elements, *inter) : KDTreeIntersectionResult<std::uint32_t> {};
+        return inter ? intersect(particle, vertices, elements, *inter) : KDTreeIntersectionResult<std::array<std::uint32_t, 3>> {};
     }
 
-    KDTreeIntersectionResult<std::uint32_t> intersect(const ParticleType auto& particle, const std::vector<std::array<double, 3>>& vertices, const std::vector<std::array<std::uint32_t, 3>>& elements, const std::array<double, 2>& tboxAABB) const
+    KDTreeIntersectionResult<const std::array<std::uint32_t, 3>> intersect(const ParticleType auto& particle, const std::vector<std::array<double, 3>>& vertices, const std::vector<std::array<std::uint32_t, 3>>& elements, const std::array<double, 2>& tboxAABB) const
     {
         struct Stack {
             struct Element {
@@ -111,7 +111,7 @@ public:
         };
 
         Stack stack(m_nodes[0], tboxAABB);
-        KDTreeIntersectionResult<std::uint32_t> res;
+        KDTreeIntersectionResult<const std::array<std::uint32_t, 3>> res;
         res.intersection = std::numeric_limits<double>::max();
         Node node;
         std::array<double, 2> tbox;
@@ -149,16 +149,14 @@ public:
             const auto startIdx = node.offset();
             const auto stopIdx = startIdx + node.split_nelements.nelements;
             for (auto idx = startIdx; idx < stopIdx; ++idx) {
-                const auto& el = elements[idx];
+                const auto& el = elements[m_indices[idx]];
                 auto t_cand = basicshape::tetrahedron::intersectTriangle(vertices[el[0]], vertices[el[1]], vertices[el[2]], particle);
                 if (t_cand) {
                     if (0 <= *t_cand && *t_cand < res.intersection) {
                         if (tbox[0] <= *t_cand && *t_cand <= tbox[1]) {
                             res.intersection = *t_cand;
-                            // res.item = &item;
-                            FIX THIS!!!!
-                            const auto normal = basicshape::tetrahedron::normalVector<false>(vertices[el[0]], vertices[el[1]], vertices[el[2]]);
-                            res.rayOriginIsInsideItem = vectormath::dot(particle.dir, normal) > 0;
+                            res.item = &(elements[m_indices[idx]]);
+                            res.rayOriginIsInsideItem = false; // Always false for outer contour intersection
                         }
                     }
                 }

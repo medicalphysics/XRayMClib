@@ -174,12 +174,14 @@ public:
         const auto inter = basicshape::AABB::intersectForwardInterval<false>(particle, m_aabb);
         auto res = KDTreeIntersectionResult<const std::uint32_t> {};
         if (inter) {
-            if ((*inter)[0] > 0.0) {
+            if ((*inter)[0] > 0.0) { // if particle is in front do contour intersection
                 auto resk = m_kdtree.intersect(particle, m_nodes, m_outer_triangles, *inter);
-                res.intersection = resk.intersection;
-                res.rayOriginIsInsideItem = false;
-                res.item = &m_gridElements[0];
-                FIX THIS
+                if (resk.valid()) {
+                    res.intersection = resk.intersection;
+                    res.rayOriginIsInsideItem = false;
+                    const auto ind = std::distance(&(m_outer_triangles[0]), resk.item);
+                    res.item = &(m_outerTriangleTetMembership[ind]);
+                }
             } else
                 res = intersect(particle, *inter);
         }
@@ -334,7 +336,7 @@ protected:
     void identifyOutsideTetrahedrons()
     {
         struct Face {
-            Face(std::uint32_t x, std::uint32_t y, std::uint32_t z, std::size_t i, std::uint32_t num)
+            Face(std::uint32_t x, std::uint32_t y, std::uint32_t z, std::uint32_t i, std::uint32_t num)
             {
                 nodes = { x, y, z };
                 idx = i;
@@ -350,14 +352,14 @@ protected:
                 // return nodes[0] == other.nodes[0] && nodes[1] == other.nodes[1] && nodes[2] == other.nodes[2];
             }
             std::array<std::uint32_t, 3> nodes;
-            std::size_t idx = 0;
+            std::uint32_t idx = 0;
             std::uint32_t number = 0;
             bool outer = true;
         };
 
         std::vector<Face> faces;
         faces.reserve(m_elements.size() * 4);
-        for (std::size_t i = 0; i < m_elements.size(); ++i) {
+        for (std::uint32_t i = 0; i < m_elements.size(); ++i) {
             const auto& tet = m_elements[i];
             faces.push_back({ tet[0], tet[1], tet[2], i, 0 });
             faces.push_back({ tet[1], tet[0], tet[3], i, 1 });
@@ -381,9 +383,12 @@ protected:
 
         m_outer_triangles.clear();
         m_outer_triangles.reserve(m_elements.size());
+        m_outerTriangleTetMembership.clear();
+        m_outerTriangleTetMembership.reserve(m_elements.size());
         for (const auto& face : faces) {
             if (face.outer) {
                 const auto& tet = m_elements[face.idx];
+                m_outerTriangleTetMembership.push_back(face.idx);
                 if (face.number == 0)
                     m_outer_triangles.push_back({ tet[0], tet[1], tet[2] });
                 else if (face.number == 1)
@@ -409,6 +414,7 @@ private:
     std::vector<std::uint32_t> m_gridElements; // most likely larger than elements
 
     std::vector<std::array<std::uint32_t, 3>> m_outer_triangles; // outer triangles
+    std::vector<std::uint32_t> m_outerTriangleTetMembership;
     TetMeshOuterKDTreeFlat m_kdtree;
 };
 }
