@@ -18,10 +18,14 @@ Copyright 2025 Erlend Andersen
 
 #include "xraymc/world/visualization/visualizeworld.hpp"
 #include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh2.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
+
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
 
 #include <iostream>
 #include <string>
@@ -118,9 +122,49 @@ void showPhantom()
     viz.savePNG("test.png", buffer);
 }
 
+void testTiming()
+{
+    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+
+    xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
+
+    using Mesh = xraymc::TetrahedalMesh<5, 2, false>;
+    xraymc::World<Mesh> world;
+    auto& item = world.template addItem<Mesh>(testreader.data());
+    world.build();
+
+    std::vector<xraymc::PencilBeam<false>> beams(5);
+    beams[0].setPosition({ -100, -100, -100 });
+    beams[0].setDirection({ 1, 1, 1 });
+    beams[1].setPosition({ -100, -100, 0 });
+    beams[1].setDirection({ 1, 1, 0 });
+    beams[2].setPosition({ 0, 0, -100 });
+    beams[2].setDirection({ 0, 0, 1 });
+    beams[3].setPosition({ 0, 0, 100 });
+    beams[3].setDirection({ 0, 0, -1 });
+    beams[4].setPosition({ 0, -100, 0 });
+    beams[4].setDirection({ 0, 1, 0 });
+    for (auto& beam : beams) {
+        beam.setEnergy(60.0);
+        beam.setNumberOfExposures(100);
+        beam.setNumberOfParticlesPerExposure(10);
+    }
+
+    xraymc::Transport transport;
+    double time = 0;
+    for (const auto& beam : beams) {
+        time = time + transport.runConsole(world, beam).count();
+    }
+    std::cout << "Total time " << time << std::endl;
+}
+
 int main()
 {
-    showPhantom();
+    testTiming();
+    // showPhantom();
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
         std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";

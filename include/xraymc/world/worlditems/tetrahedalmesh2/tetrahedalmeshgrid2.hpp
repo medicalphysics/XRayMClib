@@ -351,7 +351,6 @@ protected:
             bool operator==(const Face& other) const
             {
                 return nodes == other.nodes;
-                // return nodes[0] == other.nodes[0] && nodes[1] == other.nodes[1] && nodes[2] == other.nodes[2];
             }
             std::array<std::uint32_t, 3> nodes;
             std::uint32_t idx = 0;
@@ -416,7 +415,7 @@ private:
     std::vector<std::uint32_t> m_gridElements; // most likely larger than elements
 
     std::vector<std::array<std::uint32_t, 3>> m_outer_triangles; // outer triangles
-    std::vector<std::uint32_t> m_outerTriangleTetMembership;
+    std::vector<std::uint32_t> m_outerTriangleTetMembership; // same size as outer triangles
     TetMeshOuterKDTreeFlat m_kdtree;
 };
 }
