@@ -147,8 +147,10 @@ public:
                     if (0 <= *t_cand && *t_cand < res.intersection) {
                         if (tbox[0] <= *t_cand && *t_cand <= tbox[1]) {
                             res.intersection = *t_cand;
-                            res.item = &(elements[m_indices[idx]]);
-                            res.rayOriginIsInsideItem = false; // Always false for outer contour intersection
+                            const auto& vIdx = elements[m_indices[idx]];
+                            res.item = &vIdx;
+                            const auto normal = basicshape::tetrahedron::normalVector<false>(vertices[vIdx[0]], vertices[vIdx[1]], vertices[vIdx[2]]);
+                            res.rayOriginIsInsideItem = vectormath::dot(normal, particle.dir) > 0.0;
                         }
                     }
                 }

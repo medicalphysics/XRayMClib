@@ -25,6 +25,7 @@ Copyright 2025 Erlend Andersen
 #include "xraymc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh3.hpp"
 
+#include "xraymc/beams/dxbeam.hpp"
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
 
@@ -109,7 +110,7 @@ void showPhantom()
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
-    using Mesh = xraymc::TetrahedalMesh3<5, 2>;
+    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
     // item.translate({ 1, 1, 1 });
@@ -143,33 +144,22 @@ void testTiming()
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
     // using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
-    using Mesh = xraymc::TetrahedalMesh3<5, 2>;
+    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
     world.build();
 
-    std::vector<xraymc::PencilBeam<false>> beams(5);
-    beams[0].setPosition({ -100, -100, -100 });
-    beams[0].setDirection({ 1, 1, 1 });
-    beams[1].setPosition({ -100, -100, 0 });
-    beams[1].setDirection({ 1, 1, 0 });
-    beams[2].setPosition({ 0, 0, -100 });
-    beams[2].setDirection({ 0, 0, 1 });
-    beams[3].setPosition({ 0, 0, 100 });
-    beams[3].setDirection({ 0, 0, -1 });
-    beams[4].setPosition({ 0, -100, 0 });
-    beams[4].setDirection({ 0, 1, 0 });
-    for (auto& beam : beams) {
-        beam.setEnergy(60.0);
-        beam.setNumberOfExposures(100);
-        beam.setNumberOfParticlesPerExposure(10);
-    }
+    xraymc::DXBeam beam;
+    beam.setPosition({ -100, 0, 0 });
+    beam.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
+    beam.setTubeVoltage(80);
+    beam.setNumberOfExposures(100);
+    beam.setNumberOfParticlesPerExposure(10000);
+    beam.setCollimationHalfAnglesDeg(5, 5);
 
     xraymc::Transport transport;
-    double time = 0;
-    for (const auto& beam : beams) {
-        time = time + transport.runConsole(world, beam, 1).count();
-    }
+    const auto time = transport.runConsole(world, beam).count();
+
     std::cout << "Total time " << time << std::endl;
 
     xraymc::VisualizeWorld viz(world);
@@ -180,11 +170,11 @@ void testTiming()
     for (std::uint32_t i = 0; i < item.numberOfThetrahedrons(); ++i) {
         doses[i] = item.doseScored(i).dose();
     }
-    auto max_iter = std::max_element(doses.cbegin(), doses.cend());
-    viz.setColorByValueMinMax(0.0, *max_iter * 0.5);
+    auto max_iter = *std::max_element(doses.cbegin(), doses.cend());
+    viz.setColorByValueMinMax(0.0, 1.0);
 
     viz.setAzimuthalAngleDeg(80);
-    viz.setPolarAngleDeg(45);
+    viz.setPolarAngleDeg(2);
     viz.setDistance(1000);
     viz.suggestFOV(1);
     auto buffer = viz.template createBuffer<double>(1024, 1024);

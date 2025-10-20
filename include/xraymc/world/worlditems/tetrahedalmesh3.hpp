@@ -32,7 +32,7 @@ Copyright 2025 Erlend Andersen
 
 namespace xraymc {
 
-template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2>
+template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh3 {
 public:
     TetrahedalMesh3() { };
@@ -56,15 +56,19 @@ public:
         m_collectionDensities = data.collectionDensities;
         m_collectionNames = data.collectionNames;
 
+        std::vector<std::optional<Material<NMaterialShells>>> mats(data.collectionMaterialComposition.size());
+        std::transform(std::execution::par_unseq, data.collectionMaterialComposition.cbegin(), data.collectionMaterialComposition.cend(), mats.begin(), [](const auto& w) {
+            return Material<NMaterialShells>::byWeight(w);
+        });
         m_collectionMaterials.clear();
         m_collectionMaterials.reserve(data.collectionMaterialComposition.size());
-        for (const auto& weights : data.collectionMaterialComposition) {
-            auto mat_opt = xraymc::Material<NMaterialShells>::byWeight(weights);
-            if (mat_opt)
-                m_collectionMaterials.push_back(mat_opt.value());
+        for (auto& m : mats) {
+            if (m)
+                m_collectionMaterials.push_back(m.value());
             else
                 return false;
         }
+
         return true;
     }
 
@@ -116,7 +120,7 @@ public:
             auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
             if (kdres.valid()) {
                 res.intersection = kdres.intersection;
-                res.rayOriginIsInsideItem = false; // FIX THIS
+                res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
                 res.intersectionValid = true;
             }
         };
@@ -212,22 +216,35 @@ public:
                 updateAtt = false;
             }
 
-            const auto steplen = -std::log(state.randomUniform()) * attMaxInv;
             const auto [borderlen, nextTetIdx] = walkTetrahedrons(currentTetIdx, particle);
 
-            if (steplen < borderlen) {
-                // we interact
-                const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
+            if constexpr (FORCEDINTERACTION) {
+                const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(borderlen, m_collectionDensities[collIdx], attenuation, particle, m_collectionMaterials[collIdx], state);
                 m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
-                still_inside = intRes.particleAlive;
-                updateAtt = intRes.particleEnergyChanged;
-                if (intRes.particleAlive)
-                    particle.translate(steplen);
+                if (intRes.particleDirectionChanged) {
+                    updateAtt = intRes.particleEnergyChanged;
+                    still_inside = intRes.particleAlive;
+                } else {
+                    updateAtt = m_collectionIdx[currentTetIdx] != m_collectionIdx[nextTetIdx];
+                    still_inside = intRes.particleAlive && currentTetIdx != nextTetIdx;
+                    currentTetIdx = nextTetIdx;
+                }
             } else {
-                particle.border_translate(borderlen);
-                still_inside = currentTetIdx != nextTetIdx;
-                updateAtt = m_collectionIdx[currentTetIdx] != m_collectionIdx[nextTetIdx];
-                currentTetIdx = nextTetIdx;
+                const auto steplen = -std::log(state.randomUniform()) * attMaxInv;
+                if (steplen < borderlen) {
+                    // we interact
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
+                    m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                    still_inside = intRes.particleAlive;
+                    updateAtt = intRes.particleEnergyChanged;
+                    if (intRes.particleAlive)
+                        particle.translate(steplen);
+                } else {
+                    particle.border_translate(borderlen);
+                    still_inside = currentTetIdx != nextTetIdx;
+                    updateAtt = m_collectionIdx[currentTetIdx] != m_collectionIdx[nextTetIdx];
+                    currentTetIdx = nextTetIdx;
+                }
             }
         }
     }
@@ -242,29 +259,30 @@ protected:
         const auto& v3 = m_vertices[vIdx[3]];
         return basicshape::tetrahedron::pointInside(v0, v1, v2, v3, pos);
     }
-
     std::uint32_t intersectedTetrahedron(const ParticleType auto& particle) const
     {
         // copy particle
         Particle p;
         p.pos = particle.pos;
-        p.dir = particle.dir;
-
-        const auto aabbIntersect = basicshape::AABB::intersectForwardInterval<false>(p, m_aabb).value();
-        const auto t =  std::min({ aabbIntersect[0], aabbIntersect[1]});
-        p.translate(t);
-        const std::array<double, 2> newInterval = { aabbIntersect[0] - t, aabbIntersect[1] - t };
-
-        // auto kdres = m_kdtree.intersect(p, m_vertices, m_outer_triangles, newInterval);
+        p.dir = vectormath::scale(particle.dir, -1.0);
         auto kdres = m_kdtree.intersect(p, m_vertices, m_outer_triangles, m_aabb);
         const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
 
         auto currentTetIdx = m_outerTriangleTetMembership[faceIdx];
-        p.border_translate(kdres.intersection);
+        p.translate(kdres.intersection - GEOMETRIC_ERROR<double>());
+
+        const auto& currentTet = m_tetrahedrons[currentTetIdx];
+        const auto& vIdx = currentTet.verticeIdx;
+        const auto& v0 = m_vertices[vIdx[0]];
+        const auto& v1 = m_vertices[vIdx[1]];
+        const auto& v2 = m_vertices[vIdx[2]];
+        const auto& v3 = m_vertices[vIdx[3]];
+
+        p.dir = particle.dir;
         // test if we are inside our tet;
         while (!pointInTetrahedron(particle.pos, currentTetIdx)) {
             const auto [l, next] = walkTetrahedrons(currentTetIdx, p);
-            p.border_translate(l);
+            p.translate(l);
             currentTetIdx = next;
         }
         return currentTetIdx;
@@ -273,7 +291,8 @@ protected:
     std::tuple<double, std::uint32_t> walkTetrahedrons(std::uint32_t currentIdx, const ParticleType auto& particle) const
     {
 
-        const auto& vIdx = m_tetrahedrons[currentIdx].verticeIdx;
+        const auto& tet = m_tetrahedrons[currentIdx];
+        const auto& vIdx = tet.verticeIdx;
         const auto& v0 = m_vertices[vIdx[0]];
         const auto& v1 = m_vertices[vIdx[1]];
         const auto& v2 = m_vertices[vIdx[2]];
@@ -284,7 +303,7 @@ protected:
         // tet[2], tet[3], tet[0]
         // tet[3], tet[2], tet[1]
 
-        auto lenght = std::numeric_limits<double>::max();
+        auto lenght = std::numeric_limits<double>::lowest();
         auto nextIdx = currentIdx;
 
         // optimize: we really only can hit one, early exit?
@@ -298,9 +317,9 @@ protected:
         for (std::uint32_t i = 0; i < 4; ++i) {
             const auto& h = hits[i];
             if (h) {
-                if (*h > 0.0 && *h < lenght) {
+                if (*h > lenght) {
                     lenght = *h;
-                    nextIdx = m_tetrahedrons[currentIdx].neighborIdx[i];
+                    nextIdx = tet.neighborIdx[i];
                 }
             }
         }
