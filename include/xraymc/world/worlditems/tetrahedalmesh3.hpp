@@ -77,6 +77,10 @@ public:
         std::transform(std::execution::par_unseq, m_vertices.begin(), m_vertices.end(), m_vertices.begin(), [=](const auto& v) {
             return vectormath::add(v, vec);
         });
+        for (std::size_t i = 0; i < 3; ++i) {
+            m_aabb[i] = m_aabb[i] + vec[i];
+            m_aabb[i + 3] = m_aabb[i + 3] + vec[i];
+        }
         m_kdtree.translate(vec);
     }
 
@@ -85,6 +89,7 @@ public:
         std::transform(std::execution::par_unseq, m_vertices.begin(), m_vertices.end(), m_vertices.begin(), [=](const auto& v) {
             return vectormath::rotate(v, axis, angle);
         });
+        calculateAABB();
         m_kdtree.setData(m_vertices, m_outer_triangles, 8);
     }
 
@@ -216,7 +221,7 @@ public:
                 updateAtt = false;
             }
 
-            const auto [borderlen, nextTetIdx] = walkTetrahedrons(currentTetIdx, particle);
+            const auto [borderlen, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
 
             if constexpr (FORCEDINTERACTION) {
                 const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(borderlen, m_collectionDensities[collIdx], attenuation, particle, m_collectionMaterials[collIdx], state);
@@ -259,7 +264,7 @@ protected:
         const auto& v3 = m_vertices[vIdx[3]];
         return basicshape::tetrahedron::pointInside(v0, v1, v2, v3, pos);
     }
-    std::uint32_t intersectedTetrahedron(const ParticleType auto& particle) const
+    std::uint32_t intersectedTetrahedron(ParticleType auto& particle) const
     {
         // copy particle
         Particle p;
@@ -267,9 +272,8 @@ protected:
         p.dir = vectormath::scale(particle.dir, -1.0);
         auto kdres = m_kdtree.intersect(p, m_vertices, m_outer_triangles, m_aabb);
         const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
-
+        particle.translate(-kdres.intersection);
         auto currentTetIdx = m_outerTriangleTetMembership[faceIdx];
-        p.translate(kdres.intersection - GEOMETRIC_ERROR<double>());
 
         const auto& currentTet = m_tetrahedrons[currentTetIdx];
         const auto& vIdx = currentTet.verticeIdx;
@@ -278,19 +282,64 @@ protected:
         const auto& v2 = m_vertices[vIdx[2]];
         const auto& v3 = m_vertices[vIdx[3]];
 
-        p.dir = particle.dir;
         // test if we are inside our tet;
-        while (!pointInTetrahedron(particle.pos, currentTetIdx)) {
-            const auto [l, next] = walkTetrahedrons(currentTetIdx, p);
-            p.translate(l);
-            currentTetIdx = next;
-        }
-        return currentTetIdx;
+        auto tet = walkTetrahedronLine(currentTetIdx, particle);
+        return tet;
     }
 
-    std::tuple<double, std::uint32_t> walkTetrahedrons(std::uint32_t currentIdx, const ParticleType auto& particle) const
+    std::uint32_t walkTetrahedronLine(std::uint32_t currentIdx, ParticleType auto& particle) const
     {
+        std::array<double, 2> t;
+        std::array<std::uint32_t, 2> faces;
+        bool found = false;
+        while (!found) {
+            const auto& tet = m_tetrahedrons[currentIdx];
+            const auto& vIdx = tet.verticeIdx;
+            const auto& v0 = m_vertices[vIdx[0]];
+            const auto& v1 = m_vertices[vIdx[1]];
+            const auto& v2 = m_vertices[vIdx[2]];
+            const auto& v3 = m_vertices[vIdx[3]];
+            std::uint32_t hit_counter = 0;
+            const std::array<std::optional<double>, 4> hits = {
+                basicshape::tetrahedron::intersectTriangle(v0, v1, v2, particle),
+                basicshape::tetrahedron::intersectTriangle(v1, v0, v3, particle),
+                basicshape::tetrahedron::intersectTriangle(v2, v3, v0, particle),
+                basicshape::tetrahedron::intersectTriangle(v3, v2, v1, particle)
+            };
+            for (std::uint32_t i = 0; i < 4; ++i) {
+                const auto& h = hits[i];
+                if (h) {
+                    faces[hit_counter] = i;
+                    t[hit_counter++] = *h;
+                }
+            }
+            if (t[0] > t[1]) {
+                t = { t[1], t[0] };
+                faces = { faces[1], faces[0] };
+            }
+            found = t[0] <= 0 && t[1] >= 0.0;
+            if (!found) {
+                // directions
+                if (t[0] < 0.0) {
+                    if (currentIdx == tet.neighborIdx[faces[1]]) {
+                        particle.translate(t[0] - std::numeric_limits<double>::epsilon() * 1000);
+                    } else {
+                        currentIdx = tet.neighborIdx[faces[1]];
+                    }
+                } else if (t[0] > 0.0) {
+                    if (currentIdx == tet.neighborIdx[faces[0]]) {
+                        particle.translate(t[0] + std::numeric_limits<double>::epsilon() * 1000);
+                    } else {
+                        currentIdx = tet.neighborIdx[faces[0]];
+                    }
+                }
+            }
+        }
+        return currentIdx;
+    }
 
+    std::tuple<double, std::uint32_t> nextTetrahedron(std::uint32_t currentIdx, const ParticleType auto& particle) const
+    {
         const auto& tet = m_tetrahedrons[currentIdx];
         const auto& vIdx = tet.verticeIdx;
         const auto& v0 = m_vertices[vIdx[0]];
@@ -317,7 +366,7 @@ protected:
         for (std::uint32_t i = 0; i < 4; ++i) {
             const auto& h = hits[i];
             if (h) {
-                if (*h > lenght) {
+                if (*h > 0.0) {
                     lenght = *h;
                     nextIdx = tet.neighborIdx[i];
                 }
