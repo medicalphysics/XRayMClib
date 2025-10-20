@@ -23,6 +23,7 @@ Copyright 2025 Erlend Andersen
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh2.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh3.hpp"
 
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
@@ -96,18 +97,23 @@ void showPhantom()
     // std::string element_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.ele";
     // xraymc::TetrahedalMeshReader2 testreader(node_file, element_file);
 
-    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
-    using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
+    using Mesh = xraymc::TetrahedalMesh3<5, 2>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
-    item.translate({ 1, 1, 1 });
-    item.rotate({ 0, 0, 1 }, 3.14 / 2);
+    // item.translate({ 1, 1, 1 });
+    // item.rotate({ 0, 0, 1 }, 3.14 / 2);
     world.build();
 
     xraymc::VisualizeWorld viz(world);
@@ -124,14 +130,20 @@ void showPhantom()
 
 void testTiming()
 {
-    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
-    using Mesh = xraymc::TetrahedalMesh<5, 2, false>;
+    // using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
+    using Mesh = xraymc::TetrahedalMesh3<5, 2>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
     world.build();
@@ -156,15 +168,35 @@ void testTiming()
     xraymc::Transport transport;
     double time = 0;
     for (const auto& beam : beams) {
-        time = time + transport.runConsole(world, beam).count();
+        time = time + transport.runConsole(world, beam, 1).count();
     }
     std::cout << "Total time " << time << std::endl;
+
+    xraymc::VisualizeWorld viz(world);
+
+    viz.addColorByValueItem(world.getItemPointers()[0]);
+
+    std::vector<double> doses(item.numberOfThetrahedrons());
+    for (std::uint32_t i = 0; i < item.numberOfThetrahedrons(); ++i) {
+        doses[i] = item.doseScored(i).dose();
+    }
+    auto max_iter = std::max_element(doses.cbegin(), doses.cend());
+    viz.setColorByValueMinMax(0.0, *max_iter * 0.5);
+
+    viz.setAzimuthalAngleDeg(80);
+    viz.setPolarAngleDeg(45);
+    viz.setDistance(1000);
+    viz.suggestFOV(1);
+    auto buffer = viz.template createBuffer<double>(1024, 1024);
+
+    viz.generate(world, buffer);
+    viz.savePNG("dose.png", buffer);
 }
 
 int main()
 {
     testTiming();
-    // showPhantom();
+    //  showPhantom();
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
         std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
