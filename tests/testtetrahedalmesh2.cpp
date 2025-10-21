@@ -163,7 +163,7 @@ void testTiming()
     beam.setDirectionCosines({ 1, 0, 0 }, { 0, 0, -1 });
     beam.setTubeVoltage(80);
     beam.setNumberOfExposures(100);
-    beam.setNumberOfParticlesPerExposure(10000);
+    beam.setNumberOfParticlesPerExposure(100000);
     beam.setCollimationHalfAnglesDeg(3, 3);
 
     xraymc::Transport transport;
@@ -213,12 +213,23 @@ void testTiming()
     viz.setPolarAngleDeg(270);
     viz.generate(world, buffer);
     viz.savePNG("dose270.png", buffer);
+
+    auto data = item.collectionData();
+    std::cout << "Name, volume, density, dose, std, nevents\n";
+    for (auto& d : data) {
+        std::cout << d.name << ", ";
+        std::cout << d.volume << ", ";
+        std::cout << d.density << ", ";
+        std::cout << d.dose << ", ";
+        std::cout << std::sqrt(d.doseVariance) << ", ";
+        std::cout << d.numberOfEvents << std::endl;
+    }
 }
 
 int main()
 {
-    showPhantom();
-    // testTiming();
+    // showPhantom();
+    testTiming();
 
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
