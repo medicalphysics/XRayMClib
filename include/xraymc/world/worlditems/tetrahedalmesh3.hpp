@@ -126,6 +126,16 @@ public:
         return m_outerTriangleTetMembership;
     }
 
+    const ParticleTracker& particleTracker() const
+    {
+        return m_tracker;
+    }
+
+    ParticleTracker& particleTracker()
+    {
+        return m_tracker;
+    }
+
     std::vector<TetrahedalMeshCollection> collectionData() const
     {
         std::vector<TetrahedalMeshCollection> data(m_collectionDensities.size());
