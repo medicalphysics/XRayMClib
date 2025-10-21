@@ -285,6 +285,7 @@ protected:
         std::array<double, 2> t;
         std::array<std::uint32_t, 2> faces;
         bool found = false;
+        std::uint32_t oldIdx = std::numeric_limits<std::uint32_t>::max();
         while (!found) {
             const auto& tet = m_tetrahedrons[currentIdx];
             const auto& vIdx = tet.verticeIdx;
@@ -317,12 +318,16 @@ protected:
                     if (currentIdx == tet.neighborIdx[faces[1]]) {
                         particle.translate(t[0] - EPSILON);
                     } else {
+                        found = tet.neighborIdx[faces[1]] == oldIdx;
+                        oldIdx = currentIdx;
                         currentIdx = tet.neighborIdx[faces[1]];
                     }
                 } else if (t[0] >= 0.0) {
                     if (currentIdx == tet.neighborIdx[faces[0]]) {
                         particle.translate(t[0] + EPSILON);
                     } else {
+                        found = tet.neighborIdx[faces[0]] == oldIdx;
+                        oldIdx = currentIdx;
                         currentIdx = tet.neighborIdx[faces[0]];
                     }
                 }
