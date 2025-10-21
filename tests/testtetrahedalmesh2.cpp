@@ -120,13 +120,22 @@ void showPhantom()
     xraymc::VisualizeWorld viz(world);
 
     viz.setAzimuthalAngleDeg(80);
-    viz.setPolarAngleDeg(45);
+    viz.setPolarAngleDeg(0);
     viz.setDistance(1000);
     viz.suggestFOV(1);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
 
     viz.generate(world, buffer);
-    viz.savePNG("test.png", buffer);
+    viz.savePNG("test0.png", buffer);
+    viz.setPolarAngleDeg(90);
+    viz.generate(world, buffer);
+    viz.savePNG("test90.png", buffer);
+    viz.setPolarAngleDeg(180);
+    viz.generate(world, buffer);
+    viz.savePNG("test180.png", buffer);
+    viz.setPolarAngleDeg(270);
+    viz.generate(world, buffer);
+    viz.savePNG("test270.png", buffer);
 }
 
 void testTiming()
@@ -144,18 +153,18 @@ void testTiming()
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
     // using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
-    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
+    using Mesh = xraymc::TetrahedalMesh3<5, 2, false>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
     world.build();
 
     xraymc::DXBeam beam;
-    beam.setPosition({ -100, 0, 0 });
-    beam.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
+    beam.setPosition({ 0, -180, 40 });
+    beam.setDirectionCosines({ 1, 0, 0 }, { 0, 0, -1 });
     beam.setTubeVoltage(80);
-    beam.setNumberOfExposures(1000);
+    beam.setNumberOfExposures(100);
     beam.setNumberOfParticlesPerExposure(10000);
-    beam.setCollimationHalfAnglesDeg(5, 5);
+    beam.setCollimationHalfAnglesDeg(3, 3);
 
     xraymc::Transport transport;
     const auto time = transport.runConsole(world, beam).count();
@@ -164,21 +173,34 @@ void testTiming()
 
     xraymc::VisualizeWorld viz(world);
 
-    viz.addColorByValueItem(world.getItemPointers()[0]);
-
     std::vector<double> doses;
     doses.reserve(item.outerContourTetrahedronIndices().size());
     for (auto i : item.outerContourTetrahedronIndices()) {
         doses.push_back(item.doseScored(i).dose());
     }
     const auto max_dose = *std::max_element(doses.cbegin(), doses.cend());
-    viz.setColorByValueMinMax(0.0, max_dose * 0.5);
 
     viz.setAzimuthalAngleDeg(80);
     viz.setPolarAngleDeg(0);
     viz.setDistance(1000);
     viz.suggestFOV(1);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
+    viz.addLineProp(beam, 180, .2);
+
+    viz.generate(world, buffer);
+    viz.savePNG("test0.png", buffer);
+    viz.setPolarAngleDeg(90);
+    viz.generate(world, buffer);
+    viz.savePNG("test90.png", buffer);
+    viz.setPolarAngleDeg(180);
+    viz.generate(world, buffer);
+    viz.savePNG("test180.png", buffer);
+    viz.setPolarAngleDeg(270);
+    viz.generate(world, buffer);
+    viz.savePNG("test270.png", buffer);
+
+    viz.addColorByValueItem(world.getItemPointers()[0]);
+    viz.setColorByValueMinMax(0.0, max_dose * 0.5);
 
     viz.generate(world, buffer);
     viz.savePNG("dose0.png", buffer);
@@ -195,8 +217,8 @@ void testTiming()
 
 int main()
 {
-    // showPhantom();
-    testTiming();
+    showPhantom();
+    // testTiming();
 
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
