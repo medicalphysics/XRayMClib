@@ -248,8 +248,12 @@ public:
         }
     }
 
-    void transport(ParticleType auto& particle, RandomState& state)
+    template <ParticleType P>
+    void transport(P& particle, RandomState& state)
     {
+        if constexpr (std::is_same_v<P, ParticleTrack>) {
+            m_tracker.registerParticle(particle);
+        }
         if constexpr (FORCEDINTERACTION) {
             forcedSiddonTransport(particle, state);
         } else {
