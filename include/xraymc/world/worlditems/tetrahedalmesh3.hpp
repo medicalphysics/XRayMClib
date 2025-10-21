@@ -34,6 +34,8 @@ namespace xraymc {
 
 template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh3 {
+    static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
+
 public:
     TetrahedalMesh3() { };
     TetrahedalMesh3(const TetrahedalMeshData& data)
@@ -118,6 +120,11 @@ public:
         return basicshape::tetrahedron::volume(v0, v1, v2, v3);
     }
 
+    const std::vector<std::uint32_t>& outerContourTetrahedronIndices() const
+    {
+        return m_outerTriangleTetMembership;
+    }
+
     WorldIntersectionResult intersect(const ParticleType auto& particle) const
     {
         WorldIntersectionResult res {};
@@ -140,7 +147,7 @@ public:
             auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
             if (kdres.valid()) {
                 res.intersection = kdres.intersection;
-                res.rayOriginIsInsideItem = false; // FIX THIS
+                res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
                 res.intersectionValid = true;
 
                 // normal
@@ -207,63 +214,14 @@ public:
 
     void transport(ParticleType auto& particle, RandomState& state)
     {
-        std::uint32_t currentTetIdx = intersectedTetrahedron(particle);
-        bool still_inside = true;
-        double attMaxInv;
-        AttenuationValues attenuation;
-        std::uint32_t collIdx;
-        bool updateAtt = true;
-        while (still_inside) {
-            if (updateAtt) {
-                collIdx = m_collectionIdx[currentTetIdx];
-                attenuation = m_collectionMaterials[collIdx].attenuationValues(particle.energy);
-                attMaxInv = 1 / (attenuation.sum() * m_collectionDensities[collIdx]);
-                updateAtt = false;
-            }
-
-            const auto [borderlen, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
-
-            if constexpr (FORCEDINTERACTION) {
-                const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(borderlen, m_collectionDensities[collIdx], attenuation, particle, m_collectionMaterials[collIdx], state);
-                m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
-                if (intRes.particleDirectionChanged) {
-                    updateAtt = intRes.particleEnergyChanged;
-                    still_inside = intRes.particleAlive;
-                } else {
-                    updateAtt = m_collectionIdx[currentTetIdx] != m_collectionIdx[nextTetIdx];
-                    still_inside = intRes.particleAlive && currentTetIdx != nextTetIdx;
-                    currentTetIdx = nextTetIdx;
-                }
-            } else {
-                const auto steplen = -std::log(state.randomUniform()) * attMaxInv;
-                if (steplen < borderlen) {
-                    // we interact
-                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
-                    m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
-                    still_inside = intRes.particleAlive;
-                    updateAtt = intRes.particleEnergyChanged;
-                    if (intRes.particleAlive)
-                        particle.translate(steplen);
-                } else {
-                    particle.border_translate(borderlen);
-                    still_inside = currentTetIdx != nextTetIdx;
-                    updateAtt = m_collectionIdx[currentTetIdx] != m_collectionIdx[nextTetIdx];
-                    currentTetIdx = nextTetIdx;
-                }
-            }
+        if constexpr (FORCEDINTERACTION) {
+            forcedSiddonTransport(particle, state);
+        } else {
+            siddonTransport(particle, state);
         }
     }
 
 protected:
-    bool pointInTetrahedron(const std::array<double, 3>& pos, std::uint32_t tetIdx) const
-    {
-        const auto& vIdx = m_tetrahedrons[tetIdx].verticeIdx;
-        const auto& v0 = m_vertices[vIdx[0]];
-        const auto& v1 = m_vertices[vIdx[1]];
-        const auto& v2 = m_vertices[vIdx[2]];
-        const auto& v3 = m_vertices[vIdx[3]];
-        return basicshape::tetrahedron::pointInside(v0, v1, v2, v3, pos);
-    }
     std::uint32_t intersectedTetrahedron(ParticleType auto& particle) const
     {
         // copy particle
@@ -271,16 +229,11 @@ protected:
         p.pos = particle.pos;
         p.dir = vectormath::scale(particle.dir, -1.0);
         auto kdres = m_kdtree.intersect(p, m_vertices, m_outer_triangles, m_aabb);
+        if (!kdres.valid())
+            kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, m_aabb);
         const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
         particle.translate(-kdres.intersection);
         auto currentTetIdx = m_outerTriangleTetMembership[faceIdx];
-
-        const auto& currentTet = m_tetrahedrons[currentTetIdx];
-        const auto& vIdx = currentTet.verticeIdx;
-        const auto& v0 = m_vertices[vIdx[0]];
-        const auto& v1 = m_vertices[vIdx[1]];
-        const auto& v2 = m_vertices[vIdx[2]];
-        const auto& v3 = m_vertices[vIdx[3]];
 
         // test if we are inside our tet;
         auto tet = walkTetrahedronLine(currentTetIdx, particle);
@@ -320,15 +273,15 @@ protected:
             found = t[0] <= 0 && t[1] >= 0.0;
             if (!found) {
                 // directions
-                if (t[0] < 0.0) {
+                if (t[0] <= 0.0) {
                     if (currentIdx == tet.neighborIdx[faces[1]]) {
-                        particle.translate(t[0] - std::numeric_limits<double>::epsilon() * 1000);
+                        particle.translate(t[0] - EPSILON);
                     } else {
                         currentIdx = tet.neighborIdx[faces[1]];
                     }
-                } else if (t[0] > 0.0) {
+                } else if (t[0] >= 0.0) {
                     if (currentIdx == tet.neighborIdx[faces[0]]) {
-                        particle.translate(t[0] + std::numeric_limits<double>::epsilon() * 1000);
+                        particle.translate(t[0] + EPSILON);
                     } else {
                         currentIdx = tet.neighborIdx[faces[0]];
                     }
@@ -366,13 +319,108 @@ protected:
         for (std::uint32_t i = 0; i < 4; ++i) {
             const auto& h = hits[i];
             if (h) {
-                if (*h > 0.0) {
+                if (*h > lenght) {
                     lenght = *h;
                     nextIdx = tet.neighborIdx[i];
                 }
             }
         }
         return std::make_pair(lenght, nextIdx);
+    }
+
+    void siddonTransport(ParticleType auto& particle, RandomState& state)
+    {
+
+        // we do cummulative steps instead of stepping on each tet due to numerical stability of tet intersections
+        // when tets become very small
+
+        std::uint32_t currentTetIdx = intersectedTetrahedron(particle);
+        bool still_inside = true;
+        double attSum;
+        AttenuationValues attenuation;
+        std::uint32_t collIdx;
+        bool updateAtt = true;
+        while (still_inside) {
+            const double prob_thres = state.randomUniform();
+            double prob = 1;
+            double travel_distance = 0;
+            while (still_inside && prob > prob_thres) {
+                if (updateAtt) {
+                    collIdx = m_collectionIdx[currentTetIdx];
+                    attenuation = m_collectionMaterials[collIdx].attenuationValues(particle.energy);
+                    attSum = attenuation.sum() * m_collectionDensities[collIdx];
+                    updateAtt = false;
+                }
+
+                const auto [borderlen, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
+
+                prob *= std::exp(-attSum * (borderlen - travel_distance)); // accumulating probability like the Heart of Gold
+                if (prob <= prob_thres) { // interaction
+                    const auto delta_dist = -std::log(prob / prob_thres) / attSum; // correcting for overspilling
+                    const auto dist = borderlen - delta_dist;
+                    particle.translate(dist);
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
+                    m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                    still_inside = intRes.particleAlive;
+                    updateAtt = intRes.particleEnergyChanged;
+                } else {
+                    updateAtt = collIdx != m_collectionIdx[nextTetIdx];
+                    still_inside = currentTetIdx != nextTetIdx;
+                    currentTetIdx = nextTetIdx;
+                }
+                travel_distance = borderlen;
+            }
+        }
+    }
+
+    void forcedSiddonTransport(ParticleType auto& particle, RandomState& state)
+    {
+        std::uint32_t currentTetIdx = intersectedTetrahedron(particle);
+        bool still_inside = true;
+        double attSum;
+        double relativePEprobability;
+        AttenuationValues attenuation;
+        std::uint32_t collIdx;
+        bool updateAtt = true;
+        while (still_inside) {
+            const double prob_thres = state.randomUniform();
+            double prob = 1;
+            double travel_distance = 0;
+            while (still_inside && prob > prob_thres) {
+                if (updateAtt) {
+                    collIdx = m_collectionIdx[currentTetIdx];
+                    attenuation = m_collectionMaterials[collIdx].attenuationValues(particle.energy);
+                    const auto attTot = attenuation.sum();
+                    relativePEprobability = attenuation.photoelectric / attTot;
+                    attSum = attTot * m_collectionDensities[collIdx];
+                    updateAtt = false;
+                }
+
+                const auto [borderlen, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
+                const auto delta_prob = std::exp(-attSum * (borderlen - travel_distance));
+                prob *= delta_prob;
+
+                // Forced photoel
+                const auto pe_prob = (1 - delta_prob) * relativePEprobability;
+                m_energyScore[currentTetIdx].scoreEnergy(particle.energy * particle.weight * pe_prob);
+                particle.weight *= 1.0 - pe_prob;
+
+                if (prob <= prob_thres) { // real
+                    const auto delta_dist = -std::log(prob / prob_thres) / attSum; // correcting for overspilling
+                    const auto dist = borderlen - delta_dist;
+                    particle.translate(dist);
+                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
+                    m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                    still_inside = intRes.particleAlive;
+                    updateAtt = intRes.particleEnergyChanged;
+                } else {
+                    updateAtt = collIdx != m_collectionIdx[nextTetIdx];
+                    still_inside = currentTetIdx != nextTetIdx;
+                    currentTetIdx = nextTetIdx;
+                }
+                travel_distance = borderlen;
+            }
+        }
     }
 
     void calculateAABB()

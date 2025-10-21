@@ -98,15 +98,15 @@ void showPhantom()
     // std::string element_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.ele";
     // xraymc::TetrahedalMeshReader2 testreader(node_file, element_file);
 
-    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
@@ -131,15 +131,15 @@ void showPhantom()
 
 void testTiming()
 {
-    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
@@ -153,8 +153,8 @@ void testTiming()
     beam.setPosition({ -100, 0, 0 });
     beam.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
     beam.setTubeVoltage(80);
-    beam.setNumberOfExposures(100);
-    beam.setNumberOfParticlesPerExposure(1000000);
+    beam.setNumberOfExposures(1000);
+    beam.setNumberOfParticlesPerExposure(10000);
     beam.setCollimationHalfAnglesDeg(5, 5);
 
     xraymc::Transport transport;
@@ -166,12 +166,13 @@ void testTiming()
 
     viz.addColorByValueItem(world.getItemPointers()[0]);
 
-    std::vector<double> doses(item.numberOfThetrahedrons());
-    for (std::uint32_t i = 0; i < item.numberOfThetrahedrons(); ++i) {
-        doses[i] = item.doseScored(i).dose();
+    std::vector<double> doses;
+    doses.reserve(item.outerContourTetrahedronIndices().size());
+    for (auto i : item.outerContourTetrahedronIndices()) {
+        doses.push_back(item.doseScored(i).dose());
     }
     const auto max_dose = *std::max_element(doses.cbegin(), doses.cend());
-    viz.setColorByValueMinMax(0.0, max_dose * 0.1);
+    viz.setColorByValueMinMax(0.0, max_dose * 0.5);
 
     viz.setAzimuthalAngleDeg(80);
     viz.setPolarAngleDeg(0);
