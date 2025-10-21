@@ -22,6 +22,7 @@ Copyright 2025 Erlend Andersen
 #include "xraymc/world/energyscore.hpp"
 #include "xraymc/world/visualizationintersectionresult.hpp"
 #include "xraymc/world/worldintersectionresult.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh3/tetrahedalmeshcontourkdtree.hpp"
 #include "xraymc/xraymcrandom.hpp"
 
@@ -123,6 +124,31 @@ public:
     const std::vector<std::uint32_t>& outerContourTetrahedronIndices() const
     {
         return m_outerTriangleTetMembership;
+    }
+
+    std::vector<TetrahedalMeshCollection> collectionData() const
+    {
+        std::vector<TetrahedalMeshCollection> data(m_collectionDensities.size());
+        for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
+            const auto& tet = m_tetrahedrons[i];
+            const auto collIdx = m_collectionIdx[i];
+            const auto vol = tetrahedalVolume(i);
+            auto& dat = data[collIdx];
+            dat.volume += vol;
+            dat.dose += m_doseScore[i].dose() * vol;
+            dat.doseVariance += m_doseScore[i].variance() * vol * vol;
+            dat.numberOfEvents += m_doseScore[i].numberOfEvents();
+        }
+
+        for (auto& d : data) {
+            d.dose /= d.volume;
+            d.doseVariance /= d.volume * d.volume;
+        }
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i].density = m_collectionDensities[i];
+            data[i].name = m_collectionNames[i];
+        }
+        return data;
     }
 
     WorldIntersectionResult intersect(const ParticleType auto& particle) const
@@ -554,5 +580,7 @@ private:
     std::vector<double> m_collectionDensities; // same size as n collections
     std::vector<Material<NMaterialShells>> m_collectionMaterials; // same size as n collections
     std::vector<std::string> m_collectionNames; // same size as n collections
+
+    ParticleTracker m_tracker;
 };
 }
