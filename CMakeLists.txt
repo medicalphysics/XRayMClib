@@ -152,6 +152,7 @@ set(HEADER_LIST
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh3.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh3/tetrahedalmeshcontourkdtree.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/tetrahedalmesh3/tetrahedalmeshcontouroctree.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/aabb.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/cylinder.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/basicshapes/cylinderz.hpp"
