@@ -92,6 +92,32 @@ bool testTetrahedalMeshGrid()
     return false;
 }
 
+void testWalk()
+{
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+
+    xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
+    testreader.rotate({ 0, 0, 1 }, std::numbers::pi_v<double>);
+    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
+    xraymc::World<Mesh> world;
+    auto& item = world.template addItem<Mesh>(testreader.data());
+    const auto aabb = item.AABB();
+    item.translate({ -100, -30 - aabb[4] - 4, -aabb[2] - 120 });
+
+    xraymc::Particle p1;
+    p1.pos = { -95.259739884039476, -46.999651240345457, -118.48122907673229 };
+    p1.dir = { -0.023143632090657524, 0.99961050744105795, 0.015595053930109647 };
+
+    xraymc::Particle p2;
+    p1.pos = { -86.73504383202426, -48.192271830600511, -5.0936455819747941 };
+    p1.dir = { 0.021716261745313829, -0.46651056408553976, 0.88424900201945422 };
+    xraymc::RandomState state;
+    item.transport(p1, state);
+}
+
 void showPhantom()
 {
     // std::string node_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.node";
@@ -228,8 +254,9 @@ void testTiming()
 
 int main()
 {
+    testWalk();
     // showPhantom();
-    testTiming();
+    // testTiming();
 
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
