@@ -35,7 +35,9 @@ namespace xraymc {
 
 template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh3 {
-    static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
+    // static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
+    // static constexpr double EPSILON = 1E-8;
+    static constexpr double EPSILON = GEOMETRIC_ERROR();
 
 public:
     TetrahedalMesh3() { };
@@ -262,6 +264,24 @@ public:
     }
 
 protected:
+    template <ParticleType P, bool FORWARD = true>
+    void nudgeParticle(P& particle) const
+    {
+        // Currently not used
+        constexpr auto min = std::numeric_limits<double>::lowest();
+        constexpr auto max = std::numeric_limits<double>::max();
+        if constexpr (positive_direction)
+            for (std::size_t i = 0; i < 3; ++i) {
+                const double dir = particle.dir[i] < 0.0 ? min : max;
+                particle.pos[i] = std::nextafter(particle.pos[i], dir);
+            }
+        else
+            for (std::size_t i = 0; i < 3; ++i) {
+                const double dir = particle.dir[i] < 0.0 ? max : min;
+                particle.pos[i] = std::nextafter(particle.pos[i], dir);
+            }
+    }
+
     std::uint32_t intersectedTetrahedron(ParticleType auto& particle) const
     {
         // copy particle
@@ -316,7 +336,8 @@ protected:
                 // directions
                 if (t[0] <= 0.0) {
                     if (currentIdx == tet.neighborIdx[faces[1]]) {
-                        particle.translate(t[0] - EPSILON);
+                        const auto dist = t[0] - EPSILON;
+                        particle.translate(dist);
                     } else {
                         found = tet.neighborIdx[faces[1]] == oldIdx;
                         oldIdx = currentIdx;
@@ -324,7 +345,8 @@ protected:
                     }
                 } else if (t[0] >= 0.0) {
                     if (currentIdx == tet.neighborIdx[faces[0]]) {
-                        particle.translate(t[0] + EPSILON);
+                        const auto dist = t[0] + EPSILON;
+                        particle.translate(dist);
                     } else {
                         found = tet.neighborIdx[faces[0]] == oldIdx;
                         oldIdx = currentIdx;
