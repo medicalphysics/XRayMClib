@@ -36,8 +36,8 @@ namespace xraymc {
 template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh3 {
     // static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
-    // static constexpr double EPSILON = 1E-8;
-    static constexpr double EPSILON = GEOMETRIC_ERROR();
+    static constexpr double EPSILON = 1E-10;
+    // static constexpr double EPSILON = GEOMETRIC_ERROR();
 
 public:
     TetrahedalMesh3() { };
@@ -264,22 +264,28 @@ public:
     }
 
 protected:
-    template <ParticleType P, bool FORWARD = true>
-    void nudgeParticle(P& particle) const
+    static auto absargmax3(const std::array<double, 3>& arr)
+    {
+        const auto a = std::abs(arr[0]);
+        const auto b = std::abs(arr[1]);
+        const auto c = std::abs(arr[2]);
+        return (b > a && b > c) ? 1 : ((c > a) ? 2 : 0);
+    }
+
+    template <bool FORWARD = true>
+    static void nudgeParticle(ParticleType auto& particle)
     {
         // Currently not used
         constexpr auto min = std::numeric_limits<double>::lowest();
         constexpr auto max = std::numeric_limits<double>::max();
-        if constexpr (positive_direction)
-            for (std::size_t i = 0; i < 3; ++i) {
-                const double dir = particle.dir[i] < 0.0 ? min : max;
-                particle.pos[i] = std::nextafter(particle.pos[i], dir);
-            }
-        else
-            for (std::size_t i = 0; i < 3; ++i) {
-                const double dir = particle.dir[i] < 0.0 ? max : min;
-                particle.pos[i] = std::nextafter(particle.pos[i], dir);
-            }
+        const auto i = absargmax3(particle.dir);
+        if constexpr (FORWARD) {
+            const auto dir = particle.dir[i] < 0.0 ? min : max;
+            particle.pos[i] = std::nextafter(particle.pos[i], dir);
+        } else {
+            const auto dir = particle.dir[i] < 0.0 ? max : min;
+            particle.pos[i] = std::nextafter(particle.pos[i], dir);
+        }
     }
 
     std::uint32_t intersectedTetrahedron(ParticleType auto& particle) const
@@ -343,7 +349,7 @@ protected:
                         oldIdx = currentIdx;
                         currentIdx = tet.neighborIdx[faces[1]];
                     }
-                } else if (t[0] >= 0.0) {
+                } else { // (t[0] >= 0.0)
                     if (currentIdx == tet.neighborIdx[faces[0]]) {
                         const auto dist = t[0] + EPSILON;
                         particle.translate(dist);

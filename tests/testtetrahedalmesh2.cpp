@@ -94,10 +94,15 @@ bool testTetrahedalMeshGrid()
 
 void testWalk()
 {
-    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+
+    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
     testreader.rotate({ 0, 0, 1 }, std::numbers::pi_v<double>);
@@ -166,15 +171,15 @@ void showPhantom()
 
 void testTiming()
 {
-    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
@@ -185,15 +190,15 @@ void testTiming()
     world.build();
 
     xraymc::DXBeam beam;
-    beam.setPosition({ 0, -180, 40 });
+    beam.setPosition({ 0, -1800, 40 });
     beam.setDirectionCosines({ 1, 0, 0 }, { 0, 0, -1 });
     beam.setTubeVoltage(80);
     beam.setNumberOfExposures(100);
     beam.setNumberOfParticlesPerExposure(100000);
-    beam.setCollimationHalfAnglesDeg(3, 3);
+    beam.setCollimationHalfAnglesDeg(0.3, 0.3);
 
     xraymc::Transport transport;
-    const auto time = transport.runConsole(world, beam).count();
+    const auto time = transport.runConsole(world, beam, 1).count();
 
     std::cout << "Total time " << time << std::endl;
 
@@ -254,9 +259,9 @@ void testTiming()
 
 int main()
 {
-    testWalk();
-    // showPhantom();
-    // testTiming();
+    // testWalk();
+    //  showPhantom();
+    testTiming();
 
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
