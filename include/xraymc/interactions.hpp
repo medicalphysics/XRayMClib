@@ -183,7 +183,7 @@ namespace interactions {
                 } else {
                     S = 1 - (1 + alpha * p) * expb * 0.5;
                 }
-            }          
+            }
         } while (state.randomUniform() > S);
 
         // sample pz
@@ -350,10 +350,15 @@ namespace interactions {
     }
 
     struct InteractionResult {
+        // the size of InteractionResult is 16 bytes anyway, why not throw in
+        // type of interaction, even it's almost not used
         double energyImparted = 0;
         bool particleAlive = true;
         bool particleEnergyChanged = false;
         bool particleDirectionChanged = false;
+        bool interactionWasPhotoelectric = false;
+        bool interactionWasCoherent = false;
+        bool interactionWasIncoherent = false;
     };
 
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2>
@@ -366,18 +371,22 @@ namespace interactions {
             res.energyImparted = Ei;
             res.particleEnergyChanged = true;
             res.particleDirectionChanged = true;
+            res.interactionWasPhotoelectric = true;
         } else if (r2 < (attenuation.photoelectric + attenuation.incoherent)) {
             const auto Ei = interactions::comptonScatter<Nshells, LOWENERGYCORRECTION>(particle, material, state);
             res.energyImparted = Ei;
             res.particleEnergyChanged = true;
             res.particleDirectionChanged = true;
+            res.interactionWasIncoherent = true;
         } else {
             interactions::rayleightScatter<Nshells, LOWENERGYCORRECTION>(particle, material, state);
             res.particleDirectionChanged = true;
+            res.interactionWasCoherent = true;
         }
         if (particle.energy < MIN_ENERGY()) {
             res.particleAlive = false;
             res.energyImparted += particle.energy * particle.weight;
+            particle.energy = 0;
         } else {
             if (particle.weight < interactions::russianRuletteWeightThreshold() && res.particleAlive) {
                 if (state.randomUniform() < interactions::russianRuletteProbability()) {
@@ -418,17 +427,20 @@ namespace interactions {
                     intRes.energyImparted += Ei;
                     intRes.particleEnergyChanged = true;
                     intRes.particleDirectionChanged = true;
+                    intRes.interactionWasIncoherent = true;
                 } else {
                     interactions::rayleightScatter<NMaterialShells, LOWENERGYCORRECTION>(particle, material, state);
                     intRes.particleDirectionChanged = true;
+                    intRes.interactionWasCoherent = true;
                 }
 
                 // Handle cutoff values
                 if (particle.energy < MIN_ENERGY()) {
                     intRes.particleAlive = false;
-                    intRes.energyImparted += particle.energy;
+                    intRes.energyImparted += particle.energy * particle.weight;
+                    particle.energy = 0;
                 } else {
-                    if (particle.weight < interactions::russianRuletteWeightThreshold() && intRes.particleAlive) {
+                    if (particle.weight < interactions::russianRuletteWeightThreshold()) {
                         if (state.randomUniform() < interactions::russianRuletteProbability()) {
                             intRes.particleAlive = false;
                         } else {
@@ -440,9 +452,28 @@ namespace interactions {
                 }
             } else {
                 // real photoelectric effect event
-                // we don't score energy since it's already done. But terminates particle to prevent bias.
-                intRes.particleAlive = false;
-                particle.energy = 0;
+                // we don't score energy since it's already done, else do as usual to prevent bias.
+                const auto Ei = interactions::photoelectricEffect<NMaterialShells, LOWENERGYCORRECTION>(attenuation.photoelectric, particle, material, state);
+                // In case of characteristic radiation
+                intRes.particleEnergyChanged = true;
+                intRes.particleDirectionChanged = true;
+                intRes.interactionWasPhotoelectric = true;
+
+                if (particle.energy < MIN_ENERGY()) {
+                    intRes.particleAlive = false;
+                    intRes.energyImparted += particle.energy * particle.weight;
+                    particle.energy = 0;
+                } else {
+                    if (particle.weight < interactions::russianRuletteWeightThreshold()) {
+                        if (state.randomUniform() < interactions::russianRuletteProbability()) {
+                            intRes.particleAlive = false;
+                        } else {
+                            constexpr auto factor = 1 / (1 - interactions::russianRuletteProbability());
+                            particle.weight *= factor;
+                            intRes.particleAlive = true;
+                        }
+                    }
+                }
             }
         } else {
             // No interaction event, transport particle to border
