@@ -437,8 +437,8 @@ protected:
             if constexpr (FORCEDINTERACTION) {
                 // Forced photoel
                 const auto pe_prob = (1.0 - delta_prob) * relativePEprobability;
+                m_energyScore[currentTetIdx].scoreEnergy(particle.energy * particle.weight * pe_prob);
                 particle.weight *= 1.0 - pe_prob;
-                m_energyScore[currentTetIdx].scoreEnergy(particle.energy * particle.weight);
             }
 
             if (prob <= prob_thres) { // interaction
