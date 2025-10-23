@@ -324,7 +324,8 @@ public:
                     const auto interactionResult = interactions::template interact<WorldShells(), 2>(att, p, m_fillMaterial, state);
                     updateAttenuation = interactionResult.particleEnergyChanged;
                     continueSampling = interactionResult.particleAlive;
-                    m_energyScored.scoreEnergy(interactionResult.energyImparted);
+                    if (interactionResult.energyImparted > 0)
+                        m_energyScored.scoreEnergy(interactionResult.energyImparted);
                 }
             } else { // We do not intersect any object
                 p.translate(stepLength);
@@ -332,7 +333,8 @@ public:
                     const auto interactionResult = interactions::template interact<WorldShells(), 2>(att, p, m_fillMaterial, state);
                     updateAttenuation = interactionResult.particleEnergyChanged;
                     continueSampling = interactionResult.particleAlive;
-                    m_energyScored.scoreEnergy(interactionResult.energyImparted);
+                    if (interactionResult.energyImparted > 0)
+                        m_energyScored.scoreEnergy(interactionResult.energyImparted);
                 } else {
                     continueSampling = false;
                 }
