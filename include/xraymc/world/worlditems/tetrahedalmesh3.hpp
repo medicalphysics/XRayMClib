@@ -438,7 +438,6 @@ protected:
                 // Forced photoel
                 const auto pe_prob = (1.0 - delta_prob) * relativePEprobability;
                 m_energyScore[currentTetIdx].scoreEnergy(particle.energy * particle.weight * pe_prob);
-                particle.weight *= 1.0 - pe_prob;
             }
 
             if (prob <= prob_thres) { // interaction
@@ -449,8 +448,14 @@ protected:
                 travel_distance = 0; // resetting travelled distance
                 // Do interaction
                 const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
-                if (intRes.energyImparted > 0.0)
-                    m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                if constexpr (FORCEDINTERACTION) {
+                    if (!intRes.interactionWasPhotoelectric && intRes.energyImparted > 0.0)
+                        // We have already scored photoelectric energy, skipping scoring photoelectric to prevent bias
+                        m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                } else {
+                    if (intRes.energyImparted > 0.0)
+                        m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                }
                 if (intRes.particleAlive) {
                     updateAtt = intRes.particleEnergyChanged;
                     // updating prob threshold and prob  for next round
