@@ -94,15 +94,15 @@ bool testTetrahedalMeshGrid()
 
 void testWalk()
 {
-    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
-    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
     testreader.rotate({ 0, 0, 1 }, std::numbers::pi_v<double>);
@@ -171,34 +171,34 @@ void showPhantom()
 
 void testTiming()
 {
-    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
     // using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
-    using Mesh = xraymc::TetrahedalMesh3<5, 2, false>;
+    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
     xraymc::World<Mesh> world;
-    auto& item = world.template addItem<Mesh>(testreader.data());
-    world.build();
+    auto& item = world.template addItem<Mesh>(testreader.data());   
+    world.build(1000);
 
     xraymc::DXBeam beam;
     beam.setPosition({ 0, -1800, 40 });
     beam.setDirectionCosines({ 1, 0, 0 }, { 0, 0, -1 });
     beam.setTubeVoltage(80);
-    beam.setNumberOfExposures(100);
-    beam.setNumberOfParticlesPerExposure(100000);
+    beam.setNumberOfExposures(10);
+    beam.setNumberOfParticlesPerExposure(1000000);
     beam.setCollimationHalfAnglesDeg(0.3, 0.3);
 
     xraymc::Transport transport;
-    const auto time = transport.runConsole(world, beam, 1).count();
+    const auto time = transport.runConsole(world, beam).count();
 
     std::cout << "Total time " << time << std::endl;
 
@@ -212,38 +212,30 @@ void testTiming()
     const auto max_dose = *std::max_element(doses.cbegin(), doses.cend());
 
     viz.setAzimuthalAngleDeg(80);
-    viz.setPolarAngleDeg(0);
     viz.setDistance(1000);
-    viz.suggestFOV(1);
+    viz.suggestFOV(10);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
     viz.addLineProp(beam, 180, .2);
 
-    viz.generate(world, buffer);
-    viz.savePNG("test0.png", buffer);
-    viz.setPolarAngleDeg(90);
-    viz.generate(world, buffer);
-    viz.savePNG("test90.png", buffer);
-    viz.setPolarAngleDeg(180);
-    viz.generate(world, buffer);
-    viz.savePNG("test180.png", buffer);
-    viz.setPolarAngleDeg(270);
-    viz.generate(world, buffer);
-    viz.savePNG("test270.png", buffer);
-
+    const int degstep = 45;
+    for (int i = 0; i < 360; i = i + degstep) {
+        viz.setPolarAngleDeg(i);
+        viz.generate(world, buffer);
+        std::string name = "test";
+        name += std::to_string(i);
+        name += ".png";
+        viz.savePNG(name, buffer);
+    }
     viz.addColorByValueItem(world.getItemPointers()[0]);
-    viz.setColorByValueMinMax(0.0, max_dose * 0.5);
-
-    viz.generate(world, buffer);
-    viz.savePNG("dose0.png", buffer);
-    viz.setPolarAngleDeg(90);
-    viz.generate(world, buffer);
-    viz.savePNG("dose90.png", buffer);
-    viz.setPolarAngleDeg(180);
-    viz.generate(world, buffer);
-    viz.savePNG("dose180.png", buffer);
-    viz.setPolarAngleDeg(270);
-    viz.generate(world, buffer);
-    viz.savePNG("dose270.png", buffer);
+    viz.setColorByValueMinMax(0.0, max_dose);
+    for (int i = 0; i < 360; i = i + degstep) {
+        viz.setPolarAngleDeg(i);
+        viz.generate(world, buffer);
+        std::string name = "dose";
+        name += std::to_string(i);
+        name += ".png";
+        viz.savePNG(name, buffer);
+    }
 
     auto data = item.collectionData();
     std::cout << "Name, volume, density, dose, std, nevents\n";
