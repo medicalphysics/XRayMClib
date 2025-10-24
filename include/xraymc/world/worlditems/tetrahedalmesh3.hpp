@@ -123,6 +123,21 @@ public:
         return basicshape::tetrahedron::volume(v0, v1, v2, v3);
     }
 
+    std::uint32_t numberOfThetrahedrons() const
+    {
+        return static_cast<std::uint32_t>(m_tetrahedrons.size());
+    }
+
+    std::array<std::array<double, 3>, 4> tetrahedron(std::uint32_t ind) const
+    {
+        const auto& t = m_tetrahedrons.at(ind);
+        std::array<std::array<double, 3>, 4> tet;
+        for (std::uint32_t i = 0; i < 4; ++i) {
+            tet[i] = m_vertices[t.verticeIdx[i]];
+        }
+        return tet;
+    }
+
     const std::vector<std::uint32_t>& outerContourTetrahedronIndices() const
     {
         return m_outerTriangleTetMembership;
@@ -198,11 +213,6 @@ public:
             }
         };
         return res;
-    }
-
-    std::uint32_t numberOfThetrahedrons() const
-    {
-        return static_cast<std::uint32_t>(m_tetrahedrons.size());
     }
 
     EnergyScore energyScored(std::size_t index) const
@@ -497,11 +507,13 @@ protected:
 
         m_tetrahedrons.resize(data.elements.size());
         m_tetrahedrons.shrink_to_fit();
-        for (std::uint32_t i = 0; i < data.elements.size(); ++i) {
-            m_tetrahedrons[i].verticeIdx = data.elements[i];
-            // set all neighbors to self
-            m_tetrahedrons[i].neighborIdx = { i, i, i, i };
-        }
+
+        std::vector<std::uint32_t> indices(m_tetrahedrons.size());
+        std::iota(indices.begin(), indices.end(), 0);
+
+        std::transform(std::execution::par_unseq, data.elements.cbegin(), data.elements.cend(), indices.cbegin(), m_tetrahedrons.begin(), [](const auto& tInds, auto i) {
+            return Tetrahedron { .verticeIdx = tInds, .neighborIdx = { i, i, i, i } };
+        });
 
         if (m_tetrahedrons.size() < 2) {
             return;
@@ -509,15 +521,21 @@ protected:
 
         // finding neighbors
         struct Face {
+            Face() { }
             Face(std::uint32_t x, std::uint32_t y, std::uint32_t z, std::uint32_t i, std::uint32_t num)
             {
                 verticeIdx = { x, y, z };
                 tetIdx = i;
                 faceNumber = num;
             }
-            void sort()
+            void sort() noexcept
             {
-                std::sort(verticeIdx.begin(), verticeIdx.end());
+                if (verticeIdx[0] > verticeIdx[1])
+                    std::swap(verticeIdx[0], verticeIdx[1]);
+                if (verticeIdx[1] > verticeIdx[2])
+                    std::swap(verticeIdx[1], verticeIdx[2]);
+                if (verticeIdx[0] > verticeIdx[1])
+                    std::swap(verticeIdx[0], verticeIdx[1]);
             }
             auto operator<=>(const Face& other) const
             {
@@ -562,6 +580,8 @@ protected:
     {
         m_outer_triangles.clear();
         m_outerTriangleTetMembership.clear();
+        m_outer_triangles.reserve(m_tetrahedrons.size());
+        m_outerTriangleTetMembership.reserve(m_tetrahedrons.size());
         for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
             const auto& tet = m_tetrahedrons[i].verticeIdx;
             if (m_tetrahedrons[i].neighborIdx[0] == i) {
