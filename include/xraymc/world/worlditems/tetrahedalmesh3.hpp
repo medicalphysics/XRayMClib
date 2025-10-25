@@ -303,7 +303,7 @@ protected:
         auto kdres = m_kdtree.intersect(p, m_vertices, m_outer_triangles, m_aabb);
         if (!kdres.valid()) {
             kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, m_aabb);
-            particle.border_translate(kdres.intersection);
+            particle.translate(kdres.intersection + EPSILON);
         }
         const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
         auto currentTetIdx = m_outerTriangleTetMembership[faceIdx];
@@ -340,8 +340,8 @@ protected:
                 }
             }
             if (t[0] > t[1]) {
-                t = { t[1], t[0] };
-                faces = { faces[1], faces[0] };
+                std::swap(t[1], t[0]);
+                std::swap(faces[1], faces[0])
             }
             found = t[0] <= 0 && t[1] >= 0.0;
             if (!found) {
@@ -483,7 +483,7 @@ protected:
         }
         // Particle  either dead or we exit mesh
         if (particle.energy != 0.0)
-            particle.border_translate(travel_distance);
+            particle.translate(travel_distance + EPSILON);
     }
 
     void calculateAABB()
