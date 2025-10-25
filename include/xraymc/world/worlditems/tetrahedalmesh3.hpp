@@ -341,7 +341,7 @@ protected:
             }
             if (t[0] > t[1]) {
                 std::swap(t[1], t[0]);
-                std::swap(faces[1], faces[0])
+                std::swap(faces[1], faces[0]);
             }
             found = t[0] <= 0 && t[1] >= 0.0;
             if (!found) {
