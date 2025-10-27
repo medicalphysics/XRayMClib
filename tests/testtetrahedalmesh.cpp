@@ -25,7 +25,6 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh2.hpp"
 #include "xraymc/world/worlditems/worldbox.hpp"
 
 #include <iostream>
@@ -123,8 +122,6 @@ bool testTransport()
 
     using M1 = xraymc::TetrahedalMesh<5, 1, true>;
     using M2 = xraymc::TetrahedalMesh<5, 1, false>;
-    using T1 = xraymc::TetrahedalMesh2<5, 1, true>;
-    using T2 = xraymc::TetrahedalMesh2<5, 1, false>;
 
     using B = xraymc::WorldBox<5, 1, false>;
     using BF = xraymc::WorldBox<5, 1, true>;
@@ -167,35 +164,6 @@ bool testTransport()
         auto coll = mesh.collectionData();
         dose = coll[0].dose;
         std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
-    }
-    {
-        xraymc::World<T1> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(T1 { tetCube() });
-        w.build();
-
-        double dose = 0;
-        xraymc::Transport transport;
-
-        transport(w, beam, &progress);
-        auto coll = mesh.collectionData();
-        dose = coll[0].dose;
-        std::cout << "Mesh2 forced " << dose << " " << progress.humanTotalTime() << std::endl;
-    }
-
-    {
-        xraymc::World<T2> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(T2 { tetCube() });
-        w.build();
-
-        double dose = 0;
-        xraymc::Transport transport;
-
-        transport(w, beam, &progress);
-        auto coll = mesh.collectionData();
-        dose = coll[0].dose;
-        std::cout << "Mesh2 random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
 
     {
@@ -275,8 +243,6 @@ bool testTransportICRP()
 
     using M1 = xraymc::TetrahedalMesh<5, 1, true>;
     using M2 = xraymc::TetrahedalMesh<5, 1, false>;
-    using T1 = xraymc::TetrahedalMesh2<5, 1, true>;
-    using T2 = xraymc::TetrahedalMesh2<5, 1, false>;
 
     constexpr std::size_t N_HIST = 10000;
     constexpr std::size_t N_EXP = 32;
@@ -317,37 +283,6 @@ bool testTransportICRP()
         auto coll = mesh.collectionData();
         dose = coll[0].dose;
         std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
-    }
-    {
-        xraymc::World<T1> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(T1 { data });
-        w.build();
-
-        double dose = 0;
-        xraymc::Transport transport;
-
-        transport(w, beam, &progress);
-        for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
-            dose += mesh.doseScored(i).dose();
-        auto coll = mesh.collectionData();
-        dose = coll[0].dose;
-        std::cout << "Mesh2 forced " << dose << " " << progress.humanTotalTime() << std::endl;
-    }
-
-    {
-        xraymc::World<T2> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(T2 { data });
-        w.build();
-
-        double dose = 0;
-        xraymc::Transport transport;
-        // transport.setNumberOfThreads(1);
-        transport(w, beam, &progress);
-        for (std::size_t i = 0; i < mesh.numberOfTetrahedra(); ++i)
-            dose += mesh.doseScored(i).dose();
-        std::cout << "Mesh2 random " << dose << " " << progress.humanTotalTime() << std::endl;
     }
 
     return false;

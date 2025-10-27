@@ -21,9 +21,6 @@ Copyright 2025 Erlend Andersen
 #include "xraymc/world/worlditems/tetrahedalmesh.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh2.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh2/tetrahedalmeshgrid2.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh3.hpp"
 
 #include "xraymc/beams/dxbeam.hpp"
 #include "xraymc/beams/pencilbeam.hpp"
@@ -106,7 +103,7 @@ void testWalk()
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
     testreader.rotate({ 0, 0, 1 }, std::numbers::pi_v<double>);
-    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
+    using Mesh = xraymc::TetrahedalMesh<5, 2, true>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
     const auto aabb = item.AABB();
@@ -141,7 +138,7 @@ void showPhantom()
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
-    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
+    using Mesh = xraymc::TetrahedalMesh<5, 2, true>;
     xraymc::World<Mesh> world;
     auto& item = world.template addItem<Mesh>(testreader.data());
     item.translate({ 10, 10, 10 });
@@ -184,9 +181,9 @@ void testTiming()
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
     // using Mesh = xraymc::TetrahedalMesh2<5, 2, false>;
-    using Mesh = xraymc::TetrahedalMesh3<5, 2, true>;
+    using Mesh = xraymc::TetrahedalMesh<5, 2, true>;
     xraymc::World<Mesh> world;
-    auto& item = world.template addItem<Mesh>(testreader.data());   
+    auto& item = world.template addItem<Mesh>(testreader.data());
     world.build(1000);
 
     xraymc::DXBeam beam;

@@ -13,255 +13,135 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
-Copyright 2023 Erlend Andersen
+Copyright 2025 Erlend Andersen
 */
 
 #pragma once
-
-#include "xraymc/constants.hpp"
-#include "xraymc/interactions.hpp"
-#include "xraymc/interpolation.hpp"
-#include "xraymc/material/material.hpp"
-#include "xraymc/material/nistmaterials.hpp"
 #include "xraymc/particle.hpp"
-#include "xraymc/particletracker.hpp"
-#include "xraymc/vectormath.hpp"
 #include "xraymc/world/dosescore.hpp"
 #include "xraymc/world/energyscore.hpp"
+#include "xraymc/world/visualizationintersectionresult.hpp"
+#include "xraymc/world/worldintersectionresult.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshcollection.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshcontourkdtree.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshgrid.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh/tetrahedron.hpp"
 #include "xraymc/xraymcrandom.hpp"
 
+#include <algorithm>
 #include <array>
-#include <string>
-#include <string_view>
-#include <vector>
+#include <concepts>
+#include <optional>
 
 namespace xraymc {
 
-template <int NMaterialShells = 5, int LOWENERGYCORRECTION = 2, bool FLUENCESCORING = true>
+template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh {
+    // static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
+    static constexpr double EPSILON = 1E-10;
+    // static constexpr double EPSILON = GEOMETRIC_ERROR();
+
 public:
-    TetrahedalMesh()
+    TetrahedalMesh() { };
+    TetrahedalMesh(const TetrahedalMeshData& data)
     {
+        setData(data);
     }
 
-    TetrahedalMesh(const TetrahedalMeshData& data, std::array<int, 3> dimensions = { 8, 8, 8 })
-    {
-        setData(data, dimensions);
-    }
-
-    bool setData(const TetrahedalMeshData& data, std::array<int, 3> dimensions)
+    bool setData(const TetrahedalMeshData& data)
     {
         if (!data.valid())
             return false;
+        makeStructure(data);
+        calculateAABB();
+        buildContourKDTree();
 
-        std::vector<Tetrahedron> tets(data.elements.size());
-        std::transform(std::execution::par_unseq, data.elements.cbegin(), data.elements.cend(), data.collectionIndices.cbegin(), tets.begin(), [&data](const auto& e, const auto idx) {
-            const auto& v0 = data.nodes[e[0]];
-            const auto& v1 = data.nodes[e[1]];
-            const auto& v2 = data.nodes[e[2]];
-            const auto& v3 = data.nodes[e[3]];
-            return Tetrahedron { v0, v1, v2, v3, static_cast<std::uint16_t>(idx) };
-        });
+        m_doseScore.resize(m_tetrahedrons.size());
+        m_energyScore.resize(m_tetrahedrons.size());
 
-        m_collectionDensity = data.collectionDensities;
+        m_collectionIdx = data.collectionIndices;
+        m_collectionDensities = data.collectionDensities;
         m_collectionNames = data.collectionNames;
-        m_collectionMaterial.clear();
-        m_collectionMaterial.reserve(data.collectionMaterialComposition.size());
-        for (const auto& weights : data.collectionMaterialComposition) {
-            auto mat_opt = xraymc::Material<NMaterialShells>::byWeight(weights);
-            if (mat_opt)
-                m_collectionMaterial.push_back(mat_opt.value());
+
+        std::vector<std::optional<Material<NMaterialShells>>> mats(data.collectionMaterialComposition.size());
+        std::transform(std::execution::par_unseq, data.collectionMaterialComposition.cbegin(), data.collectionMaterialComposition.cend(), mats.begin(), [](const auto& w) {
+            return Material<NMaterialShells>::byWeight(w);
+        });
+        m_collectionMaterials.clear();
+        m_collectionMaterials.reserve(data.collectionMaterialComposition.size());
+        for (auto& m : mats) {
+            if (m)
+                m_collectionMaterials.push_back(m.value());
             else
                 return false;
         }
 
-        m_grid.setData(tets, dimensions);
-
-        if constexpr (!FLUENCESCORING) {
-            generateWoodcockStepTable();
-        }
         return true;
     }
 
-    bool setData(const std::vector<Tetrahedron>& tets, const std::vector<double>& collectionDensities, const std::vector<Material<NMaterialShells>>& materials, const std::vector<std::string>& collectionNames = {}, std::array<int, 3> depth = { 8, 8, 8 })
+    void translate(const std::array<double, 3>& vec)
     {
-        // finding max collectionIdx and Material index
-        const auto maxCollectionIdx = std::transform_reduce(
-            std::execution::par_unseq, tets.cbegin(), tets.cend(), std::uint16_t { 0 },
-            [](const auto lh, const auto rh) { return std::max(lh, rh); },
-            [](const auto& t) { return t.collection(); });
-        const auto maxMaterialIdx = std::transform_reduce(
-            std::execution::par_unseq, tets.cbegin(), tets.cend(), std::uint16_t { 0 },
-            [](const auto lh, const auto rh) { return std::max(lh, rh); },
-            [](const auto& t) { return t.materialIndex(); });
-        if (collectionDensities.size() <= maxCollectionIdx || materials.size() <= maxMaterialIdx)
-            return false;
-        m_collectionMaterial = materials;
-        m_collectionDensity.reserve(collectionDensities.size());
-
-        std::vector<std::atomic<double>> volumes(maxCollectionIdx + 1);
-        std::for_each(std::execution::par_unseq, volumes.begin(), volumes.end(), [](auto& v) { v.store(double { 0 }); });
-        std::for_each(std::execution::par_unseq, tets.cbegin(), tets.cend(), [&volumes](const auto& tet) {
-            const auto idx = tet.collection();
-            volumes[idx].fetch_add(tet.volume());
+        std::transform(std::execution::par_unseq, m_vertices.begin(), m_vertices.end(), m_vertices.begin(), [=](const auto& v) {
+            return vectormath::add(v, vec);
         });
-
-        for (std::size_t i = 0; i <= maxCollectionIdx; ++i) {
-            const auto d = collectionDensities[i];
-            const auto v = volumes[i].load();
-            m_collectionDensity.emplace_back(d, v);
+        for (std::size_t i = 0; i < 3; ++i) {
+            m_aabb[i] = m_aabb[i] + vec[i];
+            m_aabb[i + 3] = m_aabb[i + 3] + vec[i];
         }
-
-        if (collectionNames.size() == m_collectionDensity.size())
-            m_collectionNames = collectionNames;
-        else
-            m_collectionNames.resize(m_collectionDensity.size());
-
-        m_grid.setData(tets, depth);
-
-        if constexpr (!FLUENCESCORING) {
-            generateWoodcockStepTable();
-        }
-
-        return true;
+        m_kdtree.translate(vec);
     }
 
-    void translate(const std::array<double, 3>& dist)
+    void rotate(const std::array<double, 3>& axis, double angle)
     {
-        m_grid.translate(dist);
-    }
-
-    std::array<double, 3> center() const
-    {
-        const auto& aabb = m_grid.AABB();
-        const auto [low, high] = vectormath::splice(aabb);
-        auto c = vectormath::add(low, high);
-        return vectormath::scale(c, 0.5);
+        std::transform(std::execution::par_unseq, m_vertices.begin(), m_vertices.end(), m_vertices.begin(), [=](const auto& v) {
+            return vectormath::rotate(v, axis, angle);
+        });
+        calculateAABB();
+        m_kdtree.setData(m_vertices, m_outer_triangles, 8);
     }
 
     const std::array<double, 6>& AABB() const
     {
-        return m_grid.AABB();
+        return m_aabb;
     }
 
-    WorldIntersectionResult intersect(const ParticleType auto& p) const
+    std::array<double, 3> center() const
     {
-        WorldIntersectionResult res;
-        if (const auto kres = m_grid.intersect(p); kres.valid()) {
-            res.intersection = kres.intersection;
-            res.rayOriginIsInsideItem = kres.rayOriginIsInsideItem;
-            res.intersectionValid = kres.valid();
-        }
+        std::array<double, 3> res = {
+            (m_aabb[0] + m_aabb[3]) * 0.5,
+            (m_aabb[1] + m_aabb[4]) * 0.5,
+            (m_aabb[2] + m_aabb[5]) * 0.5
+        };
         return res;
     }
 
-    template <typename U>
-    VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
+    double tetrahedalVolume(std::uint32_t index) const
     {
-        VisualizationIntersectionResult<U> res;
-        if (const auto kres = m_grid.intersect(p); kres.valid()) {
-            res.intersection = kres.intersection;
-            res.rayOriginIsInsideItem = kres.rayOriginIsInsideItem;
-            res.intersectionValid = kres.valid();
-            res.value = kres.item->doseScored().dose();
-            const auto hit_pos = vectormath::add(p.pos, vectormath::scale(p.dir, kres.intersection));
-            res.normal = kres.item->normal(hit_pos);
+        const auto& tet = m_tetrahedrons.at(index).verticeIdx;
+        const auto& v0 = m_vertices[tet[0]];
+        const auto& v1 = m_vertices[tet[1]];
+        const auto& v2 = m_vertices[tet[2]];
+        const auto& v3 = m_vertices[tet[3]];
+        return basicshape::tetrahedron::volume(v0, v1, v2, v3);
+    }
+
+    std::uint32_t numberOfThetrahedrons() const
+    {
+        return static_cast<std::uint32_t>(m_tetrahedrons.size());
+    }
+
+    std::array<std::array<double, 3>, 4> tetrahedron(std::uint32_t ind) const
+    {
+        const auto& t = m_tetrahedrons.at(ind);
+        std::array<std::array<double, 3>, 4> tet;
+        for (std::uint32_t i = 0; i < 4; ++i) {
+            tet[i] = m_vertices[t.verticeIdx[i]];
         }
-        return res;
+        return tet;
     }
 
-    const EnergyScore& energyScored(std::size_t index = 0) const
+    const std::vector<std::uint32_t>& outerContourTetrahedronIndices() const
     {
-        const auto tets = m_grid.tetrahedrons();
-        return tets.at(index).energyScored();
-    }
-
-    void clearEnergyScored()
-    {
-        m_grid.clearEnergyScored();
-    }
-
-    void addEnergyScoredToDoseScore(double calibration_factor = 1)
-    {
-        auto& tets = m_grid.tetrahedrons();
-        std::for_each(std::execution::par_unseq, tets.begin(), tets.end(), [calibration_factor, this](auto& tet) {
-            const auto cidx = tet.collection();
-            const auto dens = this->m_collectionDensity[cidx];
-            tet.addEnergyScoredToDoseScore(dens, calibration_factor);
-        });
-    }
-
-    const DoseScore& doseScored(std::size_t index = 0) const
-    {
-        const auto& tets = m_grid.tetrahedrons();
-        return tets.at(index).doseScored();
-    }
-
-    void clearDoseScored()
-    {
-        m_grid.clearDoseScored();
-    }
-
-    template <ParticleType P>
-    void transport(P& p, RandomState& state)
-    {
-        if constexpr (std::is_same_v<P, ParticleTrack>) {
-            m_tracker.registerParticle(p);
-        }
-        if constexpr (FLUENCESCORING)
-            transportSiddonForced(p, state);
-        else
-            transportWoodcock(p, state);
-    }
-
-    std::size_t numberOfCollections() const { return m_collectionDensity.size(); }
-    std::size_t numberOfTetrahedra() const { return m_grid.tetrahedrons().size(); }
-    const std::vector<Tetrahedron>& tetrahedrons() const
-    {
-        return m_grid.tetrahedrons();
-    }
-    std::size_t maxThetrahedronsVoxelCount() const
-    {
-        return m_grid.maxThetrahedronsVoxelCount();
-    }
-
-    std::vector<TetrahedalMeshCollection> collectionData() const
-    {
-        std::vector<TetrahedalMeshCollection> data(m_collectionDensity.size());
-        const auto& tets = m_grid.tetrahedrons();
-        for (std::size_t i = 0; i < m_collectionDensity.size(); ++i) {
-            data[i].density = m_collectionDensity[i];
-            data[i].name = m_collectionNames[i];
-            const auto collectionIdx = static_cast<std::uint16_t>(i);
-            data[i].volume = std::transform_reduce(std::execution::par_unseq, tets.cbegin(), tets.cend(), 0.0, std::plus {}, [collectionIdx](const auto& t) -> double {
-                return t.collection() == collectionIdx ? t.volume() : 0.0;
-            });
-            const auto cdens = data[i].density;
-            if (data[i].density * data[i].volume > 0.0) {
-                data[i].dose = std::transform_reduce(std::execution::par_unseq, tets.cbegin(), tets.cend(), 0.0, std::plus {}, [collectionIdx, cdens](const auto& t) -> double {
-                    if (t.collection() == collectionIdx) {
-                        const auto tetmass = t.volume() * cdens;
-                        const auto energyImparted = t.doseScored().dose() * tetmass;
-                        return energyImparted;
-                    } else
-                        return 0.0;
-                });
-                data[i].dose /= data[i].density * data[i].volume;
-            } else {
-                data[i].dose = 0;
-            }
-        }
-        return data;
-    }
-
-    void setMaterial(const Material<NMaterialShells>& material, std::size_t index)
-    {
-        if (index < m_collectionMaterial.size())
-            m_collectionMaterial[index] = material;
+        return m_outerTriangleTetMembership;
     }
 
     const ParticleTracker& particleTracker() const
@@ -274,149 +154,481 @@ public:
         return m_tracker;
     }
 
-protected:
-    void generateWoodcockStepTable()
+    std::vector<TetrahedalMeshCollection> collectionData() const
     {
-        std::vector<double> energy;
-        {
-            auto e = std::log(MIN_ENERGY());
-            const auto emax = std::log(MAX_ENERGY());
-            const auto estep = (emax - e) / 10;
-            while (e <= emax) {
-                energy.push_back(e);
-                e += estep;
-            }
+        std::vector<TetrahedalMeshCollection> data(m_collectionDensities.size());
+        for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
+            const auto& tet = m_tetrahedrons[i];
+            const auto collIdx = m_collectionIdx[i];
+            const auto vol = tetrahedalVolume(i);
+            auto& dat = data[collIdx];
+            dat.volume += vol;
+            dat.dose += m_doseScore[i].dose() * vol;
+            dat.doseVariance += m_doseScore[i].variance() * vol * vol;
+            dat.numberOfEvents += m_doseScore[i].numberOfEvents();
         }
-        // adding edges;
-        for (const auto& mat : m_collectionMaterial) {
-            for (std::size_t i = 0; i < mat.numberOfShells(); ++i) {
-                const auto& shell = mat.shell(i);
-                const auto e = shell.bindingEnergy + 0.01;
-                if (e > MIN_ENERGY()) {
-                    energy.push_back(std::log(e));
-                }
-            }
-        }
-        std::sort(energy.begin(), energy.end());
-        auto remove = std::unique(energy.begin(), energy.end());
-        energy.erase(remove, energy.end());
-        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), energy.begin(), [](const auto e) { return std::exp(e); });
 
-        // finding max attenuation for each energy
-        std::vector<double> att(energy.size(), 0.0);
-        for (std::size_t mIdx = 0; mIdx < m_collectionMaterial.size(); ++mIdx) {
-            const auto& mat = m_collectionMaterial[mIdx];
-            const auto d = m_collectionDensity[mIdx];
-            for (std::size_t i = 0; i < energy.size(); ++i) {
-                const auto aval = mat.attenuationValues(energy[i]);
-                att[i] = std::max(aval.sum() * d, att[i]);
-            }
+        for (auto& d : data) {
+            d.dose /= d.volume;
+            d.doseVariance /= d.volume * d.volume;
         }
-        std::vector<std::pair<double, double>> data(energy.size());
-        std::transform(std::execution::par_unseq, energy.cbegin(), energy.cend(), att.cbegin(), data.begin(), [](const auto e, const auto a) {
-            return std::make_pair(e, a);
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i].density = m_collectionDensities[i];
+            data[i].name = m_collectionNames[i];
+        }
+        return data;
+    }
+
+    WorldIntersectionResult intersect(const ParticleType auto& particle) const
+    {
+        WorldIntersectionResult res {};
+        if (auto inter = basicshape::AABB::intersectForwardInterval(particle, m_aabb); inter) {
+            auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
+            if (kdres.valid()) {
+                res.intersection = kdres.intersection;
+                res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
+                res.intersectionValid = true;
+            }
+        };
+        return res;
+    }
+
+    template <typename U>
+    VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& particle) const
+    {
+        VisualizationIntersectionResult<U> res {};
+        if (auto inter = basicshape::AABB::intersectForwardInterval(particle, m_aabb); inter) {
+            auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
+            if (kdres.valid()) {
+                res.intersection = kdres.intersection;
+                res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
+                res.intersectionValid = true;
+
+                // normal
+                const auto& vIdx = *(kdres.item);
+                res.normal = basicshape::tetrahedron::normalVector(m_vertices[vIdx[0]], m_vertices[vIdx[1]], m_vertices[vIdx[2]]);
+                // value
+                const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
+                const auto tetIdx = m_outerTriangleTetMembership[faceIdx];
+                res.value = m_doseScore[tetIdx].dose();
+            }
+        };
+        return res;
+    }
+
+    EnergyScore energyScored(std::size_t index) const
+    {
+        return m_energyScore.at(index);
+    }
+
+    DoseScore doseScored(std::size_t index) const
+    {
+        return m_doseScore.at(index);
+    }
+
+    void clearDoseScored()
+    {
+        std::for_each(std::execution::par_unseq, m_doseScore.begin(), m_doseScore.end(), [](auto& d) {
+            d.clear();
+        });
+    }
+
+    void clearEnergyScored()
+    {
+        std::for_each(std::execution::par_unseq, m_energyScore.begin(), m_energyScore.end(), [](auto& d) {
+            d.clear();
+        });
+    }
+
+    void addEnergyScoredToDoseScore(double factor)
+    {
+        std::vector<double> volumes(m_tetrahedrons.size());
+        std::transform(std::execution::par_unseq, m_tetrahedrons.cbegin(), m_tetrahedrons.cend(), volumes.begin(), [&](const auto& tet) {
+            const auto& vIdx = tet.verticeIdx;
+            const auto& v0 = m_vertices[vIdx[0]];
+            const auto& v1 = m_vertices[vIdx[1]];
+            const auto& v2 = m_vertices[vIdx[2]];
+            const auto& v3 = m_vertices[vIdx[3]];
+            return basicshape::tetrahedron::volume(v0, v1, v2, v3);
         });
 
-        m_woodcockStepTableLin = data;
+        std::vector<double> density(m_tetrahedrons.size());
+        std::transform(std::execution::par_unseq, m_collectionIdx.cbegin(), m_collectionIdx.cend(), density.begin(), [&](auto idx) {
+            return m_collectionDensities[idx];
+        });
+        for (std::size_t i = 0; i < volumes.size(); ++i) {
+            m_doseScore[i].addScoredEnergy(m_energyScore[i], volumes[i], density[i], factor);
+        }
     }
 
-    void transportWoodcock(ParticleType auto& p, RandomState& state)
+    template <ParticleType P>
+    void transport(P& particle, RandomState& state)
     {
+        if constexpr (std::is_same_v<P, ParticleTrack>) {
+            m_tracker.registerParticle(particle);
+        }
+        siddonTransport(particle, state);
+    }
+
+protected:
+    static auto absargmax3(const std::array<double, 3>& arr)
+    {
+        const auto a = std::abs(arr[0]);
+        const auto b = std::abs(arr[1]);
+        const auto c = std::abs(arr[2]);
+        return (b > a && b > c) ? 1 : ((c > a) ? 2 : 0);
+    }
+
+    template <bool FORWARD = true>
+    static void nudgeParticle(ParticleType auto& particle)
+    {
+        // Currently not used
+        constexpr auto min = std::numeric_limits<double>::lowest();
+        constexpr auto max = std::numeric_limits<double>::max();
+        const auto i = absargmax3(particle.dir);
+        if constexpr (FORWARD) {
+            const auto dir = particle.dir[i] < 0.0 ? min : max;
+            particle.pos[i] = std::nextafter(particle.pos[i], dir);
+        } else {
+            const auto dir = particle.dir[i] < 0.0 ? max : min;
+            particle.pos[i] = std::nextafter(particle.pos[i], dir);
+        }
+    }
+
+    std::uint32_t intersectedTetrahedron(ParticleType auto& particle) const
+    {
+        // copy particle
+        Particle p;
+        p.pos = particle.pos;
+        p.dir = vectormath::scale(particle.dir, -1.0);
+        auto kdres = m_kdtree.intersect(p, m_vertices, m_outer_triangles, m_aabb);
+        if (!kdres.valid()) {
+            kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, m_aabb);
+            particle.translate(kdres.intersection + EPSILON);
+        }
+        const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
+        auto currentTetIdx = m_outerTriangleTetMembership[faceIdx];
+        // test if we are inside our tet;
+        auto tet = walkTetrahedronLine(currentTetIdx, particle);
+        return tet;
+    }
+
+    std::uint32_t walkTetrahedronLine(std::uint32_t currentIdx, ParticleType auto& particle) const
+    {
+        std::array<double, 2> t;
+        std::array<std::uint32_t, 2> faces;
+        bool found = false;
+        std::uint32_t oldIdx = std::numeric_limits<std::uint32_t>::max();
+        while (!found) {
+            const auto& tet = m_tetrahedrons[currentIdx];
+            const auto& vIdx = tet.verticeIdx;
+            const auto& v0 = m_vertices[vIdx[0]];
+            const auto& v1 = m_vertices[vIdx[1]];
+            const auto& v2 = m_vertices[vIdx[2]];
+            const auto& v3 = m_vertices[vIdx[3]];
+            std::uint32_t hit_counter = 0;
+            const std::array<std::optional<double>, 4> hits = {
+                basicshape::tetrahedron::intersectTriangle(v0, v1, v2, particle),
+                basicshape::tetrahedron::intersectTriangle(v1, v0, v3, particle),
+                basicshape::tetrahedron::intersectTriangle(v2, v3, v0, particle),
+                basicshape::tetrahedron::intersectTriangle(v3, v2, v1, particle)
+            };
+            for (std::uint32_t i = 0; i < 4; ++i) {
+                const auto& h = hits[i];
+                if (h) {
+                    faces[hit_counter] = i;
+                    t[hit_counter++] = *h;
+                }
+            }
+            if (t[0] > t[1]) {
+                std::swap(t[1], t[0]);
+                std::swap(faces[1], faces[0]);
+            }
+            found = t[0] <= 0 && t[1] >= 0.0;
+            if (!found) {
+                // directions
+                if (t[0] <= 0.0) {
+                    if (currentIdx == tet.neighborIdx[faces[1]]) {
+                        const auto dist = t[0] - EPSILON;
+                        particle.translate(dist);
+                    } else {
+                        found = tet.neighborIdx[faces[1]] == oldIdx;
+                        oldIdx = currentIdx;
+                        currentIdx = tet.neighborIdx[faces[1]];
+                    }
+                } else { // (t[0] >= 0.0)
+                    if (currentIdx == tet.neighborIdx[faces[0]]) {
+                        const auto dist = t[0] + EPSILON;
+                        particle.translate(dist);
+                    } else {
+                        found = tet.neighborIdx[faces[0]] == oldIdx;
+                        oldIdx = currentIdx;
+                        currentIdx = tet.neighborIdx[faces[0]];
+                    }
+                }
+            }
+        }
+        return currentIdx;
+    }
+
+    std::tuple<double, std::uint32_t> nextTetrahedron(std::uint32_t currentIdx, const ParticleType auto& particle) const
+    {
+        const auto& tet = m_tetrahedrons[currentIdx];
+        const auto& vIdx = tet.verticeIdx;
+        const auto& v0 = m_vertices[vIdx[0]];
+        const auto& v1 = m_vertices[vIdx[1]];
+        const auto& v2 = m_vertices[vIdx[2]];
+        const auto& v3 = m_vertices[vIdx[3]];
+
+        // tet[0], tet[1], tet[2]
+        // tet[1], tet[0], tet[3]
+        // tet[2], tet[3], tet[0]
+        // tet[3], tet[2], tet[1]
+
+        auto lenght = std::numeric_limits<double>::lowest();
+        auto nextIdx = currentIdx;
+
+        // optimize: we really only can hit one, early exit?
+        const std::array<std::optional<double>, 4> hits = {
+            basicshape::tetrahedron::intersectTriangle(v0, v1, v2, particle),
+            basicshape::tetrahedron::intersectTriangle(v1, v0, v3, particle),
+            basicshape::tetrahedron::intersectTriangle(v2, v3, v0, particle),
+            basicshape::tetrahedron::intersectTriangle(v3, v2, v1, particle)
+        };
+
+        for (std::uint32_t i = 0; i < 4; ++i) {
+            const auto& h = hits[i];
+            if (h) {
+                if (*h > lenght) {
+                    lenght = *h;
+                    nextIdx = tet.neighborIdx[i];
+                }
+            }
+        }
+        return std::make_pair(lenght, nextIdx);
+    }
+
+    void siddonTransport(ParticleType auto& particle, RandomState& state)
+    {
+        // we do cummulative steps instead of stepping on each tet due to numerical stability of tet intersections
+        // when tets become very small
+
+        std::uint32_t currentTetIdx = intersectedTetrahedron(particle);
         bool still_inside = true;
-        double attMaxInv;
+        double attSum;
+        double relativePEprobability;
+        AttenuationValues attenuation;
+        std::uint32_t collIdx;
         bool updateAtt = true;
+        double prob_thres = state.randomUniform();
+        double prob = 1;
+        double travel_distance = 0;
+
         while (still_inside) {
             if (updateAtt) {
-                attMaxInv = 1 / interpolate(m_woodcockStepTableLin, p.energy);
-                updateAtt = false;
+                if constexpr (FORCEDINTERACTION) {
+                    collIdx = m_collectionIdx[currentTetIdx];
+                    attenuation = m_collectionMaterials[collIdx].attenuationValues(particle.energy);
+                    const auto attTot = attenuation.sum();
+                    relativePEprobability = attenuation.photoelectric / attTot;
+                    attSum = attTot * m_collectionDensities[collIdx];
+                    updateAtt = false;
+                } else {
+                    collIdx = m_collectionIdx[currentTetIdx];
+                    attenuation = m_collectionMaterials[collIdx].attenuationValues(particle.energy);
+                    attSum = attenuation.sum() * m_collectionDensities[collIdx];
+                    updateAtt = false;
+                }
             }
 
-            // making interaction step
-            const auto steplen = -std::log(state.randomUniform()) * attMaxInv;
-            p.translate(steplen);
+            const auto [borderlen, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
+            const auto delta_prob = std::exp(-attSum * (borderlen - travel_distance));
+            prob *= delta_prob; // accumulating probability like the Heart of Gold
 
-            // finding current tet
-            auto* currentTet = m_grid.pointInside(p.pos);
+            if constexpr (FORCEDINTERACTION) {
+                // Forced photoel
+                const auto pe_prob = (1.0 - delta_prob) * relativePEprobability;
+                m_energyScore[currentTetIdx].scoreEnergy(particle.energy * particle.weight * pe_prob);
+            }
 
-            if (currentTet) { // is interaction virtual?
-                const auto collectionIdx = currentTet->collection();
-                const auto attenuation = m_collectionMaterial[collectionIdx].attenuationValues(p.energy);
-                const auto attSum = attenuation.sum() * m_collectionDensity[collectionIdx];
-                if (state.randomUniform() < attSum * attMaxInv) {
-                    // we have a real interaction
-                    const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, p, m_collectionMaterial[collectionIdx], state);
-                    currentTet->scoreEnergy(intRes.energyImparted);
-                    still_inside = intRes.particleAlive;
+            if (prob <= prob_thres) { // interaction
+                const auto delta_dist = -std::log(prob / prob_thres) / attSum; // correcting for overspilling
+                const auto dist = borderlen - delta_dist;
+                // moving particle
+                particle.translate(dist);
+                travel_distance = 0; // resetting travelled distance
+                // Do interaction
+                const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
+                if constexpr (FORCEDINTERACTION) {
+                    if (!intRes.interactionWasPhotoelectric && intRes.energyImparted > 0.0)
+                        // We have already scored photoelectric energy, skipping scoring photoelectric to prevent bias
+                        m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                } else {
+                    if (intRes.energyImparted > 0.0)
+                        m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                }
+                if (intRes.particleAlive) {
                     updateAtt = intRes.particleEnergyChanged;
+                    // updating prob threshold and prob  for next round
+                    prob_thres = state.randomUniform();
+                    prob = 1;
+                } else {
+                    still_inside = false;
                 }
             } else {
-                // we are outside item, backtrack and return
-                const Particle pback = { .pos = p.pos, .dir = vectormath::scale(p.dir, -1.0) };
-                const auto inter_back = intersect(pback);
-                if (inter_back.valid()) {
-                    p.border_translate(-inter_back.intersection);
-                }
-                still_inside = false;
+                updateAtt = collIdx != m_collectionIdx[nextTetIdx];
+                still_inside = currentTetIdx != nextTetIdx;
+                currentTetIdx = nextTetIdx;
+                travel_distance = borderlen;
+            }
+        }
+        // Particle  either dead or we exit mesh
+        if (particle.energy != 0.0)
+            particle.translate(travel_distance + EPSILON);
+    }
+
+    void calculateAABB()
+    {
+        for (std::size_t i = 0; i < 3; ++i) {
+            m_aabb[i] = std::numeric_limits<double>::max();
+            m_aabb[i + 3] = std::numeric_limits<double>::lowest();
+        }
+
+        for (const auto& v : m_vertices) {
+            for (std::size_t i = 0; i < 3; ++i) {
+                m_aabb[i] = std::min(m_aabb[i], v[i]);
+                m_aabb[i + 3] = std::max(m_aabb[i + 3], v[i]);
             }
         }
     }
 
-    void transportSiddonForced(ParticleType auto& p, RandomState& state)
+    void makeStructure(const TetrahedalMeshData& data)
     {
-        Tetrahedron* tet = m_grid.pointInside(p.pos);
+        m_vertices = data.nodes;
 
-        while (tet) {
-            const auto& material = m_collectionMaterial[tet->collection()];
-            const auto& density = m_collectionDensity[tet->collection()];
-            const auto intLen = tet->intersect(p).intersection; // this must be valid
-            const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(intLen, density, p, material, state);
-            tet->scoreEnergy(intRes.energyImparted);
-            tet = intRes.particleAlive ? m_grid.pointInside(p.pos) : nullptr;
+        m_tetrahedrons.resize(data.elements.size());
+        m_tetrahedrons.shrink_to_fit();
+
+        std::vector<std::uint32_t> indices(m_tetrahedrons.size());
+        std::iota(indices.begin(), indices.end(), 0);
+
+        std::transform(std::execution::par_unseq, data.elements.cbegin(), data.elements.cend(), indices.cbegin(), m_tetrahedrons.begin(), [](const auto& tInds, auto i) {
+            return Tetrahedron { .verticeIdx = tInds, .neighborIdx = { i, i, i, i } };
+        });
+
+        if (m_tetrahedrons.size() < 2) {
+            return;
         }
+
+        // finding neighbors
+        struct Face {
+            Face() { }
+            Face(std::uint32_t x, std::uint32_t y, std::uint32_t z, std::uint32_t i, std::uint32_t num)
+            {
+                verticeIdx = { x, y, z };
+                tetIdx = i;
+                faceNumber = num;
+            }
+            void sort() noexcept
+            {
+                if (verticeIdx[0] > verticeIdx[1])
+                    std::swap(verticeIdx[0], verticeIdx[1]);
+                if (verticeIdx[1] > verticeIdx[2])
+                    std::swap(verticeIdx[1], verticeIdx[2]);
+                if (verticeIdx[0] > verticeIdx[1])
+                    std::swap(verticeIdx[0], verticeIdx[1]);
+            }
+            auto operator<=>(const Face& other) const
+            {
+                return verticeIdx <=> other.verticeIdx;
+            }
+            bool operator==(const Face& other) const
+            {
+                return verticeIdx == other.verticeIdx;
+            }
+            std::array<std::uint32_t, 3> verticeIdx;
+            std::uint32_t tetIdx = 0;
+            std::uint32_t faceNumber = 0;
+        };
+
+        // vector of faces
+        std::vector<Face> faces;
+        faces.reserve(m_tetrahedrons.size() * 4);
+        for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
+            const auto& tet = m_tetrahedrons[i].verticeIdx;
+            faces.push_back({ tet[0], tet[1], tet[2], i, std::uint32_t { 0 } });
+            faces.push_back({ tet[1], tet[0], tet[3], i, std::uint32_t { 1 } });
+            faces.push_back({ tet[2], tet[3], tet[0], i, std::uint32_t { 2 } });
+            faces.push_back({ tet[3], tet[2], tet[1], i, std::uint32_t { 3 } });
+        }
+        // sorting faces idx for comparison
+        std::for_each(std::execution::par_unseq, faces.begin(), faces.end(), [](auto& f) { f.sort(); });
+        std::sort(std::execution::par_unseq, faces.begin(), faces.end());
+
+        // most faces will have one and only one neighbor, others zero
+        auto first = faces.begin();
+        auto second = first + 1;
+        do {
+            if (*first == *second) {
+                m_tetrahedrons[first->tetIdx].neighborIdx[first->faceNumber] = second->tetIdx;
+                m_tetrahedrons[second->tetIdx].neighborIdx[second->faceNumber] = first->tetIdx;
+            }
+            first = second++;
+        } while (second != faces.end());
     }
 
-    void transportSiddon(ParticleType auto& p, RandomState& state)
+    void buildContourKDTree()
     {
-        Tetrahedron* tet = m_grid.pointInside(p.pos);
-        std::uint16_t currentCollection;
-        bool updateAtt = true;
-        AttenuationValues att;
-        double attSumInv;
-        while (tet) {
-            if (updateAtt) {
-                currentCollection = tet->collection();
-                att = m_collectionMaterial[currentCollection].attenuationValues(p.energy);
-                attSumInv = 1 / (att.sum() * m_collectionDensity[currentCollection]);
-                updateAtt = false;
-            }
-            const auto stepLen = -std::log(state.randomUniform()) * attSumInv; // cm
-            const auto intLen = tet->intersect(p).intersection;
-            if (stepLen < intLen) {
-                // interaction happends
-                p.translate(stepLen);
-                const auto& material = m_collectionMaterial[currentCollection];
-                const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, material, state);
-                tet->scoreEnergy(intRes.energyImparted);
-                if (intRes.particleAlive)
-                    updateAtt = intRes.particleEnergyChanged;
-                else
-                    tet = nullptr;
-            } else {
-                // transport to border
-                p.border_translate(intLen);
-                tet = m_grid.pointInside(p.pos);
-                if (tet)
-                    updateAtt = currentCollection != tet->collection();
+        m_outer_triangles.clear();
+        m_outerTriangleTetMembership.clear();
+        m_outer_triangles.reserve(m_tetrahedrons.size());
+        m_outerTriangleTetMembership.reserve(m_tetrahedrons.size());
+        for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
+            const auto& tet = m_tetrahedrons[i].verticeIdx;
+            if (m_tetrahedrons[i].neighborIdx[0] == i) {
+                m_outer_triangles.push_back({ tet[0], tet[1], tet[2] });
+                m_outerTriangleTetMembership.push_back(i);
+            } else if (m_tetrahedrons[i].neighborIdx[1] == i) {
+                m_outer_triangles.push_back({ tet[1], tet[0], tet[3] });
+                m_outerTriangleTetMembership.push_back(i);
+            } else if (m_tetrahedrons[i].neighborIdx[2] == i) {
+                m_outer_triangles.push_back({ tet[2], tet[3], tet[0] });
+                m_outerTriangleTetMembership.push_back(i);
+            } else if (m_tetrahedrons[i].neighborIdx[3] == i) {
+                m_outer_triangles.push_back({ tet[3], tet[2], tet[1] });
+                m_outerTriangleTetMembership.push_back(i);
             }
         }
+        m_outer_triangles.shrink_to_fit();
+        m_outerTriangleTetMembership.shrink_to_fit();
+        m_kdtree.setData(m_vertices, m_outer_triangles, 8);
     }
 
 private:
-    TetrahedalMeshGrid m_grid;
-    std::vector<std::pair<double, double>> m_woodcockStepTableLin;
-    std::vector<double> m_collectionDensity;
-    std::vector<Material<NMaterialShells>> m_collectionMaterial;
-    std::vector<std::string> m_collectionNames;
+    struct Tetrahedron {
+        std::array<std::uint32_t, 4> verticeIdx = { 0, 0, 0, 0 };
+        std::array<std::uint32_t, 4> neighborIdx = { 0, 0, 0, 0 };
+    };
+
+    std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
+
+    // tetrahedrons
+    std::vector<std::array<double, 3>> m_vertices;
+    std::vector<Tetrahedron> m_tetrahedrons;
+
+    // structure for outer contour
+    std::vector<std::array<std::uint32_t, 3>> m_outer_triangles; // outer triangles
+    std::vector<std::uint32_t> m_outerTriangleTetMembership; // same size as outer triangles
+    TetrahedalMeshContourKDTree m_kdtree;
+
+    std::vector<std::uint32_t> m_collectionIdx; // same size as tetrahedrons
+    std::vector<EnergyScore> m_energyScore; // same size as tetrahedrons
+    std::vector<DoseScore> m_doseScore; // same size as tetrahedrons
+
+    std::vector<double> m_collectionDensities; // same size as n collections
+    std::vector<Material<NMaterialShells>> m_collectionMaterials; // same size as n collections
+    std::vector<std::string> m_collectionNames; // same size as n collections
+
     ParticleTracker m_tracker;
 };
 }
