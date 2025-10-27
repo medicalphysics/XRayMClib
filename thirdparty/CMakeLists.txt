@@ -1,6 +1,7 @@
 
 
 ## Use loadpng thirdparty library
+option(XRAYMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" ON)
 if(XRAYMCLIB_USE_LOADPNG)   
     ## setting up lodepng library files
     set(LODEPNG_FILES 

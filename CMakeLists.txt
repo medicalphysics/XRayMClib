@@ -209,7 +209,6 @@ add_subdirectory(data)
 
 # Thirdparty libraries
 # Including lodePNGwrapper for xraymc
-option(XRAYMCLIB_USE_LOADPNG "Use thirdparty loadpng library for writing png files" OFF)
 add_subdirectory(thirdparty)
 
 # Testing
