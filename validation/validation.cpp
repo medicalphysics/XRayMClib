@@ -472,9 +472,12 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     Transport transport;
     transport.setNumberOfThreads(N_threads);
 
+    std::array<double, 3> airKerma = { -1, .1, .1 };
+    std::array<double, 3> airKermaVariance = { -1, .1, .1 };
+
     // None Filter
-    auto time_elapsed1 = runDispatcher(transport, world, beam);
-    auto fluenceNone = scoring.getFluenceSpecter(TOTAL_HIST);
+    const auto time_elapsed1 = runDispatcher(transport, world, beam);
+    const auto fluenceNone = scoring.getFluenceSpecter(TOTAL_HIST);
 
     res.volume = "NoneFilter";
     res.result = AirKerma(fluenceNone);
@@ -484,6 +487,8 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.nMilliseconds = time_elapsed1.count();
     world.clearDoseScored();
     print(res, true, "Kerma/mm");
+    airKerma[0] = res.result;
+    airKermaVariance[0] = res.result_std;
 
     // adding filter
     auto aluminum = Material::byZ(13).value();
@@ -495,8 +500,8 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     filter.setHeight(filter_thickness[0]);
     filter.setCenter({ 0, 0, -10 - filter_thickness[0] / 2 });
     world.build(200);
-    auto time_elapsed2 = runDispatcher(transport, world, beam);
-    auto fluenceHVL = scoring.getFluenceSpecter(TOTAL_HIST);
+    const auto time_elapsed2 = runDispatcher(transport, world, beam);
+    const auto fluenceHVL = scoring.getFluenceSpecter(TOTAL_HIST);
     res.volume = "HVLFilter";
     res.result = AirKerma(fluenceHVL);
     res.result_std = Sigma * std::sqrt(AirKermaVariance(scoring.getFluenceVariance(TOTAL_HIST)));
@@ -505,13 +510,15 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.nMilliseconds = time_elapsed2.count();
     world.clearDoseScored();
     print(res, true, "Kerma/mm");
+    airKerma[1] = res.result;
+    airKermaVariance[1] = res.result_std;
 
     // QVL filter
     filter.setHeight(filter_thickness[1]);
     filter.setCenter({ 0, 0, -10 - filter_thickness[1] / 2 });
     world.build(200);
     auto time_elapsed3 = runDispatcher(transport, world, beam);
-    auto fluenceQVL = scoring.getFluenceSpecter(TOTAL_HIST);
+    const auto fluenceQVL = scoring.getFluenceSpecter(TOTAL_HIST);
     res.volume = "QVLFilter";
     res.result = AirKerma(fluenceQVL);
     res.result_std = Sigma * std::sqrt(AirKermaVariance(scoring.getFluenceVariance(TOTAL_HIST)));
@@ -520,11 +527,23 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.nMilliseconds = time_elapsed3.count();
     world.clearDoseScored();
     print(res, true, "Kerma/mm");
+    airKerma[2] = res.result;
+    airKermaVariance[2] = res.result_std;
 
     if (LOWENERGYCORRECTION == 1 && std::same_as<Beam, IsotropicMonoEnergyBeamCircle<>> && !mammo) {
         saveImageOfWorld("Case1world.png", world, beam, 60, 120, 300, 5, 100, 0.05);
     }
 
+    // Write out HVL and QVL values
+    res.rCase = "Case 1 HVL";
+    res.volume = "HVL";
+    res.result = airKerma[1] / airKerma[0];
+    res.result_std = std::sqrt(airKermaVariance[1] * airKermaVariance[1] / (airKermaVariance[0] * airKermaVariance[0]));
+    print(res, false);
+    res.volume = "QVL";
+    res.result = airKerma[2] / airKerma[0];
+    res.result_std = std::sqrt(airKermaVariance[2] * airKermaVariance[2] / (airKermaVariance[0] * airKermaVariance[0]));
+    print(res, false);
     return true;
 }
 
