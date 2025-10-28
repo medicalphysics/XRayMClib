@@ -538,11 +538,11 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     res.rCase = "Case 1 HVL";
     res.volume = "HVL";
     res.result = airKerma[1] / airKerma[0];
-    res.result_std = std::sqrt(airKermaVariance[1] * airKermaVariance[1] / (airKermaVariance[0] * airKermaVariance[0]));
+    res.result_std = 0;
     print(res, false);
     res.volume = "QVL";
     res.result = airKerma[2] / airKerma[0];
-    res.result_std = std::sqrt(airKermaVariance[2] * airKermaVariance[2] / (airKermaVariance[0] * airKermaVariance[0]));
+    res.result_std = 0;
     print(res, false);
     return true;
 }
