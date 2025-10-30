@@ -113,6 +113,14 @@ add_custom_command(TARGET EPICSparser PRE_BUILD
 ## make parsed EPICS data available to all binaries consuming xraymc on build machine
 target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_PHYSICSLISTSPATH="${XRAYMCLIB_EPICS_PHYSICSLISTS}")
 
+## notify library if NIST data is used
+if(${XRAYMCLIB_USE_NIST_DATA})
+    target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_NIST=1)
+else()
+    target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_NIST=0)
+endif()
+
+
 ## make max and min energy exposed to libxraymc
 target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_MAXENERGY=${XRAYMCLIB_MAX_ENERGY_KEV})
 target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_MINENERGY=${XRAYMCLIB_MIN_ENERGY_KEV})

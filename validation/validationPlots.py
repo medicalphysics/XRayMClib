@@ -25,7 +25,9 @@ import os
 import sys
 import re
 
-HUE_ORDER = list(["EGSnrc", "Geant4", "MCNP", "Penelope", "NoneLC", "Livermore", "IA"])
+HUE_ORDER = list(
+    ["EGSnrc", "Geant4", "MCNP", "Penelope", "NoneLC", "Livermore", "IA", "IA_NIST"]
+)
 PALETTE = sns.color_palette("husl", len(HUE_ORDER))
 # Make last model black
 PALETTE[-1] = (0, 0, 0)
@@ -124,14 +126,32 @@ def readData(xraymc_path, TG195_path, relative_percent=True):
         how="any",
         subset=[
             k + "_Result"
-            for k in ["IA", "Livermore", "NoneLC"]
+            for k in [
+                "IA",
+                "Livermore",
+                "NoneLC",
+                "IA_NIST",
+                "Livermore_NIST",
+                "NoneLC_NIST",
+            ]
             if k + "_Result" in dt_long.columns
         ],
         inplace=True,
     )
 
     col = dt_long.columns
-    models = ["EGSnrc", "Geant4", "MCNP", "Penelope", "IA", "Livermore", "NoneLC"]
+    models = [
+        "EGSnrc",
+        "Geant4",
+        "MCNP",
+        "Penelope",
+        "IA",
+        "Livermore",
+        "NoneLC",
+        "IA_NIST",
+        "Livermore_NIST",
+        "NoneLC_NIST",
+    ]
     models = [m for m in models if "{}_Result".format(m) in col]
 
     ## making uncertainty absolute values
@@ -475,10 +495,6 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     data = readData("validationTable.txt", "TG195results.txt")
-
-    ## If rename to XRayMC
-    # data["Model"] = data["Model"].str.replace("IA", "XRayMC", regex=False)
-    # HUE_ORDER[-1] = "XRayMC"
 
     try:
         os.mkdir("plots")
