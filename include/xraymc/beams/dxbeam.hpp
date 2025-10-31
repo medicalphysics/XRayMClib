@@ -29,6 +29,7 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/xraymcrandom.hpp"
 
 #include <array>
+#include <mutex>
 
 namespace xraymc {
 template <bool ENABLETRACKING = false>
@@ -104,7 +105,7 @@ public:
 
         for (const auto [Z, mm] : filtrationMaterials)
             m_tube.addFiltrationMaterial(Z, mm);
-        tubeChanged();
+        m_specterValid = false;
     }
 
     std::uint64_t numberOfExposures() const { return m_Nexposures; }
@@ -144,27 +145,27 @@ public:
     void setTube(const Tube& tube)
     {
         m_tube = tube;
-        tubeChanged();
+        m_specterValid = false;
     }
     void setTubeVoltage(double voltage)
     {
         m_tube.setVoltage(voltage);
-        tubeChanged();
+        m_specterValid = false;
     }
     void setTubeAnodeAngle(double ang)
     {
         m_tube.setAnodeAngle(ang);
-        tubeChanged();
+        m_specterValid = false;
     }
     void setTubeAnodeAngleDeg(double ang)
     {
         m_tube.setAnodeAngleDeg(ang);
-        tubeChanged();
+        m_specterValid = false;
     }
     void addTubeFiltrationMaterial(std::size_t Z, double mm)
     {
         m_tube.addFiltrationMaterial(Z, mm);
-        tubeChanged();
+        m_specterValid = false;
     }
     double tubeFiltration(std::size_t Z) const
     {
@@ -173,12 +174,12 @@ public:
     void clearTubeFiltrationMaterials()
     {
         m_tube.clearFiltrationMaterials();
-        tubeChanged();
+        m_specterValid = false;
     }
     void setTubeEnergyResolution(double energyResolution)
     {
         m_tube.setEnergyResolution(energyResolution);
-        tubeChanged();
+        m_specterValid = false;
     }
 
     double tubeAlHalfValueLayer()
@@ -229,6 +230,7 @@ public:
 
     DXBeamExposure<ENABLETRACKING> exposure(std::size_t i) const noexcept
     {
+
         DXBeamExposure<ENABLETRACKING> exp(m_pos, m_dirCosines, m_particlesPerExposure, m_weight, m_collimationHalfAngles, m_specter);
         return exp;
     }
@@ -254,9 +256,15 @@ public:
 protected:
     void tubeChanged()
     {
-        const auto energies = m_tube.getEnergy();
-        const auto weights = m_tube.getSpecter(energies, false);
-        m_specter = SpecterDistribution(energies, weights);
+        if (!m_specterValid) {
+            const std::lock_guard<std::mutex> lock(m_specter_mutex);
+            if (!m_specterValid) {
+                const auto energies = m_tube.getEnergy();
+                const auto weights = m_tube.getSpecter(energies, false);
+                m_specter = SpecterDistribution(energies, weights);
+                m_specterValid = true;
+            }
+        }
     }
 
 private:
@@ -269,5 +277,7 @@ private:
     double m_measuredDAP = 1;
     Tube m_tube;
     SpecterDistribution<double> m_specter;
+    std::mutex m_specter_mutex;
+    bool m_specterValid = false;
 };
 }
