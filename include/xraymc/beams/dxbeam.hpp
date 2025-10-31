@@ -98,14 +98,16 @@ public:
     DXBeam(
         const std::array<double, 3>& pos = { 0, 0, 0 },
         const std::array<std::array<double, 3>, 2>& dircosines = { { { 1, 0, 0 }, { 0, 1, 0 } } },
-        const std::map<std::size_t, double>& filtrationMaterials = {})
+        const std::map<std::size_t, double>& filtrationMaterials = {}, bool updateSpecter = true)
         : m_pos(pos)
     {
         setDirectionCosines(dircosines);
 
         for (const auto [Z, mm] : filtrationMaterials)
             m_tube.addFiltrationMaterial(Z, mm);
-        m_specterValid = false;
+
+        if (updateSpecter)
+            tubeChanged();
     }
 
     std::uint64_t numberOfExposures() const { return m_Nexposures; }
@@ -145,41 +147,47 @@ public:
     void setTube(const Tube& tube)
     {
         m_tube = tube;
-        m_specterValid = false;
+        tubeChanged();
     }
-    void setTubeVoltage(double voltage)
+    void setTubeVoltage(double voltage, bool updateSpecter = true)
     {
         m_tube.setVoltage(voltage);
-        m_specterValid = false;
+        if (updateSpecter)
+            tubeChanged();
     }
-    void setTubeAnodeAngle(double ang)
+    void setTubeAnodeAngle(double ang, bool updateSpecter = true)
     {
         m_tube.setAnodeAngle(ang);
-        m_specterValid = false;
+        if (updateSpecter)
+            tubeChanged();
     }
-    void setTubeAnodeAngleDeg(double ang)
+    void setTubeAnodeAngleDeg(double ang, bool updateSpecter = true)
     {
         m_tube.setAnodeAngleDeg(ang);
-        m_specterValid = false;
+        if (updateSpecter)
+            tubeChanged();
     }
-    void addTubeFiltrationMaterial(std::size_t Z, double mm)
+    void addTubeFiltrationMaterial(std::size_t Z, double mm, bool updateSpecter = true)
     {
         m_tube.addFiltrationMaterial(Z, mm);
-        m_specterValid = false;
+        if (updateSpecter)
+            tubeChanged();
     }
     double tubeFiltration(std::size_t Z) const
     {
         return m_tube.filtration(Z);
     }
-    void clearTubeFiltrationMaterials()
+    void clearTubeFiltrationMaterials(bool updateSpecter = true)
     {
         m_tube.clearFiltrationMaterials();
-        m_specterValid = false;
+        if (updateSpecter)
+            tubeChanged();
     }
-    void setTubeEnergyResolution(double energyResolution)
+    void setTubeEnergyResolution(double energyResolution, bool updateSpecter = true)
     {
         m_tube.setEnergyResolution(energyResolution);
-        m_specterValid = false;
+        if (updateSpecter)
+            tubeChanged();
     }
 
     double tubeAlHalfValueLayer()
@@ -256,17 +264,9 @@ public:
 protected:
     void tubeChanged()
     {
-        if (!m_specterValid) {
-            static std::mutex specter_mutex;
-            specter_mutex.lock();
-            if (!m_specterValid) {
-                const auto energies = m_tube.getEnergy();
-                const auto weights = m_tube.getSpecter(energies, false);
-                m_specter = SpecterDistribution(energies, weights);
-                m_specterValid = true;
-            }
-            specter_mutex.unlock();
-        }
+        const auto energies = m_tube.getEnergy();
+        const auto weights = m_tube.getSpecter(energies, false);
+        m_specter = SpecterDistribution(energies, weights);
     }
 
 private:
@@ -279,6 +279,5 @@ private:
     double m_measuredDAP = 1;
     Tube m_tube;
     SpecterDistribution<double> m_specter;
-    bool m_specterValid = false;
 };
 }
