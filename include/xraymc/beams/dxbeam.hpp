@@ -257,13 +257,15 @@ protected:
     void tubeChanged()
     {
         if (!m_specterValid) {
-            const std::lock_guard<std::mutex> lock(m_specter_mutex);
+            static std::mutex specter_mutex;
+            specter_mutex.lock();
             if (!m_specterValid) {
                 const auto energies = m_tube.getEnergy();
                 const auto weights = m_tube.getSpecter(energies, false);
                 m_specter = SpecterDistribution(energies, weights);
                 m_specterValid = true;
             }
+            specter_mutex.unlock();
         }
     }
 
@@ -277,7 +279,6 @@ private:
     double m_measuredDAP = 1;
     Tube m_tube;
     SpecterDistribution<double> m_specter;
-    std::mutex m_specter_mutex;
     bool m_specterValid = false;
 };
 }
