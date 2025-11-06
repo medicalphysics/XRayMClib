@@ -110,7 +110,7 @@ public:
     {
         const auto holeVolume = holeHeight() * std::numbers::pi_v<double> * holeRadii() * holeRadii();
 
-        for (std::size_t = 0; i < m_energyScore.size(); ++i) {
+        for (std::size_t i = 0; i < m_energyScore.size(); ++i) {
             m_dose[i].addScoredEnergy(m_energyScore[i], holeVolume, m_air_density, calibration_factor);
         }
     }
