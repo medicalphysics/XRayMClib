@@ -65,7 +65,7 @@ public:
             hole.cylinder.half_height = holeHeight() / 2;
             hole.cylinder.direction = m_cylinder.direction;
             hole.cylinder.radius = holeRadii();
-            hole.index = ++index;
+            hole.index = index++;
             hole.cylinder.center[0] += x * (radius - holeEdgeDistance());
             hole.cylinder.center[1] += y * (radius - holeEdgeDistance());
             holes.push_back(hole);
@@ -96,7 +96,7 @@ public:
 
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
-        return m_energyScore[index];
+        return m_energyScore.at(index);
     }
 
     void clearEnergyScored()
@@ -110,28 +110,24 @@ public:
     {
         const auto holeVolume = holeHeight() * std::numbers::pi_v<double> * holeRadii() * holeRadii();
 
-        for (std::size_t i = 1; i < m_energyScore.size(); ++i) {
+        for (std::size_t = 0; i < m_energyScore.size(); ++i) {
             m_dose[i].addScoredEnergy(m_energyScore[i], holeVolume, m_air_density, calibration_factor);
         }
-
-        const auto totalVolume = m_cylinder.radius * m_cylinder.radius * 2 * m_cylinder.half_height * std::numbers::pi_v<double>;
-        const auto pmmaVolume = totalVolume - 5 * holeVolume;
-        m_dose[0].addScoredEnergy(m_energyScore[0], pmmaVolume, m_pmma_density, calibration_factor);
     }
 
     const DoseScore& doseScored(std::size_t index = 0) const
     {
-        return m_dose[index];
+        return m_dose.at(index);
     }
 
     const double centerDoseScored() const
     {
-        return m_dose[1].dose();
+        return m_dose[0].dose();
     }
 
     const double pheriferyDoseScored() const
     {
-        return (m_dose[2].dose() + m_dose[3].dose() + m_dose[4].dose() + m_dose[5].dose()) / 4;
+        return (m_dose[1].dose() + m_dose[2].dose() + m_dose[3].dose() + m_dose[4].dose()) / 4;
     }
 
     void clearDoseScored()
@@ -186,7 +182,9 @@ public:
             const auto intHoles = m_kdtree.intersect(p, tbox);
 
             if (intHoles.valid()) {
+                // We intersect a hole
                 if (intHoles.rayOriginIsInsideItem) {
+                    // We are inside a hole
                     if constexpr (FORCEDINTERACTIONS) {
                         const auto intRes = interactions::template interactForced<NMaterialShells, LOWENERGYCORRECTION>(intHoles.intersection, m_air_density, p, m_air, state);
                         m_energyScore[intHoles.item->index].scoreEnergy(intRes.energyImparted);
@@ -209,7 +207,6 @@ public:
                         // interaction happends before particle hit hole
                         p.translate(stepLen);
                         const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_pmma, state);
-                        m_energyScore[0].scoreEnergy(intRes.energyImparted);
                         updateAtt = intRes.particleEnergyChanged;
                         cont = intRes.particleAlive;
                     } else {
@@ -230,7 +227,6 @@ public:
                     // interaction happends
                     p.translate(stepLen);
                     const auto intRes = interactions::interact(att, p, m_pmma, state);
-                    m_energyScore[0].scoreEnergy(intRes.energyImparted);
                     updateAtt = intRes.particleEnergyChanged;
                     cont = intRes.particleAlive;
                 } else {
@@ -286,8 +282,8 @@ private:
     basicshape::cylinder::Cylinder m_cylinder;
     double m_pmma_density = 0;
     double m_air_density = 0;
-    std::array<EnergyScore, 6> m_energyScore;
-    std::array<DoseScore, 6> m_dose;
+    std::array<EnergyScore, 5> m_energyScore;
+    std::array<DoseScore, 5> m_dose;
     StaticKDTree<CTDIAirHole> m_kdtree;
     Material<NMaterialShells> m_pmma;
     Material<NMaterialShells> m_air;
