@@ -216,12 +216,12 @@ public:
         return res;
     }
 
-    EnergyScore energyScored(std::size_t index) const
+    EnergyScore energyScored(std::size_t index = 0) const
     {
         return m_energyScore.at(index);
     }
 
-    DoseScore doseScored(std::size_t index) const
+    DoseScore doseScored(std::size_t index = 0) const
     {
         return m_doseScore.at(index);
     }
@@ -240,7 +240,7 @@ public:
         });
     }
 
-    void addEnergyScoredToDoseScore(double factor)
+    void addEnergyScoredToDoseScore(double factor = 1)
     {
         std::vector<double> volumes(m_tetrahedrons.size());
         std::transform(std::execution::par_unseq, m_tetrahedrons.cbegin(), m_tetrahedrons.cend(), volumes.begin(), [&](const auto& tet) {

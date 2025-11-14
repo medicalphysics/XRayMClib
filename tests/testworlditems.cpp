@@ -65,33 +65,48 @@ bool testItem()
         item.setData(t);
 
     } else if constexpr (std::is_same_v<U, xraymc::TetrahedalMesh<>>) {
-        std::vector<std::array<double, 3>> v(8);
-        v[0] = { -1, 1, 1 };
-        v[1] = { 1, -1, 1 };
-        v[2] = { 1, 1, 1 };
-        v[3] = { -1, -1, -1 };
-        v[4] = { 1, -1, -1 };
-        v[5] = { -1, -1, 1 };
-        v[6] = { -1, 1, -1 };
-        v[7] = { 1, 1, -1 };
 
+        auto data = xraymc::TetrahedalMeshData {};
+        data.nodes.resize(8);
+
+        data.nodes[0] = { -1, 1, 1 };
+        data.nodes[1] = { 1, -1, 1 };
+        data.nodes[2] = { 1, 1, 1 };
+        data.nodes[3] = { -1, -1, -1 };
+        data.nodes[4] = { 1, -1, -1 };
+        data.nodes[5] = { -1, -1, 1 };
+        data.nodes[6] = { -1, 1, -1 };
+        data.nodes[7] = { 1, 1, -1 };
+
+        auto& v = data.nodes;
         for (auto& i : v)
             for (auto& n : i)
                 n *= 10;
 
-        std::vector<xraymc::Tetrahedron> t(6);
-        t[0] = { v[1], v[7], v[0], v[2], 0, 0 }; //*
-        t[1] = { v[7], v[3], v[0], v[6], 0, 0 }; //*
-        t[2] = { v[1], v[3], v[0], v[4], 0, 0 }; //*
-        t[3] = { v[1], v[7], v[4], v[0], 0, 0 }; //*
-        t[4] = { v[7], v[3], v[4], v[0], 0, 0 }; //*
-        t[5] = { v[1], v[3], v[5], v[0], 0, 0 }; //*
+        auto& t = data.elements;
+        t.resize(6);
+        t[0] = { 1, 7, 0, 2 }; //*
+        t[1] = { 7, 3, 0, 6 }; //*
+        t[2] = { 1, 3, 0, 4 }; //*
+        t[3] = { 1, 7, 4, 0 }; //*
+        t[4] = { 7, 3, 4, 0 }; //*
+        t[5] = { 1, 3, 5, 0 }; //*
 
-        std::vector<double> dens(1, 1);
+        data.collectionIndices.resize(6);
+        for (auto& c : data.collectionIndices)
+            c = 1;
+
+        data.collectionDensities.resize(1);
+        data.collectionDensities[0] = 1;
+        data.collectionMaterialComposition.resize(1);
+        data.collectionMaterialComposition[0] = xraymc::Material<>::parseCompoundStr("H2O");
+
         std::vector<xraymc::Material<>> mats;
         mats.push_back(xraymc::Material<>::byChemicalFormula("H2O").value());
 
-        item.setData(t, dens, mats);
+        data.collectionIndices.resize(6);
+
+        item.setData(data);
     }
 
     item.translate({ 1, 1, 1 });
