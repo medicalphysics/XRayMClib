@@ -33,7 +33,6 @@ void example()
     auto& cylinder = world.template addItem<Cylinder>({ 1 /* cm radius */, 10 /* cm lenght */ }, "Cylinder");
 
     // Set material and density
-
     auto aluminium = xraymc::Material<N_ATOMIC_SHELLS>::byZ(13).value();
     cylinder.setMaterial(aluminium, 2.27 /* g/cm3 */);
 
@@ -58,6 +57,7 @@ void example()
     xraymc::PencilBeam<> beam({ 0, 0, -10 } /* position */, { 0, 0, 1 } /* direction */);
     beam.setNumberOfExposures(64); // number of jobs
     beam.setNumberOfParticlesPerExposure(1000000); // histories per job
+    beam.setEnergy(60.0);
 
     // Run simulation
     auto nThreads = std::max(std::thread::hardware_concurrency(), std::uint32_t { 1 });
@@ -65,6 +65,7 @@ void example()
 
     // Get max dose and print some values
     std::cout << "Depth dose in cylinder for " << beam.numberOfParticles() << " photons of " << beam.energy() << " keV\n";
+    std::cout << "Material: mass. att. coeff: " << aluminium.attenuationValues(beam.energy()).sum() << ", density: " << cylinder.density() << std::endl;
     std::cout << "Simulation time: " << time_elapsed << std::endl;
     std::cout << "Depth [cm], Dose per Air Kerma [mGy/mGy], Uncertainty [%], #Events\n";
     double max_dose = 0;
