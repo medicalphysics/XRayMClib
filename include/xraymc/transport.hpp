@@ -40,7 +40,7 @@ public:
     }
 
     std::uint64_t numberOfThreads() const { return m_nThreads; }
-    void setNumberOfThreads(std::uint64_t n) { m_nThreads = std::max(n, std::uint64_t { 1 }); }
+    void setNumberOfThreads(std::uint64_t n) { m_nThreads = std::max(n, std::uint64_t { 0 }); }
 
     template <BeamType B, WorldItemType... Ws>
     auto operator()(World<Ws...>& world, const B& beam, TransportProgress* progress = nullptr, bool useBeamCalibration = true) const
