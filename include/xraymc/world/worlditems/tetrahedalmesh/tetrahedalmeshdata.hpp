@@ -77,13 +77,26 @@ struct TetrahedalMeshData {
         }
     }
 
-    void collectionNameMustContainFilter(const std::string& filter)
+    void collectionNameMustContainFilter(const std::string& filter, bool caseSensitive = true)
     {
         std::vector<std::uint32_t> indicesToKeep;
-        for (std::uint32_t i = 0; i < collectionNames.size(); ++i) {
-            const auto& collname = collectionNames[i];
-            if (collname.contains(filter)) {
-                indicesToKeep.push_back(i);
+        if (caseSensitive) {
+            for (std::uint32_t i = 0; i < collectionNames.size(); ++i) {
+                const auto& collname = collectionNames[i];
+                if (collname.contains(filter)) {
+                    indicesToKeep.push_back(i);
+                }
+            }
+        } else {
+            auto caseFilter = filter;
+            for (auto& c : caseFilter)
+                c = std::tolower(c);
+            for (std::uint32_t i = 0; i < collectionNames.size(); ++i) {
+                auto collname = collectionNames[i];
+                std::transform(collname.cbegin(), collname.cend(), collname.begin(), [](auto& c) { return std::tolower(c); });
+                if (collname.contains(caseFilter)) {
+                    indicesToKeep.push_back(i);
+                }
             }
         }
 
