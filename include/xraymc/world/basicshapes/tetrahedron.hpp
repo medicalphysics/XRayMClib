@@ -225,6 +225,30 @@ namespace basicshape {
             return normals[std::distance(dist.cbegin(), ind)];
         }
 
+        static bool tetrahedronNormalsOutsideTest(
+            const std::array<double, 3>& v0,
+            const std::array<double, 3>& v1,
+            const std::array<double, 3>& v2,
+            const std::array<double, 3>& v3)
+        {
+
+            const std::array<std::array<double, 3>, 4> normals = {
+                normalVector<false>(v0, v1, v2),
+                normalVector<false>(v1, v0, v3),
+                normalVector<false>(v2, v3, v0),
+                normalVector<false>(v3, v2, v1)
+            };
+
+            const std::array<double, 4> d = {
+                vectormath::dot(normals[0], vectormath::subtract(v3, v0)),
+                vectormath::dot(normals[1], vectormath::subtract(v2, v1)),
+                vectormath::dot(normals[2], vectormath::subtract(v1, v2)),
+                vectormath::dot(normals[3], vectormath::subtract(v0, v3)),
+            };
+
+            return d[0] < 0 && d[1] < 0 && d[2] < 0 && d[3] < 0;
+        }
+
         static std::optional<double> intersectTriangle(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const ParticleType auto& p)
         {
             const auto E1 = vectormath::subtract(v1, v0);
@@ -239,8 +263,8 @@ namespace basicshape {
             const auto v = vectormath::dot(Q, p.dir) * det_inv;
             const auto u = vectormath::dot(P, TT) * det_inv;
 
-            return v >= 0 && u >= 0 && (u + v) <= 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
-                                                    : std::nullopt;
+            return v >= 0 && u >= 0 && (u + v) <= 1 && u <= 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
+                                                              : std::nullopt;
         }
 
         static WorldIntersectionResult intersect(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)

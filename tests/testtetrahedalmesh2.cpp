@@ -126,31 +126,45 @@ void showPhantom()
     // std::string element_file = "C:\\Users\\ander\\OneDrive\\tetgentest\\torus.1.ele";
     // xraymc::TetrahedalMeshReader2 testreader(node_file, element_file);
 
-    // std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
-    // std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
-    // std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
-    // std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
+    std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";
+    std::string organ_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\icrp145organs.csv";
+    std::string node_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.node";
+    std::string element_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF.ele";
 
-    std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
-    std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
-    std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
-    std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
+    // std::string material_file = "/home/erlend/mrcptest/MRCP_AF_media.dat";
+    // std::string organ_file = "/home/erlend/mrcptest/icrp145organs.csv";
+    // std::string node_file = "/home/erlend/mrcptest/MRCP_AF.node";
+    // std::string element_file = "/home/erlend/mrcptest/MRCP_AF.ele";
 
     xraymc::TetrahedalMeshReader testreader(node_file, element_file, material_file, organ_file);
 
     using Mesh = xraymc::TetrahedalMesh<5, 2, true>;
     xraymc::World<Mesh> world;
-    auto& item = world.template addItem<Mesh>(testreader.data());
-    item.translate({ 10, 10, 10 });
-    item.rotate({ 0, 0, 1 }, 3.14 / 2);
+
+    auto tetdata = testreader.data();
+    auto validFirst = tetdata.valid();
+    auto validOrient1 = tetdata.testTetrahedronNormals();
+    tetdata.collectionNameMustContainFilter("Brain", true);
+    auto validSecond = tetdata.valid();
+    auto validOrient2 = tetdata.testTetrahedronNormals();
+
+    auto& item = world.template addItem<Mesh>(tetdata);
+    // item.translate({ 10, 10, 10 });
+    // item.rotate({ 0, 0, 1 }, 3.14 / 4);
     world.build();
 
+    xraymc::Particle p;
+    p.pos = { -984.63642151220802, -1.7738095000000005, 248.81736716693041 };
+    p.dir = { 0.98508984571411562, -0.0018365877988710617, -0.17203087750807200 };
+    while (true) {
+        auto test = world.intersectVisualization(p);
+    }
     xraymc::VisualizeWorld viz(world);
 
     viz.setAzimuthalAngleDeg(80);
     viz.setPolarAngleDeg(0);
     viz.setDistance(1000);
-    viz.suggestFOV(1);
+    viz.suggestFOV(16);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
 
     viz.generate(world, buffer);
@@ -249,8 +263,8 @@ void testTiming()
 int main()
 {
     // testWalk();
-    //  showPhantom();
-    testTiming();
+    showPhantom();
+    // testTiming();
 
     /*
         std::string material_file = "C:\\Users\\ander\\OneDrive\\phantomsMNCP\\adult\\MRCP_AF\\MRCP_AF_media.dat";

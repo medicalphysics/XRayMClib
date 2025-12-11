@@ -27,6 +27,8 @@ Copyright 2025 Erlend Andersen
 #include <string>
 #include <vector>
 
+#include "xraymc/world/basicshapes/tetrahedron.hpp"
+
 namespace xraymc {
 
 struct TetrahedalMeshData {
@@ -63,6 +65,17 @@ struct TetrahedalMeshData {
         val = val && collectionMaterialComposition.size() == max_idx;
         val = val && collectionNames.size() == max_idx;
         return val;
+    }
+
+    bool testTetrahedronNormals() const
+    {
+        return std::all_of(std::execution::par_unseq, elements.cbegin(), elements.cend(), [this](const auto& el) {
+            return basicshape::tetrahedron::tetrahedronNormalsOutsideTest(
+                nodes[el[0]],
+                nodes[el[1]],
+                nodes[el[2]],
+                nodes[el[3]]);
+        });
     }
 
     void makeGenericCollectionNames()
@@ -119,35 +132,47 @@ struct TetrahedalMeshData {
             return !std::binary_search(indicesToKeep.cbegin(), indicesToKeep.cend(), f.collectionIndex);
         });
         filtered.erase(last, filtered.end());
+
+        // pruning nodes, elements and collection indices
+        // bilding swap table
+        std::map<std::uint32_t, std::uint32_t> element_map;
+        std::map<std::uint32_t, std::uint32_t> collection_map;
+        {
+            std::size_t i = 0;
+            std::size_t c = 0;
+            for (const auto& f : filtered) {
+                if (!collection_map.contains(f.collectionIndex))
+                    collection_map[f.collectionIndex] = c++;
+
+                for (const auto& e : f.element)
+                    if (!element_map.contains(e))
+                        element_map[e] = i++;
+            }
+        }
+
+        // swapping:
+        for (const auto [key, value] : element_map)
+            std::swap(nodes[key], nodes[value]);
+        nodes.resize(element_map.size());
+        for (const auto [key, value] : collection_map) {
+            std::swap(collectionDensities[key], collectionDensities[value]);
+            std::swap(collectionMaterialComposition[key], collectionMaterialComposition[value]);
+            std::swap(collectionNames[key], collectionNames[value]);
+        }
+        collectionDensities.resize(collection_map.size());
+        collectionMaterialComposition.resize(collection_map.size());
+        collectionNames.resize(collection_map.size());
+
         elements.clear();
         collectionIndices.clear();
         for (const auto& f : filtered) {
-            elements.push_back(f.element);
-            collectionIndices.push_back(f.collectionIndex);
+            std::array<std::uint32_t, 4> m;
+            for (std::size_t i = 0; i < 4; ++i) {
+                m[i] = element_map.at(f.element[i]);
+            }
+            elements.push_back(m);
+            collectionIndices.push_back(collection_map.at(f.collectionIndex));
         }
-
-        // remove unneeded vertices
-        std::vector<std::uint32_t> indices_to_keep;
-        indices_to_keep.reserve(elements.size() * 4);
-        for (const auto& el : elements)
-            for (auto i : el)
-                indices_to_keep.push_back(i);
-        std::sort(indices_to_keep.begin(), indices_to_keep.end());
-        indices_to_keep.erase(std::unique(indices_to_keep.begin(), indices_to_keep.end()), indices_to_keep.end());
-        std::map<std::uint32_t, std::uint32_t> indices_map;
-        for (std::uint32_t i = 0; i < indices_to_keep.size(); ++i)
-            indices_map[indices_to_keep[i]] = i;
-        // renaming indices
-        for (auto& el : elements)
-            for (std::uint32_t i = 0; i < 4; ++i)
-                el[i] = indices_map[el[i]];
-        // removing nodes
-        std::vector<std::array<double, 3>> nodes_to_keep;
-        nodes_to_keep.reserve(indices_map.size());
-        for (std::uint32_t i = 0; i < nodes.size(); ++i)
-            if (std::binary_search(indices_to_keep.cbegin(), indices_to_keep.cend(), i))
-                nodes_to_keep.push_back(nodes[i]);
-        nodes = nodes_to_keep;
     }
 };
 }
