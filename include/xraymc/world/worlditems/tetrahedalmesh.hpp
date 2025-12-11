@@ -588,13 +588,16 @@ protected:
             if (m_tetrahedrons[i].neighborIdx[0] == i) {
                 m_outer_triangles.push_back({ tet[0], tet[1], tet[2] });
                 m_outerTriangleTetMembership.push_back(i);
-            } else if (m_tetrahedrons[i].neighborIdx[1] == i) {
+            }
+            if (m_tetrahedrons[i].neighborIdx[1] == i) {
                 m_outer_triangles.push_back({ tet[1], tet[0], tet[3] });
                 m_outerTriangleTetMembership.push_back(i);
-            } else if (m_tetrahedrons[i].neighborIdx[2] == i) {
+            }
+            if (m_tetrahedrons[i].neighborIdx[2] == i) {
                 m_outer_triangles.push_back({ tet[2], tet[3], tet[0] });
                 m_outerTriangleTetMembership.push_back(i);
-            } else if (m_tetrahedrons[i].neighborIdx[3] == i) {
+            }
+            if (m_tetrahedrons[i].neighborIdx[3] == i) {
                 m_outer_triangles.push_back({ tet[3], tet[2], tet[1] });
                 m_outerTriangleTetMembership.push_back(i);
             }
