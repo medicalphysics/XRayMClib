@@ -118,42 +118,22 @@ struct TetrahedalMeshData {
         }
         std::sort(indicesToKeep.begin(), indicesToKeep.end());
 
-        struct FilterData {
-            std::array<std::uint32_t, 4> element;
-            std::uint32_t collectionIndex;
-        };
-
-        std::vector<FilterData> filtered(elements.size());
-        std::transform(std::execution::par_unseq, elements.cbegin(), elements.cend(), collectionIndices.cbegin(), filtered.begin(), [](const auto& el, const auto i) {
-            return FilterData { .element = el, .collectionIndex = i };
-        });
-
-        auto last = std::remove_if(std::execution::par_unseq, filtered.begin(), filtered.end(), [&indicesToKeep](const auto& f) {
-            return !std::binary_search(indicesToKeep.cbegin(), indicesToKeep.cend(), f.collectionIndex);
-        });
-        filtered.erase(last, filtered.end());
-
-        // pruning nodes, elements and collection indices
-        // bilding swap table
-        std::map<std::uint32_t, std::uint32_t> element_map;
-        std::map<std::uint32_t, std::uint32_t> collection_map;
-        {
-            std::size_t i = 0;
-            std::size_t c = 0;
-            for (const auto& f : filtered) {
-                if (!collection_map.contains(f.collectionIndex))
-                    collection_map[f.collectionIndex] = c++;
-
-                for (const auto& e : f.element)
-                    if (!element_map.contains(e))
-                        element_map[e] = i++;
+        std::uint32_t teller = 0;
+        for (const auto cind : indicesToKeep) {
+            for (std::uint32_t i = 0; i < collectionIndices.size(); ++i) {
+                if (collectionIndices[i] == cind) {
+                    std::swap(collectionIndices[i], collectionIndices[teller]);
+                    std::swap(elements[i], elements[teller]);
+                    teller++;
+                }
             }
         }
-
+        collectionIndices.resize(teller);
+        elements.resize(teller);
         // swapping:
-        for (const auto [key, value] : element_map)
-            std::swap(nodes[key], nodes[value]);
-        nodes.resize(element_map.size());
+        std::map<std::uint32_t, std::uint32_t> collection_map;
+        for (std::uint32_t i = 0; i < indicesToKeep.size(); ++i)
+            collection_map[indicesToKeep[i]] = i;
         for (const auto [key, value] : collection_map) {
             std::swap(collectionDensities[key], collectionDensities[value]);
             std::swap(collectionMaterialComposition[key], collectionMaterialComposition[value]);
@@ -163,16 +143,31 @@ struct TetrahedalMeshData {
         collectionMaterialComposition.resize(collection_map.size());
         collectionNames.resize(collection_map.size());
 
-        elements.clear();
-        collectionIndices.clear();
-        for (const auto& f : filtered) {
-            std::array<std::uint32_t, 4> m;
-            for (std::size_t i = 0; i < 4; ++i) {
-                m[i] = element_map.at(f.element[i]);
-            }
-            elements.push_back(m);
-            collectionIndices.push_back(collection_map.at(f.collectionIndex));
+        for (auto& c : collectionIndices) {
+            c = collection_map[c];
         }
+
+        // nodes;
+        teller = 0;
+        std::map<std::uint32_t, std::uint32_t> node_map;
+        for (const auto& el : elements) {
+            for (const auto& i : el) {
+                if (!node_map.contains(i)) {
+                    node_map[i] = teller++;
+                }
+            }
+        }
+        for (auto& el : elements)
+            for (auto& i : el)
+                i = node_map.at(i);
+
+        for (const auto& [key, value] : node_map) {
+            std::swap(nodes[key], nodes[value]);
+        }
+
+        nodes.resize(teller);
+
+        return;
     }
 };
 }
