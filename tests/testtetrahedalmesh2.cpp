@@ -144,7 +144,8 @@ void showPhantom()
     auto tetdata = testreader.data();
     auto validFirst = tetdata.valid();
     auto validOrient1 = tetdata.testTetrahedronNormals();
-    tetdata.collectionNameMustContainFilter("Brain", true);
+     //tetdata.collectionNameMustContainFilter("Skin legs sensitive 50-100um", true);
+    tetdata.collectionNameMustContainFilter("muscle", false);
     auto validSecond = tetdata.valid();
     auto validOrient2 = tetdata.testTetrahedronNormals();
 
@@ -156,15 +157,15 @@ void showPhantom()
     xraymc::Particle p;
     p.pos = { -984.63642151220802, -1.7738095000000005, 248.81736716693041 };
     p.dir = { 0.98508984571411562, -0.0018365877988710617, -0.17203087750807200 };
-    while (true) {
-        auto test = world.intersectVisualization(p);
-    }
+
+    auto test = world.intersectVisualization(p);
+
     xraymc::VisualizeWorld viz(world);
 
     viz.setAzimuthalAngleDeg(80);
     viz.setPolarAngleDeg(0);
     viz.setDistance(1000);
-    viz.suggestFOV(16);
+    viz.suggestFOV(2);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
 
     viz.generate(world, buffer);
