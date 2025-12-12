@@ -118,18 +118,19 @@ struct TetrahedalMeshData {
         }
         std::sort(indicesToKeep.begin(), indicesToKeep.end());
 
-        std::uint32_t teller = 0;
-        for (const auto cind : indicesToKeep) {
+        {
+            std::uint32_t teller = 0;
             for (std::uint32_t i = 0; i < collectionIndices.size(); ++i) {
-                if (collectionIndices[i] == cind) {
+                if (std::binary_search(indicesToKeep.cbegin(), indicesToKeep.cend(), collectionIndices[i])) {
                     std::swap(collectionIndices[i], collectionIndices[teller]);
                     std::swap(elements[i], elements[teller]);
                     teller++;
                 }
             }
+            collectionIndices.resize(teller);
+            elements.resize(teller);
         }
-        collectionIndices.resize(teller);
-        elements.resize(teller);
+
         // swapping:
         std::map<std::uint32_t, std::uint32_t> collection_map;
         for (std::uint32_t i = 0; i < indicesToKeep.size(); ++i)
@@ -142,32 +143,32 @@ struct TetrahedalMeshData {
         collectionDensities.resize(collection_map.size());
         collectionMaterialComposition.resize(collection_map.size());
         collectionNames.resize(collection_map.size());
+        std::transform(std::execution::par_unseq, collectionIndices.cbegin(), collectionIndices.cend(), collectionIndices.begin(), [&](auto c) {
+            return collection_map.at(c);
+        });
 
-        for (auto& c : collectionIndices) {
-            c = collection_map[c];
-        }
+        // pruning nodes
+        std::vector<std::uint32_t> indices;
+        indices.reserve(elements.size() * 4);
+        for (const auto& e : elements)
+            for (const auto& n : e)
+                indices.push_back(n);
 
-        // nodes;
-        teller = 0;
-        std::map<std::uint32_t, std::uint32_t> node_map;
-        for (const auto& el : elements) {
-            for (const auto& i : el) {
-                if (!node_map.contains(i)) {
-                    node_map[i] = teller++;
-                }
-            }
-        }
-        for (auto& el : elements)
-            for (auto& i : el)
-                i = node_map.at(i);
+        std::sort(std::execution::par_unseq, indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+        for (std::uint32_t i = 0; i < indices.size(); ++i)
+            std::swap(nodes[i], nodes[indices[i]]);
+        nodes.resize(indices.size());
 
-        for (const auto& [key, value] : node_map) {
-            std::swap(nodes[key], nodes[value]);
-        }
+        std::map<std::uint32_t, std::uint32_t> indices_map;
+        for (std::uint32_t i = 0; i < indices.size(); ++i)
+            indices_map[indices[i]] = i;
 
-        nodes.resize(teller);
-
-        return;
+        std::transform(std::execution::par_unseq, elements.cbegin(), elements.cend(), elements.begin(), [&](auto el) {
+            for (auto& n : el)
+                n = indices_map.at(n);
+            return el;
+        });
     }
 };
 }

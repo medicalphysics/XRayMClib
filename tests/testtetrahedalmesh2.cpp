@@ -144,8 +144,8 @@ void showPhantom()
     auto tetdata = testreader.data();
     auto validFirst = tetdata.valid();
     auto validOrient1 = tetdata.testTetrahedronNormals();
-     //tetdata.collectionNameMustContainFilter("Skin legs sensitive 50-100um", true);
-    tetdata.collectionNameMustContainFilter("muscle", false);
+    // tetdata.collectionNameMustContainFilter("Skin legs sensitive 50-100um", true);
+    tetdata.collectionNameMustContainFilter("blood", false);
     auto validSecond = tetdata.valid();
     auto validOrient2 = tetdata.testTetrahedronNormals();
 
@@ -165,20 +165,24 @@ void showPhantom()
     viz.setAzimuthalAngleDeg(80);
     viz.setPolarAngleDeg(0);
     viz.setDistance(1000);
-    viz.suggestFOV(2);
+    viz.suggestFOV(1);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
 
     viz.generate(world, buffer);
     viz.savePNG("test0.png", buffer);
+    std::cout << "Done 1\n";
     viz.setPolarAngleDeg(90);
     viz.generate(world, buffer);
     viz.savePNG("test90.png", buffer);
+    std::cout << "Done 2\n";
     viz.setPolarAngleDeg(180);
     viz.generate(world, buffer);
     viz.savePNG("test180.png", buffer);
+    std::cout << "Done 3\n";
     viz.setPolarAngleDeg(270);
     viz.generate(world, buffer);
     viz.savePNG("test270.png", buffer);
+    std::cout << "Done 4\n";
 }
 
 void testTiming()
