@@ -99,6 +99,14 @@ public:
         m_kdtree.setData(m_vertices, m_outer_triangles, 8);
     }
 
+    void setDisplayCollectionIndexFilter(std::uint32_t idx)
+    {
+        if (idx < m_collectionMaterials.size())
+            m_collectionIndexForDisplay = idx;
+        else
+            m_collectionIndexForDisplay = std::numeric_limits<std::uint32_t>::max();
+    }
+
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
@@ -200,19 +208,60 @@ public:
         if (auto inter = basicshape::AABB::intersectForwardInterval(particle, m_aabb); inter) {
             auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
             if (kdres.valid()) {
-                res.intersection = kdres.intersection;
-                res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
-                res.intersectionValid = true;
+                if (m_collectionIndexForDisplay == std::numeric_limits<std::uint32_t>::max()) {
+                    res.intersection = kdres.intersection;
+                    res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
+                    res.intersectionValid = true;
 
-                // normal
-                const auto& vIdx = *(kdres.item);
-                res.normal = basicshape::tetrahedron::normalVector(m_vertices[vIdx[0]], m_vertices[vIdx[1]], m_vertices[vIdx[2]]);
-                // value
-                const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
-                const auto tetIdx = m_outerTriangleTetMembership[faceIdx];
-                res.value = m_doseScore[tetIdx].dose();
+                    // normal
+                    const auto& vIdx = *(kdres.item);
+                    res.normal = basicshape::tetrahedron::normalVector(m_vertices[vIdx[0]], m_vertices[vIdx[1]], m_vertices[vIdx[2]]);
+                    // value
+                    const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
+                    const auto tetIdx = m_outerTriangleTetMembership[faceIdx];
+                    res.value = m_doseScore[tetIdx].dose();
+                } else {
+                    const auto faceIdx = std::distance(&(m_outer_triangles[0]), kdres.item);
+                    auto currentTetIdx = m_outerTriangleTetMembership[faceIdx];
+
+                    double intersection = kdres.intersection;
+                    bool cont = true;
+                    do {
+                        if (m_collectionIdx[currentTetIdx] == m_collectionIndexForDisplay) {
+                            cont = false;
+                        } else {
+                            const auto [lenght, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
+                            if (nextTetIdx == currentTetIdx) {
+                                // we hit the end, are there others behind the bondary?
+                                std::array<double, 2> interseg = { lenght + GEOMETRIC_ERROR<>() * 2, (*inter)[1] };
+                                auto kdseg = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, interseg);
+                                if (kdseg.valid()) {
+                                    const auto segfaceIdx = std::distance(&(m_outer_triangles[0]), kdseg.item);
+                                    currentTetIdx = m_outerTriangleTetMembership[segfaceIdx];
+                                    intersection = kdseg.intersection;
+                                } else {
+                                    cont = false;
+                                }
+                            } else {
+                                intersection = lenght;
+                                currentTetIdx = nextTetIdx;
+                            }
+                        }
+
+                    } while (cont);
+
+                    if (m_collectionIdx[currentTetIdx] == m_collectionIndexForDisplay) {
+                        res.intersection = intersection;
+                        res.rayOriginIsInsideItem = kdres.rayOriginIsInsideItem;
+                        res.intersectionValid = true;
+                        const auto point = vectormath::add(particle.pos, vectormath::scale(particle.dir, res.intersection));
+                        const auto& v = m_tetrahedrons[currentTetIdx].verticeIdx;
+                        res.normal = basicshape::tetrahedron::closestNormalToPoint(m_vertices[v[0]], m_vertices[v[1]], m_vertices[v[2]], m_vertices[v[3]], point);
+                        res.value = m_doseScore[currentTetIdx].dose();
+                    }
+                }
             }
-        };
+        }
         return res;
     }
 
@@ -631,7 +680,7 @@ private:
     std::vector<double> m_collectionDensities; // same size as n collections
     std::vector<Material<NMaterialShells>> m_collectionMaterials; // same size as n collections
     std::vector<std::string> m_collectionNames; // same size as n collections
-
     ParticleTracker m_tracker;
+    std::uint32_t m_collectionIndexForDisplay = std::numeric_limits<std::uint32_t>::max();
 };
 }
