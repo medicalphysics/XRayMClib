@@ -142,23 +142,15 @@ void showPhantom()
     xraymc::World<Mesh> world;
 
     auto tetdata = testreader.data();
-    auto validFirst = tetdata.valid();
-    auto validOrient1 = tetdata.testTetrahedronNormals();
+    
     // tetdata.collectionNameMustContainFilter("Skin legs sensitive 50-100um", true);
-    tetdata.collectionNameMustContainFilter("blood", false);
-    auto validSecond = tetdata.valid();
-    auto validOrient2 = tetdata.testTetrahedronNormals();
-
+    //tetdata.collectionNameMustContainFilter("blood", false);
+    
     auto& item = world.template addItem<Mesh>(tetdata);
+    item.setDisplayCollectionIndexFilter(79);
     // item.translate({ 10, 10, 10 });
     // item.rotate({ 0, 0, 1 }, 3.14 / 4);
     world.build();
-
-    xraymc::Particle p;
-    p.pos = { -984.63642151220802, -1.7738095000000005, 248.81736716693041 };
-    p.dir = { 0.98508984571411562, -0.0018365877988710617, -0.17203087750807200 };
-
-    auto test = world.intersectVisualization(p);
 
     xraymc::VisualizeWorld viz(world);
 
@@ -168,13 +160,15 @@ void showPhantom()
     viz.suggestFOV(1);
     auto buffer = viz.template createBuffer<double>(1024, 1024);
 
+    std::cout << "Start generating images" << std::endl;
     viz.generate(world, buffer);
     viz.savePNG("test0.png", buffer);
-    std::cout << "Done 1\n";
+    std::cout << "Done 1" << std::endl;
     viz.setPolarAngleDeg(90);
     viz.generate(world, buffer);
     viz.savePNG("test90.png", buffer);
-    std::cout << "Done 2\n";
+    std::cout << "Done 2" << std::endl;
+
     viz.setPolarAngleDeg(180);
     viz.generate(world, buffer);
     viz.savePNG("test180.png", buffer);
