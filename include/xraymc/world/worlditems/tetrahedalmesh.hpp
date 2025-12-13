@@ -99,12 +99,24 @@ public:
         m_kdtree.setData(m_vertices, m_outer_triangles, 8);
     }
 
-    void setDisplayCollectionIndexFilter(std::uint32_t idx)
+    bool setDisplayCollectionIndexFilter(const std::string& collectionName)
     {
-        if (idx < m_collectionMaterials.size())
+        std::uint32_t teller = 0;
+        bool found = false;
+        while (teller < m_collectionNames.size() && !found) {
+            found = collectionName.compare(m_collectionNames[teller]) == 0;
+        }
+        return setDisplayCollectionIndexFilter(teller);
+    }
+
+    bool setDisplayCollectionIndexFilter(std::uint32_t idx)
+    {
+        if (idx < m_collectionMaterials.size()) {
             m_collectionIndexForDisplay = idx;
-        else
-            m_collectionIndexForDisplay = std::numeric_limits<std::uint32_t>::max();
+            return true;
+        }
+        m_collectionIndexForDisplay = std::numeric_limits<std::uint32_t>::max();
+        return false;
     }
 
     const std::array<double, 6>& AABB() const
