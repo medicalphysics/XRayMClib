@@ -158,7 +158,7 @@ public:
     {
         std::uint32_t teller = 0;
         while (teller < m_collectionNames.size()) {
-            if (name.compare(m_collectionNames) == 0)
+            if (name.compare(m_collectionNames[teller]) == 0)
                 return teller;
             ++teller;
         }
