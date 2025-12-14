@@ -173,6 +173,11 @@ public:
         setAzimuthalAngle(azimuthal * DEG_TO_RAD());
     }
 
+    void setCenter(const std::array<double, 3>& pos)
+    {
+        m_center = pos;
+    }
+
     void setCameraPosition(const std::array<double, 3>& pos)
     {
         const auto c = vectormath::subtract(m_center, pos);
