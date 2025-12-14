@@ -149,6 +149,27 @@ public:
         return static_cast<std::uint32_t>(m_tetrahedrons.size());
     }
 
+    const std::vector<std::string> collectionNames() const
+    {
+        return m_collectionNames;
+    }
+
+    std::optional<std::uint32_t> tetrahedronCollectionIndex(const std::string& name) const
+    {
+        std::uint32_t teller = 0;
+        while (teller < m_collectionNames.size()) {
+            if (name.compare(m_collectionNames) == 0)
+                return teller;
+            ++teller;
+        }
+        return std::nullopt;
+    }
+
+    std::uint32_t tetrahedronCollectionIndex(std::uint32_t idx) const
+    {
+        return m_collectionIdx.at(idx);
+    }
+
     std::array<std::array<double, 3>, 4> tetrahedron(std::uint32_t ind) const
     {
         const auto& t = m_tetrahedrons.at(ind);
