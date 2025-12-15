@@ -138,7 +138,7 @@ public:
     static bool savePNG(const std::string& filename, const std::vector<U>& buffer, std::size_t width, std::size_t height)
     {
 #ifdef XRAYMCLIB_USE_LOADPNG
-        xraymclodepng::savePNG(filename, buffer, static_cast<int>(width), static_cast<int>(height));
+        xraymclodepng::savePNG(filename, buffer, width, height);
         return true;
 #else
         return false;

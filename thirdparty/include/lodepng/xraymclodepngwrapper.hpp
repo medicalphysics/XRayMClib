@@ -46,7 +46,7 @@ namespace xraymclodepng {
     bool
     savePNG(const std::string& filename, const std::vector<T>& image, std::size_t width, size_t height)
     {
-        return savePNG(filename, encodePNG(image, width, height));
+        return savePNG(filename, encodePNG(image, static_cast<int>(width), static_cast<int>(height)));
     }
 
 };
