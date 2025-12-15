@@ -32,7 +32,7 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
-template <std::size_t NMaterialShells = 5, int LOWENERGYCORRECTION = 2, bool FORCE_INTERACTIONS = false>
+template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCE_INTERACTIONS = false>
 class WorldBox {
 public:
     WorldBox(const std::array<double, 6>& aabb = { -1, -1, -1, 1, 1, 1 })

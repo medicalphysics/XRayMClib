@@ -48,7 +48,7 @@ struct AttenuationValues {
 };
 
 #ifndef MATERIAL_LINEAR_INTERPOLATION
-template <std::size_t N = 5>
+template <std::size_t N = 16>
 class Material {
 public:
     static std::optional<Material<N>> byZ(std::size_t Z)
@@ -675,7 +675,7 @@ private:
 
 #else
 // Linear material for testing
-template <std::size_t N = 5>
+template <std::size_t N = 16>
 class Material {
 public:
     static std::optional<Material<N>> byZ(std::size_t Z)

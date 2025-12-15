@@ -36,7 +36,7 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
-template <int NMaterialShells = 5, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTIONS = true>
+template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTIONS = true>
 class CTDIPhantom {
 public:
     CTDIPhantom(double radius = 16, double height = 15, const std::array<double, 3>& pos = { 0, 0, 0 }, const std::array<double, 3>& direction = { 0, 0, 1 })

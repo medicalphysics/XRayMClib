@@ -42,7 +42,7 @@ concept AnyWorldItemType = (... or std::same_as<U, Us>);
 // Template for at least one type of items
 template <WorldItemType F, WorldItemType... Us>
 class World {
-    static constexpr std::size_t WorldShells() { return 12; }
+    static constexpr std::size_t WorldShells() { return 16; }
     using MaterialType = Material<WorldShells()>;
 
 public:

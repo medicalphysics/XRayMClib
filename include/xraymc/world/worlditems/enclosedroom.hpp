@@ -32,7 +32,7 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
-template <std::size_t NMaterialShells = 5, int LOWENERGYCORRECTION = 2>
+template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class EnclosedRoom {
 public:
     EnclosedRoom(double wallthickness, const std::array<double, 6>& inner_aabb)

@@ -33,7 +33,7 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
-template <std::size_t NMaterialShells = 5, int LOWENERGYCORRECTION = 2>
+template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class WorldCylinder {
 public:
     WorldCylinder(double radius = 16, double height = 10, const std::array<double, 3>& center = { 0, 0, 0 }, const std::array<double, 3>& dir = { 0, 0, 1 })

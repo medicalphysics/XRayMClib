@@ -36,7 +36,7 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
-template <int NMaterialShells = 5, int LOWENERGYCORRECTION = 2>
+template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class TriangulatedOpenSurface {
 public:
     TriangulatedOpenSurface()

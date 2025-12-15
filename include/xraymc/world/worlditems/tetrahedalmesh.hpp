@@ -34,7 +34,7 @@ Copyright 2025 Erlend Andersen
 
 namespace xraymc {
 
-template <int NMaterialShells = 36, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
+template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh {
     // static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
     static constexpr double EPSILON = 1E-10;
