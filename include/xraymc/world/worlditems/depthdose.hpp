@@ -73,15 +73,15 @@ public:
 
     void setResolution(std::size_t resolution)
     {
-        clearEnergyScore();
-        clearDoseScore();
+        clearEnergyScored();
+        clearDoseScored();
         m_energyScored.resize(resolution);
         m_dose.resize(resolution);
     }
 
     double length() const { return m_cylinder.half_height * 2; }
     double radius() const { return m_cylinder.radius; }
-    
+
     const std::array<double, 3>& direction() const
     {
         return m_cylinder.direction;
