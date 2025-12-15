@@ -176,15 +176,15 @@ public:
             transportRandom(p, state);
     }
 
-    const std::vector<std::pair<double, EnergyScore>> depthEnergyScored() const
+    const std::vector<std::pair<double, DoseScore>> depthDoseScored() const
     {
-        std::vector<std::pair<double, EnergyScore>> depth;
-        depth.reserve(m_energyScored.size());
+        std::vector<std::pair<double, DoseScore>> depth;
+        depth.reserve(m_dose.size());
 
-        const auto step = (2 * m_cylinder.half_height) / m_energyScored.size();
+        const auto step = (2 * m_cylinder.half_height) / m_dose.size();
         const auto start = m_cylinder.center[2] - m_cylinder.half_height + step / 2;
-        for (std::size_t i = 0; i < m_energyScored.size(); ++i) {
-            depth.push_back(std::make_pair(start + step * i, m_energyScored[i]));
+        for (std::size_t i = 0; i < m_dose.size(); ++i) {
+            depth.push_back(std::make_pair(start + step * i, m_dose[i]));
         }
         return depth;
     }
