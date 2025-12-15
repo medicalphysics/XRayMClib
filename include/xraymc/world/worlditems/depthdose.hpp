@@ -54,21 +54,25 @@ public:
     void setRadius(double radius)
     {
         m_cylinder.radius = std::abs(radius);
+        updateAABB()
     }
 
     void setDirection(const std::array<double, 3>& direction)
     {
         m_cylinder.direction = vectormath::normalized(direction);
+        updateAABB()
     }
 
     void setLenght(double lenght)
     {
         m_cylinder.half_height = std::abs(lenght * 0.5);
+        updateAABB()
     }
 
     void setCenter(const std::array<double, 3>& position)
     {
         m_cylinder.position = position;
+        updateAABB()
     }
 
     void setResolution(std::size_t resolution)
