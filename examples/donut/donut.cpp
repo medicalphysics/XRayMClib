@@ -38,7 +38,7 @@ void example1()
     constexpr int LOWENERGYCORRECTION = 2;
 
     // lets start by defining a voxelized donut as an axis aligned grid
-    using VoxelItem = xraymc::AAVoxelGrid<5, 2, 0>;
+    using VoxelItem = xraymc::AAVoxelGrid<16, 2, 0>;
     using Sphere = xraymc::WorldSphere<16, 2, false>; // If we want to put an aluminum ball inside the donut
 
     // dimensions of the voxelgrid
