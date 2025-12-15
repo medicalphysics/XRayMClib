@@ -573,11 +573,11 @@ protected:
 
         for (std::size_t i = 0; i < offset.size(); ++i) {
             if (i < attenuation.size() + std::min(std::uint8_t { N }, m.numberOfShells()))
-                m.m_attenuationTableOffset[i] = std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.begin() + offset[i]);
+                m.m_attenuationTableOffset[i] = static_cast<std::uint_fast32_t>(std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.begin() + offset[i]));
             else
-                m.m_attenuationTableOffset[i] = std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.end());
+                m.m_attenuationTableOffset[i] = static_cast<std::uint_fast32_t>(std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.end()));
         }
-        m.m_attenuationTableOffset[offset.size()] = std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.end());
+        m.m_attenuationTableOffset[offset.size()] = static_cast<std::uint_fast32_t>(std::distance(m.m_attenuationTable.begin(), m.m_attenuationTable.end()));
 
         // creating lookuptable for inverse sampling of formfactor
         generateFormFactorInverseSampling(m);
