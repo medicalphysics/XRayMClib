@@ -345,7 +345,7 @@ public:
 
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
-    void generate(const World<Us...>& world, std::vector<U>& buffer, int width = 512, int height = 512) const
+    void generate(const World<Us...>& world, std::vector<U>& buffer, std::size_t width = 512, std::size_t height = 512) const
     {
         if constexpr (std::is_same<U, std::uint8_t>::value)
             std::fill(buffer.begin(), buffer.end(), 255);
