@@ -355,7 +355,7 @@ public:
         const auto n_threads = std::max(static_cast<int>(std::thread::hardware_concurrency()), 1);
         std::vector<std::jthread> threads;
         threads.reserve(n_threads - 1);
-        std::atomic<int> idx(0);
+        std::atomic<std::size_t> idx(0);
         for (std::size_t i = 0; i < n_threads - 1; ++i) {
             threads.emplace_back(&VisualizeWorld::template generateWorker<U>, this, std::cref(world), std::ref(buffer), width, height, std::ref(idx));
         }
@@ -379,7 +379,7 @@ public:
 protected:
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
-    void generateWorker(const World<Us...>& world, std::vector<U>& buffer, int width, int height, std::atomic<int>& idx) const
+    void generateWorker(const World<Us...>& world, std::vector<U>& buffer, std::size_t width, std::size_t height, std::atomic<std::size_t>& idx) const
     {
         const auto xcos = vectormath::rotate<double>({ 0, 1, 0 }, { 0, 0, 1 }, m_camera_pos[1]);
         const auto ycos = vectormath::rotate<double>({ 0, 0, 1 }, xcos, m_camera_pos[2] - std::numbers::pi_v<double> / 2);
