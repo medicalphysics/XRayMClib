@@ -229,7 +229,7 @@ void EPICSparser::read(const std::string& path)
                 } else { // read data line
                     const auto data = split(line);
                     if (segment.dataDim == 0) { // find data dimenionality
-                        segment.dataDim = data.size();
+                        segment.dataDim = static_cast<int>(data.size());
                     }
                     for (const auto d : data) {
                         segment.data.push_back(d);

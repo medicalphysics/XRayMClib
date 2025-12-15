@@ -317,7 +317,7 @@ protected:
                 // branch
                 cnode.setDim(split_dim);
                 cnode.split_nelements.split = split_val;
-                cnode.setOffset(nodes.size());
+                cnode.setOffset(static_cast<std::uint32_t>(nodes.size()));
                 NodeTemplate left, right;
                 for (auto idx : cind) {
                     auto* item = m_items[idx];
