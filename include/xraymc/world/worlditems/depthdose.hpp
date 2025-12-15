@@ -51,8 +51,45 @@ public:
         m_dose.resize(resolution);
     }
 
+    void setRadius(double radius)
+    {
+        m_cylinder.radius = std::abs(radius);
+    }
+
+    void setDirection(const std::array<double, 3>& direction)
+    {
+        m_cylinder.direction = vectormath::normalized(direction);
+    }
+
+    void setLenght(double lenght)
+    {
+        m_cylinder.half_height = std::abs(lenght * 0.5);
+    }
+
+    void setCenter(const std::array<double, 3>& position)
+    {
+        m_cylinder.position = position;
+    }
+
+    void setResolution(std::size_t resolution)
+    {
+        clearEnergyScore();
+        clearDoseScore();
+        m_energyScored.resize(resolution);
+        m_dose.resize(resolution);
+    }
+
     double length() const { return m_cylinder.half_height * 2; }
     double radius() const { return m_cylinder.radius; }
+    
+    const std::array<double, 3>& direction() const
+    {
+        return m_cylinder.direction;
+    }
+    const std::array<double, 3>& center() const
+    {
+        return m_cylinder.center;
+    }
 
     std::size_t resolution() const
     {
@@ -97,11 +134,6 @@ public:
     {
         m_cylinder.center = vectormath::add(m_cylinder.center, dist);
         updateAABB();
-    }
-
-    const std::array<double, 3>& center() const
-    {
-        return m_cylinder.center;
     }
 
     const std::array<double, 6>& AABB() const
