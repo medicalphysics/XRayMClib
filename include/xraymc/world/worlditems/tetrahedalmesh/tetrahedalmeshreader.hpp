@@ -40,21 +40,14 @@ public:
 
     TetrahedalMeshReader(const std::string& nodeFile, const std::string& elementFile)
     {
-        readNodes(nodeFile);
-        readElements(elementFile);
-        auto coll = genericCollection();
-        m_valid = mergeTetAndCollData(coll);
+        readData(nodeFile, elementFile);
     }
     TetrahedalMeshReader(
         const std::string& nodeFile,
         const std::string& elementFile,
         const std::string& matfilePath,
-        const std::string& organFilePath)
-    {
-        auto coll = readICRP145PhantomMaterialAndOrgans(matfilePath, organFilePath);
-        readNodes(nodeFile);
-        readElements(elementFile);
-        m_valid = mergeTetAndCollData(coll);
+        const std::string& organFilePath) {
+        readData(nodeFile, elementFile, matfilePath, organFilePath)
     }
 
     TetrahedalMeshReader(
@@ -62,7 +55,35 @@ public:
         const std::string& elementFile,
         const std::string& matorganfilePath)
     {
+        readData(nodeFile, elementFile, matorganfilePath);
+    }
+
+    void readData(const std::string& nodeFile, const std::string& elementFile)
+    {
+        readNodes(nodeFile);
+        readElements(elementFile);
+        auto coll = genericCollection();
+        m_valid = mergeTetAndCollData(coll);
+    }
+
+    void readData(
+        const std::string& nodeFile,
+        const std::string& elementFile,
+        const std::string& matorganfilePath)
+    {
         auto coll = readICRPPregnantOrganAndMaterial(matorganfilePath);
+        readNodes(nodeFile);
+        readElements(elementFile);
+        m_valid = mergeTetAndCollData(coll);
+    }
+
+    void readData(
+        const std::string& nodeFile,
+        const std::string& elementFile,
+        const std::string& matfilePath,
+        const std::string& organFilePath)
+    {
+        auto coll = readICRP145PhantomMaterialAndOrgans(matfilePath, organFilePath);
         readNodes(nodeFile);
         readElements(elementFile);
         m_valid = mergeTetAndCollData(coll);
