@@ -112,6 +112,13 @@ public:
         });
     }
 
+    void scale(double s)
+    {
+        std::transform(std::execution::par_unseq, m_data.nodes.cbegin(), m_data.nodes.cend(), m_data.nodes.begin(), [s](const auto& v) {
+            return vectormath::scale(v, s);
+        });
+    }
+
 protected:
     struct ICRPCollection {
         std::uint32_t index = 1; // default value from tetgen
