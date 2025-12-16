@@ -145,7 +145,8 @@ public:
                 auto t_cand = basicshape::tetrahedron::intersectTriangle(vertices[el[0]], vertices[el[1]], vertices[el[2]], particle);
                 if (t_cand) {
                     if (0 <= *t_cand && *t_cand < res.intersection) {
-                        if (tbox[0] <= *t_cand && *t_cand <= tbox[1]) {
+                        constexpr double epsilon = 1E-8;
+                        if (tbox[0] - epsilon <= *t_cand && *t_cand <= tbox[1] + epsilon) {
                             res.intersection = *t_cand;
                             res.item = &el;
                             const auto normal = basicshape::tetrahedron::normalVector<false>(vertices[el[0]], vertices[el[1]], vertices[el[2]]);
