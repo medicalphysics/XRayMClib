@@ -18,6 +18,7 @@ Copyright 2023 Erlend Andersen
 
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
+#include "xraymc/world/visualization/visualizeworld.hpp"
 #include "xraymc/world/world.hpp"
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"
 #include "xraymc/world/worlditems/ctdiphantom.hpp"
@@ -150,6 +151,60 @@ bool basicTestAllItems()
     success = success && testItem<xraymc::EnclosedRoom<>>();
 
     return success;
+}
+
+template <typename U>
+bool longTest()
+{
+    if constexpr (std::is_base_of_v<xraymc::DepthDose<>, U> == true) {
+
+        xraymc::World<U> world;
+        auto& item = world.addItem<U>();
+        item.setRadius(2);
+        item.setDirection({ 0, 0, -1 });
+        item.setLenght(10);
+        item.setResolution(100);
+        auto aluminum_material = xraymc::Material<>::byZ(13).value();
+        auto aluminum_density = xraymc::AtomHandler::Atom(13).standardDensity;
+        item.setMaterial(aluminum_material, aluminum_density);
+
+        world.build(1.0);
+
+        xraymc::PencilBeam<> beam;
+        beam.setPosition({ 0, 0, 10 });
+        beam.setDirection({ 0, 0, -1 });
+        beam.setEnergy(70); // keV
+        beam.setAirKerma(1.0);
+        beam.setNumberOfExposures(100);
+        beam.setNumberOfParticlesPerExposure(1E6);
+        xraymc::Transport transport;
+        transport.runConsole(world, beam);
+
+        double max_dose = 0;
+        std::cout << "Depth [cm], Dose [keV], NumberOfEvents, Relative uncertanty [%]\n";
+        for (const auto [depth, dose] : item.depthDoseScored()) {
+            std::cout << depth << ", " << dose.dose();
+            std::cout << ", " << dose.numberOfEvents();
+            std::cout << ", " << dose.relativeUncertainty() << std::endl;
+            max_dose = std::max(max_dose, dose.dose());
+        }
+
+        xraymc::VisualizeWorld viz(world);
+        viz.setDistance(300);
+        viz.setAzimuthalAngleDeg(60);
+        viz.suggestFOV(1);
+        auto buffer = viz.createBuffer(1024, 1024);
+        viz.addLineProp(beam.position(), beam.direction(), 10, 0.1);
+        viz.generate(world, buffer);
+        viz.savePNG("pencilbeam.png", buffer);
+
+        viz.addColorByValueItem(world.getItemPointers()[0]);
+        viz.setColorByValueMinMax(0, max_dose);
+        viz.generate(world, buffer);
+        viz.savePNG("pencilbeam_color.png", buffer);
+        return true;
+    }
+    return false;
 }
 
 int main(int argc, char* argv[])

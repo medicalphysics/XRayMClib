@@ -157,8 +157,7 @@ public:
         if (inter.valid()) {
             auto p_int = p;
             p_int.translate(inter.intersection);
-            const auto dose_ind_f = (p_int.pos[2] - (m_cylinder.center[2] - m_cylinder.half_height)) * m_energyScored.size() / (m_cylinder.half_height * 2);
-            const auto ind = std::clamp(static_cast<std::size_t>(dose_ind_f), std::size_t { 0 }, m_energyScored.size() - 1);
+            const auto ind = cylinderIndex(p_int.pos);
             inter.value = m_dose[ind].dose();
         }
         return inter;
