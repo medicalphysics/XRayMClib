@@ -46,8 +46,9 @@ public:
         const std::string& nodeFile,
         const std::string& elementFile,
         const std::string& matfilePath,
-        const std::string& organFilePath) {
-        readData(nodeFile, elementFile, matfilePath, organFilePath)
+        const std::string& organFilePath)
+    {
+        readData(nodeFile, elementFile, matfilePath, organFilePath);
     }
 
     TetrahedalMeshReader(
