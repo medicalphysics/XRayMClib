@@ -67,6 +67,14 @@ struct TetrahedalMeshData {
         return val;
     }
 
+    bool changeMaterialComposition(std::uint32_t collectionIndex, const std::map<std::size_t, double>& newComposition)
+    {
+        auto& comp = collectionMaterialComposition.at(collectionIndex);
+        comp.clear();
+        for (const auto& [key, value] : newComposition)
+            comp[key] = value;
+    }
+
     bool testTetrahedronNormals() const
     {
         return std::all_of(std::execution::par_unseq, elements.cbegin(), elements.cend(), [this](const auto& el) {
