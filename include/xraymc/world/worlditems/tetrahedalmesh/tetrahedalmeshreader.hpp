@@ -114,7 +114,7 @@ public:
 
 protected:
     struct ICRPCollection {
-        std::uint32_t index = 0;
+        std::uint32_t index = 1; // default value from tetgen
         std::uint32_t material_index = 0; // internal use
         double density = -1;
         std::map<std::size_t, double> material_weights;
@@ -127,7 +127,7 @@ protected:
         r[0].density = 1;
         r[0].material_weights[1] = 11.2;
         r[0].material_weights[8] = 88.8;
-        r[0].name = "Water";
+        r[0].name = "Default water";
         return r;
     }
 
@@ -185,7 +185,6 @@ protected:
         m_data.collectionMaterialComposition.resize(lut.size());
         m_data.collectionNames.resize(lut.size());
 
-        std::uint32_t teller = 0;
         for (const auto& c : collection) {
             if (lut.contains(c.index)) {
                 auto index = lut.at(c.index);
