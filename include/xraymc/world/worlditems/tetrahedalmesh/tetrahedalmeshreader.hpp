@@ -63,8 +63,22 @@ public:
     {
         readNodes(nodeFile);
         readElements(elementFile);
-        auto coll = genericCollection();
-        m_valid = mergeTetAndCollData(coll);
+
+        // generating collections
+        auto coll = m_data.collectionIndices;
+        std::sort(std::execution::par_unseq, coll.begin(), coll.end());
+        coll.erase(std::unique(coll.begin(), coll.end()), coll.end());
+        std::vector<ICRPCollection> collection(coll.size());
+        for (std::uint32_t i = 0; i < coll.size(); ++i) {
+            auto& c = collection[i];
+            c.density = 1;
+            c.index = coll[i];
+            c.material_weights[1] = 11.2;
+            c.material_weights[8] = 88.8;
+            c.name = "Default water " + std::to_string(i + 1);
+        }
+
+        m_valid = mergeTetAndCollData(collection);
     }
 
     void readData(
@@ -127,16 +141,6 @@ protected:
         std::map<std::size_t, double> material_weights;
         std::string name;
     };
-
-    static std::vector<ICRPCollection> genericCollection()
-    {
-        std::vector<ICRPCollection> r(1);
-        r[0].density = 1;
-        r[0].material_weights[1] = 11.2;
-        r[0].material_weights[8] = 88.8;
-        r[0].name = "Default water";
-        return r;
-    }
 
     std::vector<ICRPCollection> readICRP145PhantomMaterialAndOrgans(
         const std::string& matfilePath,
