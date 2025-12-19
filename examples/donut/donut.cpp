@@ -28,7 +28,7 @@ Copyright 2025 Erlend Andersen
 
 void example1()
 {
-    // make and display a donut
+    // make and display a voxelized donut with an aluminium ball suspended in the middle
     // first we define some constants
 
     // Select low energy correction, possible values are
@@ -92,7 +92,7 @@ void example1()
                 bool inside_donut = std::pow(std::sqrt(x * x + y * y) - R, 2) + z * z < r * r;
                 if (inside_donut) {
                     if (z >= 0.0) {
-                        // The top consits of fat
+                        // The top consists of fat
                         materialIndices[flatBufferIndex] = 2;
                         densities[flatBufferIndex] = material_densities[2];
                     } else {
