@@ -25,6 +25,7 @@ Copyright 2025 Erlend Andersen
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -84,12 +85,19 @@ public:
     void readData(
         const std::string& nodeFile,
         const std::string& elementFile,
-        const std::string& matorganfilePath)
+        const std::string& matorganfilePath, bool ietr_format = false)
     {
-        auto coll = readICRPPregnantOrganAndMaterial(matorganfilePath);
-        readNodes(nodeFile);
-        readElements(elementFile);
-        m_valid = mergeTetAndCollData(coll);
+        if (ietr_format) {
+            auto coll = readIETROrganAndMaterial(matorganfilePath);
+            readNodes(nodeFile);
+            readElements(elementFile);
+            m_valid = mergeTetAndCollData(coll);
+        } else {
+            auto coll = readICRPPregnantOrganAndMaterial(matorganfilePath);
+            readNodes(nodeFile);
+            readElements(elementFile);
+            m_valid = mergeTetAndCollData(coll);
+        }
     }
 
     void readData(
@@ -202,10 +210,14 @@ protected:
                 m_data.collectionDensities[index] = c.density;
                 m_data.collectionMaterialComposition[index] = c.material_weights;
                 m_data.collectionNames[index] = c.name;
+            } else {
+                bool test = false;
+                auto index = lut.at(c.index);
+                m_data.collectionDensities[index] = -1;
             }
         }
         // test if we are missing some data by checking density = -1
-        auto loc = std::find_if(m_data.collectionDensities.cbegin(), m_data.collectionDensities.cend(), [](auto dens) { return dens < 0.0; });
+        auto loc = std::find_if(m_data.collectionDensities.cbegin(), m_data.collectionDensities.cend(), [](const auto& dens) { return dens < 0.0; });
         return loc == m_data.collectionDensities.cend();
     }
 
@@ -254,6 +266,62 @@ protected:
         return end;
     }
 
+    static std::vector<ICRPCollection> readIETROrganAndMaterial(const std::string& matfilePath)
+    {
+        std::vector<ICRPCollection> res;
+        const auto data = readBufferFromFile(matfilePath);
+        if (data.size() == 0)
+            return res;
+
+        // find file lines
+        std::vector<std::pair<std::size_t, std::size_t>> lineIdx;
+        std::size_t start = 0;
+        std::size_t stop = 0;
+        while (stop != data.size()) {
+            const auto c = data[stop];
+            if (c == '\n') {
+                lineIdx.push_back(std::make_pair(start, stop));
+                start = stop + 1;
+            }
+            ++stop;
+        }
+        if (start != data.size()) {
+            lineIdx.push_back(std::make_pair(start, data.size()));
+        }
+
+        // Assume first line is header
+        if (lineIdx.size() < 2)
+            return res;
+        res.resize(lineIdx.size() - 1);
+        for (std::size_t i = 1; i < lineIdx.size(); ++i) {
+            auto& organ = res[i - 1];
+            parseLine(
+                data.data() + lineIdx[i].first, data.data() + lineIdx[i].second, ',', organ.index, organ.name, organ.density,
+                organ.material_weights[1],
+                organ.material_weights[6],
+                organ.material_weights[7],
+                organ.material_weights[8],
+                organ.material_weights[11],
+                organ.material_weights[12],
+                organ.material_weights[15],
+                organ.material_weights[16],
+                organ.material_weights[17],
+                organ.material_weights[19],
+                organ.material_weights[20],
+                organ.material_weights[26],
+                organ.material_weights[53]);
+        }
+
+        // cleanup unneeded atoms
+        for (auto& c : res) {            
+            std::erase_if(c.material_weights, [](const auto& item) {
+                const auto& [key, value] = item;
+                return value <= 0;
+            });
+        }
+
+        return res;
+    }
     static std::vector<ICRPCollection> readICRP145PhantomMaterials(const std::string& matfilePath)
     {
         std::vector<ICRPCollection> res;
