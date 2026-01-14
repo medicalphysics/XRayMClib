@@ -210,10 +210,6 @@ protected:
                 m_data.collectionDensities[index] = c.density;
                 m_data.collectionMaterialComposition[index] = c.material_weights;
                 m_data.collectionNames[index] = c.name;
-            } else {
-                bool test = false;
-                auto index = lut.at(c.index);
-                m_data.collectionDensities[index] = -1;
             }
         }
         // test if we are missing some data by checking density = -1
@@ -313,7 +309,7 @@ protected:
         }
 
         // cleanup unneeded atoms
-        for (auto& c : res) {            
+        for (auto& c : res) {
             std::erase_if(c.material_weights, [](const auto& item) {
                 const auto& [key, value] = item;
                 return value <= 0;
