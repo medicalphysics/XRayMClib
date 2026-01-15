@@ -56,6 +56,12 @@ public:
         setSpacing(spacing);
     }
 
+    AAVoxelGrid(const std::array<std::size_t, 3>& dim, const std::array<double, 3>& spacing, const std::vector<double>& ctNumbers)
+    {
+        setData(dim, ctNumbers);
+        setSpacing(spacing);
+    }
+
     bool setData(const std::array<std::size_t, 3>& dim, const std::vector<double>& density, const std::vector<uint8_t>& materialIdx, const std::vector<Material<NMaterialShells>>& materials)
     {
         const auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
@@ -69,10 +75,11 @@ public:
         }
         m_dim = dim;
         m_data.resize(size);
+        m_dose.clear();
         m_dose.resize(size);
-        EnergyScore dummy_dose;
-        std::transform(std::execution::par_unseq, density.cbegin(), density.cend(), materialIdx.cbegin(), m_data.begin(), [=](const auto d, const auto mIdx) -> DataElement {
-            return { .energyScored = dummy_dose, .density = d, .materialIndex = mIdx };
+
+        std::transform(std::execution::par_unseq, density.cbegin(), density.cend(), materialIdx.cbegin(), m_data.begin(), [](const auto d, const auto mIdx) -> DataElement {
+            return { .energyScored = EnergyScore {}, .density = d, .materialIndex = mIdx };
         });
 
         m_materials = materials;
@@ -80,6 +87,97 @@ public:
 
         updateAABB();
         return true;
+    }
+
+    bool setData(const std::array<std::size_t, 3>& dim, const std::vector<double>& ctNumbers)
+    {
+        const auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
+        m_dim = dim;
+        // allocating
+        m_data.clear();
+        m_dose.clear();
+        m_data.resize(size);
+        m_dose.resize(size);
+
+        const auto dens = shcneiderMaterialDensities(ctNumbers);
+        const auto matIdx = shcneiderMaterialIndices(ctNumbers);
+        for (std::size_t i = 0; i < dens.size(); ++i) {
+            m_data[i].density = dens[i];
+            m_data[i].materialIndex = matIdx[i];
+        }
+
+        // generate materials
+        m_materials.clear();
+        const auto shcneiderWeights = shcneiderMaterialWeights();
+        m_materials.reserve(shcneiderWeights.size());
+        for (const auto& w : shcneiderWeights)
+            m_materials.push_back(Material<NMaterialShells>::byWeight(w).value());
+
+        generateWoodcockStepTable();
+
+        updateAABB();
+        return true;
+    }
+
+    static std::array<std::map<std::uint32_t, double>, 24> shcneiderMaterialWeights()
+    {
+        std::array<std::map<std::uint32_t, double>, 24> sw;
+        sw[0] = { { 1, 75.5 }, { 6, 23.2 }, { 7, 1.3 } };
+        sw[1] = { { 1, 10.3 }, { 6, 10.5 }, { 7, 3.1 }, { 8, 74.9 }, { 11, 0.2 }, { 15, 0.2 }, { 16, 0.3 }, { 17, 0.3 }, { 18, 0.2 } };
+        sw[2] = { { 1, 11.6 }, { 6, 68.1 }, { 7, 0.2 }, { 8, 19.8 }, { 11, 0.1 }, { 15, 0.1 }, { 16, 0.1 } };
+        sw[3] = { { 1, 11.3 }, { 6, 56.7 }, { 7, 0.9 }, { 8, 30.8 }, { 11, 0.1 }, { 15, 0.1 }, { 16, 0.1 } };
+        sw[4] = { { 1, 11 }, { 6, 45.8 }, { 7, 1.5 }, { 8, 41.1 }, { 11, 0.1 }, { 15, 0.1 }, { 16, 0.2 }, { 17, 0.2 } };
+        sw[5] = { { 1, 10.8 }, { 6, 35.6 }, { 7, 2.2 }, { 8, 50.9 }, { 11, 0.1 }, { 15, 0.2 }, { 16, 0.2 } };
+        sw[6] = { { 1, 10.6 }, { 6, 28.4 }, { 7, 2.6 }, { 8, 57.8 }, { 11, 0.1 }, { 15, 0.2 }, { 16, 0.2 }, { 17, 0.1 } };
+        sw[7] = { { 1, 10.3 }, { 6, 13.4 }, { 7, 3 }, { 8, 72.3 }, { 11, 0.2 }, { 15, 0.2 }, { 16, 0.2 }, { 17, 0.2 } };
+        sw[8] = { { 1, 9.4 }, { 6, 20.7 }, { 7, 6.2 }, { 8, 62.2 }, { 12, 0.6 }, { 16, 0.6 }, { 17, 0.3 } };
+        sw[9] = { { 1, 9.5 }, { 6, 45.5 }, { 7, 2.5 }, { 8, 35.5 }, { 11, 0.1 }, { 15, 2.1 }, { 16, 0.1 }, { 17, 0.1 }, { 18, 0.1 }, { 20, 4.5 } };
+        sw[10] = { { 1, 8.9 }, { 6, 42.3 }, { 7, 2.7 }, { 8, 36.3 }, { 11, 0.1 }, { 15, 3 }, { 16, 0.1 }, { 17, 0.1 }, { 18, 0.1 }, { 20, 6.4 } };
+        sw[11] = { { 1, 8.2 }, { 6, 39.1 }, { 7, 2.9 }, { 8, 37.2 }, { 11, 0.1 }, { 15, 3.9 }, { 16, 0.1 }, { 17, 0.1 }, { 18, 0.1 }, { 20, 8.3 } };
+        sw[12] = { { 1, 7.6 }, { 6, 36.1 }, { 7, 3 }, { 8, 38 }, { 11, 0.1 }, { 15, 4.7 }, { 16, 0.2 }, { 17, 0.1 }, { 20, 10.1 } };
+        sw[13] = { { 1, 7.1 }, { 6, 33.5 }, { 7, 3.2 }, { 8, 38.7 }, { 11, 0.1 }, { 15, 5.4 }, { 16, 0.2 }, { 20, 11.7 } };
+        sw[14] = { { 1, 6.6 }, { 6, 31 }, { 7, 3.3 }, { 8, 39.4 }, { 11, 0.1 }, { 15, 6.1 }, { 16, 0.2 }, { 20, 13.2 } };
+        sw[15] = { { 1, 6.1 }, { 6, 28.7 }, { 7, 3.5 }, { 8, 40 }, { 11, 0.1 }, { 15, 6.7 }, { 16, 0.2 }, { 20, 14.6 } };
+        sw[16] = { { 1, 5.6 }, { 6, 26.5 }, { 7, 3.6 }, { 8, 40.5 }, { 11, 0.1 }, { 15, 7.3 }, { 16, 0.3 }, { 20, 15.9 } };
+        sw[17] = { { 1, 5.2 }, { 6, 24.6 }, { 7, 3.7 }, { 8, 41.1 }, { 11, 0.1 }, { 15, 7.8 }, { 16, 0.3 }, { 20, 17 } };
+        sw[18] = { { 1, 4.9 }, { 6, 22.7 }, { 7, 3.8 }, { 8, 41.6 }, { 11, 0.1 }, { 15, 8.3 }, { 16, 0.3 }, { 20, 18.1 } };
+        sw[19] = { { 1, 4.5 }, { 6, 21 }, { 7, 3.9 }, { 8, 42 }, { 11, 0.1 }, { 15, 8.8 }, { 16, 0.3 }, { 20, 19.2 } };
+        sw[20] = { { 1, 4.2 }, { 6, 19.4 }, { 7, 4 }, { 8, 42.5 }, { 11, 0.1 }, { 15, 9.2 }, { 16, 0.3 }, { 20, 20.1 } };
+        sw[21] = { { 1, 3.9 }, { 6, 17.9 }, { 7, 4.1 }, { 8, 42.9 }, { 11, 0.1 }, { 15, 9.6 }, { 16, 0.3 }, { 20, 21 } };
+        sw[22] = { { 1, 3.6 }, { 6, 16.5 }, { 7, 4.2 }, { 8, 43.2 }, { 11, 0.1 }, { 15, 10 }, { 16, 0.3 }, { 20, 21.9 } };
+        sw[23] = { { 1, 3.4 }, { 6, 15.5 }, { 7, 4.2 }, { 8, 43.5 }, { 11, 0.1 }, { 15, 10.3 }, { 16, 0.3 }, { 20, 22.5 } };
+        return sw;
+    }
+    static std::vector<double> shcneiderMaterialDensities(const std::vector<double>& ctNumbers)
+    {
+        std::vector<double> dens(ctNumbers.size());
+        std::transform(std::execution::par_unseq, ctNumbers.cbegin(), ctNumbers.cend(), dens.begin(), [](double H) {
+            double d;
+            if (H < -98.0) {
+                d = H / 1000.0 + 1; // linear
+            } else if (H < 14.0) {
+                d = (1.018 + 0.000893 * H);
+            } else if (H < 23) {
+                d = 1.03;
+            } else if (H < 100) {
+                d = 1.003 + 0.001169 * H;
+            } else {
+                d = 1.017 + 0.000592 * H;
+            }
+            return d;
+        });
+        return dens;
+    }
+    static std::vector<double> shcneiderMaterialIndices(const std::vector<double>& ctNumbers)
+    {
+        constexpr std::array<double, 24> schneiderUlim = { -950.0, -120, -83, -53, -23, 7, 18, 80, 120, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600 };
+        std::vector<std::uint8_t> m(ctNumbers.size());
+        std::transform(std::execution::par_unseq, ctNumbers.cbegin(), ctNumbers.cend(), m.begin(), [&](double H) {
+            const auto it = std::upper_bound(schneiderUlim.cbegin(), schneiderUlim.cend(), H);
+            const auto idx = it != schneiderUlim.cend() ? std::distance(schneiderUlim.cbegin(), it) : schneiderUlim.size() - 1;
+            return static_cast<std::uint8_t>(idx);
+        });
+        return m;
     }
 
     void flipAxis(std::size_t axis)
