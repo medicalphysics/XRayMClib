@@ -180,7 +180,7 @@ public:
         });
         return dens;
     }
-    static std::vector<double> shcneiderMaterialIndices(const std::vector<double>& ctNumbers)
+    static std::vector<std::uint8_t> shcneiderMaterialIndices(const std::vector<double>& ctNumbers)
     {
         constexpr std::array<double, 24> schneiderUlim = { -950.0, -120, -83, -53, -23, 7, 18, 80, 120, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600 };
         std::vector<std::uint8_t> m(ctNumbers.size());
