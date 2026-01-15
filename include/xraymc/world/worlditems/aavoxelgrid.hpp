@@ -119,6 +119,18 @@ public:
         return true;
     }
 
+    static std::array<std::string, 24> shcneiderMaterialNames()
+    {
+        std::array<std::string, 24> names;
+        names[0] = "Air";
+        names[1] = "Lung";
+        for (std::size_t i = 2; i < 8; ++i)
+            names[i] = "Soft " + std::to_string(i - 2);
+        for (std::size_t i = 8; i < names.size(); ++i)
+            names[i] = "Skeletal " + std::to_string(i - 8);
+        return names;
+    }
+
     static std::array<std::map<std::uint32_t, double>, 24> shcneiderMaterialWeights()
     {
         std::array<std::map<std::uint32_t, double>, 24> sw;
