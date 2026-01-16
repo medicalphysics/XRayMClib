@@ -233,20 +233,18 @@ protected:
         WorldIntersectionResult res;
         const auto D = vectormath::dot(p.dir, m_normal);
         constexpr double minOrt = 1E-6;
-        if (D < minOrt && D > -minOrt)
-            return res; // dir and normal is orthogonal, we exits
-        res.intersection = vectormath::dot(vectormath::subtract(m_center, p.pos), m_normal) / D;
-        if (res.intersection <= 0)
-            return res;
 
-        // intersection point
-        const auto p_int = vectormath::add(p.pos, vectormath::scale(p.dir, res.intersection));
-
-        // distance from center
-        const auto c_dist = vectormath::subtract(m_center, p_int);
-        // check if distance from center is less than radius
-        res.intersectionValid = vectormath::dot(c_dist, c_dist) <= m_radius * m_radius;
-
+        if (D < -minOrt || D > minOrt) {
+            res.intersection = vectormath::dot(vectormath::subtract(m_center, p.pos), m_normal) / D;
+            if (res.intersection > 0) {
+                // intersection point
+                const auto p_int = vectormath::add(p.pos, vectormath::scale(p.dir, res.intersection));
+                // distance from center
+                const auto c_dist = vectormath::subtract(m_center, p_int);
+                // check if distance from center is less than radius
+                res.intersectionValid = vectormath::length_sqr(c_dist) <= m_radius * m_radius;
+            }
+        }
         return res;
     }
 

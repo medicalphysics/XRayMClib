@@ -26,7 +26,7 @@ import os
 ROW = "Material"
 HUE = "Model"
 COL = "Energy"
-HUE_ORDER = ["NoneLC", "Livermore", "IA"]
+HUE_ORDER = None
 
 
 def readData():
@@ -41,6 +41,8 @@ def readData():
     dt = pd.read_csv(
         "validationScatterTable.txt", sep=";", engine="python", converters=converters
     )
+    if "Model" in dt:
+        HUE_ORDER = list(set([m for m in dt["Model"]]))
     return dt
 
 

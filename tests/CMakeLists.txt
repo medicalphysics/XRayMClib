@@ -18,6 +18,7 @@ set(TEST_SOURCES
     "testtetrahedalmesh2.cpp"
     "testdirectionsampler.cpp"
     "testinteractions.cpp"
+    "testmaterialshellscatter.cpp"
 )
 
 

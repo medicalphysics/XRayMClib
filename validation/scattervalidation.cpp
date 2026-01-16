@@ -25,7 +25,7 @@ Copyright 2024 Erlend Andersen
 #include <iostream>
 #include <thread>
 
-constexpr int NSHELLS = 36;
+// constexpr int NSHELLS = 36;
 constexpr std::size_t N = 5E7;
 
 struct Histogram {
@@ -137,7 +137,7 @@ private:
     std::mutex m_mutex;
 };
 
-template <int Model = 1>
+template <int Model = 1, std::size_t NSHELLS>
 Histogram comptonScatterAngle(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     xraymc::RandomState state;
@@ -151,7 +151,7 @@ Histogram comptonScatterAngle(const xraymc::Material<NSHELLS>& material, double 
     return h;
 }
 
-template <int Model = 1>
+template <int Model = 1, std::size_t NSHELLS>
 Histogram comptonScatterEnergy(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     xraymc::RandomState state;
@@ -164,7 +164,7 @@ Histogram comptonScatterEnergy(const xraymc::Material<NSHELLS>& material, double
     return h;
 }
 
-template <int Model = 1>
+template <int Model = 1, std::size_t NSHELLS>
 Histogram photoElectricEnergyIA(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     xraymc::RandomState state;
@@ -185,7 +185,7 @@ Histogram photoElectricEnergyIA(const xraymc::Material<NSHELLS>& material, doubl
     return h;
 }
 
-template <int Model = 1>
+template <int Model = 1, std::size_t NSHELLS>
 Histogram rayleightScatterAngle(const xraymc::Material<NSHELLS>& material, double energy, std::size_t N = 1e6)
 {
     xraymc::RandomState state;
@@ -199,8 +199,8 @@ Histogram rayleightScatterAngle(const xraymc::Material<NSHELLS>& material, doubl
     return h;
 }
 
-template <int I = 0>
-void saveHist(ResultPrint& p, const xraymc::Material<NSHELLS>& material, double energy, const std::string& matname, std::size_t N = 1E6)
+template <int I = 0, std::size_t NSHELLS>
+void saveHist(ResultPrint& p, const xraymc::Material<NSHELLS> material, double energy, const std::string matname, std::size_t N = 1E6)
 {
     auto h_en = comptonScatterEnergy<I>(material, energy, N);
     auto h_ang = comptonScatterAngle<I>(material, energy, N);
@@ -208,8 +208,10 @@ void saveHist(ResultPrint& p, const xraymc::Material<NSHELLS>& material, double 
     std::string model = "NoneLC";
     if (I == 1)
         model = "Livermore";
-    if (I == 2)
-        model = "IA";
+    else if (I == 2) {
+        const std::string shell_subfix = std::to_string(NSHELLS);
+        model = "IA_" + shell_subfix;
+    }
 
     p(h_ang, model, "ComptonAngle", energy, matname);
     p(h_en, model, "ComptonEnergy", energy, matname);
@@ -220,6 +222,7 @@ void saveHist(ResultPrint& p, const xraymc::Material<NSHELLS>& material, double 
     }
 }
 
+template <std::size_t NSHELLS>
 auto TG195_breast_tissue()
 {
     std::map<std::size_t, double> adipose_w;
@@ -263,12 +266,9 @@ auto TG195_breast_tissue()
     return xraymc::Material<NSHELLS>::byWeight(w).value();
 }
 
-int main()
+template <int I = 2, std::size_t NSHELLS = 36>
+void runScatterTest(ResultPrint& p, std::vector<std::jthread>& threads)
 {
-
-    ResultPrint p;
-    p.header();
-
     std::vector<double> energies;
     // energies.push_back(15);
     energies.push_back(16.8);
@@ -280,22 +280,41 @@ int main()
 
     // materials.push_back(std::make_pair("Water, Liquid",
     //     xraymc::Material<NSHELLS>::byNistName("Water, Liquid").value()));
+
     materials.push_back(std::make_pair("Polymethyl Methacralate (Lucite, Perspex)",
         xraymc::Material<NSHELLS>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value()));
-    materials.push_back(std::make_pair("TG195Breast", TG195_breast_tissue()));
+
+    materials.push_back(std::make_pair("TG195Breast", TG195_breast_tissue<NSHELLS>()));
+
     // materials.push_back(std::make_pair("Gold", xraymc::Material<NSHELLS>::byZ(79).value()));
+
     materials.push_back(std::make_pair("Lead", xraymc::Material<NSHELLS>::byZ(82).value()));
 
-    std::vector<std::jthread> threads;
-    threads.reserve(materials.size() * energies.size());
+    // materials.push_back(std::make_pair("PbBiSi", xraymc::Material<NSHELLS>::byChemicalFormula("PbBiSi").value()));
 
     for (const auto& [material_name, material] : materials) {
         for (auto energy : energies) {
-            threads.emplace_back(saveHist<0>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
-            threads.emplace_back(saveHist<1>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
-            threads.emplace_back(saveHist<2>, std::ref(p), std::cref(material), energy, std::cref(material_name), N);
+            threads.emplace_back(saveHist<I, NSHELLS>, std::ref(p), material, energy, material_name, N);
         }
     }
+}
+
+int main()
+{
+
+    ResultPrint p;
+    p.header();
+
+    std::vector<std::jthread> threads;
+    threads.reserve(128);
+
+    runScatterTest<1, 35>(p, threads);
+    runScatterTest<2, 15>(p, threads);
+    runScatterTest<2, 35>(p, threads);
+    runScatterTest<2, 127>(p, threads);
+
+    for (auto& t : threads)
+        t.join();
 
     return 0;
 }
