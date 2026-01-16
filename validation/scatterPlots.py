@@ -21,6 +21,7 @@ import pandas as pd
 from matplotlib import pylab as plt
 import numpy as np
 import os
+import re
 
 
 ROW = "Material"
@@ -42,7 +43,17 @@ def readData():
         "validationScatterTable.txt", sep=";", engine="python", converters=converters
     )
     if "Model" in dt:
+        global HUE_ORDER
         HUE_ORDER = list(set([m for m in dt["Model"]]))
+
+        def sorter(x):
+            match = re.search(r"\d+", x)
+            if match:
+                return float(match.group())
+            else:
+                return 0
+
+        HUE_ORDER.sort(key=sorter)
     return dt
 
 
