@@ -92,7 +92,7 @@ public:
 
     void rotate(const std::array<double, 3>& axis, double angle)
     {
-        const std::array center = { m_aabb[3] - m_aabb[0], m_aabb[4] - m_aabb[1], m_aabb[5] - m_aabb[2] };
+        const std::array center = { (m_aabb[3] + m_aabb[0]) / 2, (m_aabb[4] + m_aabb[1]) / 2, (m_aabb[5] + m_aabb[2]) / 2 };
         std::transform(std::execution::par_unseq, m_vertices.begin(), m_vertices.end(), m_vertices.begin(), [&](const auto& v) {
             return vectormath::add(vectormath::rotate(vectormath::subtract(v, center), axis, angle), center);
         });
