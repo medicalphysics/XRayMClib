@@ -31,6 +31,13 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+template <typename U>
+concept TransportCandidateType = requires(U u, Particle p, double factor, RandomState state) {
+    u.clearEnergyScored();
+    u.addEnergyScoredToDoseScore(factor);
+    u.transport(p, state);
+};
+
 class Transport {
 public:
     Transport()
@@ -42,14 +49,14 @@ public:
     std::uint64_t numberOfThreads() const { return m_nThreads; }
     void setNumberOfThreads(std::uint64_t n) { m_nThreads = std::max(n, std::uint64_t { 0 }); }
 
-    template <BeamType B, WorldItemType... Ws>
-    auto operator()(World<Ws...>& world, const B& beam, TransportProgress* progress = nullptr, bool useBeamCalibration = true) const
+    template <BeamType B, TransportCandidateType WorldCand>
+    auto operator()(WorldCand& world, const B& beam, TransportProgress* progress = nullptr, bool useBeamCalibration = true) const
     {
         return run(world, beam, m_nThreads, progress, useBeamCalibration);
     }
 
-    template <BeamType B, WorldItemType... Ws>
-    static auto runConsole(World<Ws...>& world, const B& beam, std::uint64_t nThreads = 0, bool useBeamCalibration = true, std::uint32_t update_ms = 2000)
+    template <BeamType B, TransportCandidateType WorldCand>
+    static auto runConsole(WorldCand& world, const B& beam, std::uint64_t nThreads = 0, bool useBeamCalibration = true, std::uint32_t update_ms = 2000)
     {
         xraymc::TransportProgress progress;
 
@@ -58,7 +65,7 @@ public:
             nThreads = std::thread::hardware_concurrency();
 
         std::thread job([&]() {
-            Transport::run<B, Ws...>(world, beam, nThreads, &progress, useBeamCalibration);
+            Transport::run<B, WorldCand>(world, beam, nThreads, &progress, useBeamCalibration);
             running = false;
         });
         std::string message;
@@ -73,8 +80,8 @@ public:
         return progress.totalTime();
     }
 
-    template <BeamType B, WorldItemType... Ws>
-    static void run(World<Ws...>& world, const B& beam, std::uint64_t nThreads = 1, TransportProgress* progress = nullptr, bool useBeamCalibration = true)
+    template <BeamType B, TransportCandidateType WorldCand>
+    static void run(WorldCand& world, const B& beam, std::uint64_t nThreads = 1, TransportProgress* progress = nullptr, bool useBeamCalibration = true)
     {
         // clearing scored energy before run
         world.clearEnergyScored();
@@ -91,7 +98,7 @@ public:
             progress->start(beam.numberOfParticles());
 
         for (std::size_t i = 0; i < nThreads - 1; ++i) {
-            threads.emplace_back(Transport::template runWorker<B, Ws...>, std::ref(world), std::cref(beam), std::ref(states[i]), std::ref(start), nExposures, progress);
+            threads.emplace_back(Transport::template runWorker<B, WorldCand>, std::ref(world), std::cref(beam), std::ref(states[i]), std::ref(start), nExposures, progress);
         }
         RandomState state;
         runWorker(world, beam, state, start, nExposures, progress);
@@ -108,8 +115,8 @@ public:
     }
 
 protected:
-    template <BeamType B, WorldItemType... Ws>
-    static void runWorker(World<Ws...>& world, const B& beam, RandomState& state, std::atomic<std::uint64_t>& exposureStart, std::uint64_t exposureEnd, TransportProgress* progress = nullptr)
+    template <BeamType B, TransportCandidateType WorldCand>
+    static void runWorker(WorldCand& world, const B& beam, RandomState& state, std::atomic<std::uint64_t>& exposureStart, std::uint64_t exposureEnd, TransportProgress* progress = nullptr)
     {
         auto n = exposureStart.fetch_add(1);
         while (n < exposureEnd) {
