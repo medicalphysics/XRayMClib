@@ -119,6 +119,8 @@ bool testCTSpiralDEBeam()
     Beam beam;
     beam.setTubeAVoltage(140);
     beam.setTubeBVoltage(80);
+    beam.setScanFieldOfViewB(32);
+    beam.setRelativeMasTubeA(2);
 
     return initiateBeam(beam);
 }
