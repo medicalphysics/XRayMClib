@@ -102,11 +102,13 @@ public:
     void setScanFieldOfViewB(double fov_cm)
     {
         m_FOVB = std::max(std::abs(fov_cm), 1.0);
+        tubeChanged();
     }
     double scanFieldOfViewA() const { return m_FOVA; }
     void setScanFieldOfViewA(double fov_cm)
     {
         m_FOVA = std::max(std::abs(fov_cm), 1.0);
+        tubeChanged();
     }
 
     std::array<double, 2> collimationHalfAnglesA() const
