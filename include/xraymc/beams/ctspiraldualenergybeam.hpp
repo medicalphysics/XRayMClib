@@ -376,17 +376,18 @@ public:
 protected:
     void tubeChanged()
     {
+        // Correcting for different field sizes since photon density per area should be equal 
         auto energiesA = m_tubeA.getEnergy();
         auto weightsA = m_tubeA.getSpecter(energiesA, false);
         m_specterA = SpecterDistribution(energiesA, weightsA);
         const double relativeFieldSizeA = m_FOVA; // Collimation is the same for A and B tubes
-        const auto weightA = m_relativeMasA * std::reduce(std::execution::par_unseq, weightsA.cbegin(), weightsA.cend(), 0.0) / relativeFieldSizeA;
+        const auto weightA = m_relativeMasA * std::reduce(std::execution::par_unseq, weightsA.cbegin(), weightsA.cend(), 0.0) * relativeFieldSizeA;
 
         auto energiesB = m_tubeB.getEnergy();
         auto weightsB = m_tubeB.getSpecter(energiesB, false);
         m_specterB = SpecterDistribution(energiesB, weightsB);
         const double relativeFieldSizeB = m_FOVB; // Collimation is the same for A and B tubes
-        const auto weightB = m_relativeMasB * std::reduce(std::execution::par_unseq, weightsB.cbegin(), weightsB.cend(), 0.0) / relativeFieldSizeB;
+        const auto weightB = m_relativeMasB * std::reduce(std::execution::par_unseq, weightsB.cbegin(), weightsB.cend(), 0.0) * relativeFieldSizeB;
 
         m_weightA = 2 * weightA / (weightA + weightB);
         m_weightB = 2 * weightB / (weightA + weightB);
