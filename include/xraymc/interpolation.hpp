@@ -296,7 +296,7 @@ constexpr T gaussIntegration(const T start, const T stop, const F function)
     return gaussIntegration(start, stop, function_values);
 }
 
-template <Floating T>
+template <Floating T = double>
 class AkimaSpline {
 public:
     AkimaSpline()
@@ -392,11 +392,10 @@ public:
     void setup(std::vector<std::pair<T, T>> data)
     {
         if (data.size() < 5) {
-            m_data.resize(2);
-            m_data[1].x = 1;
-            return;
+            data = expandData(data);
+        } else {
+            std::sort(data.begin(), data.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
         }
-        std::sort(data.begin(), data.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
 
         m_data.resize(data.size() - 1);
         std::vector<T> m(data.size() - 1);
@@ -426,6 +425,57 @@ public:
         }
     }
 
+protected:
+    std::vector<std::pair<T, T>> expandData(const std::vector<std::pair<T, T>>& data)
+    {
+        std::vector<std::pair<T, T>> res(5);
+        switch (data.size()) {
+        case 0:
+            for (std::size_t i = 0; i < 5; ++i)
+                res[i] = std::make_pair(static_cast<T>(i) / T { 4 }, T { 0 });
+            break;
+        case 1:
+            for (std::size_t i = 1; i < 5; ++i)
+                res[i] = std::make_pair(data[0].first + static_cast<T>(i) / T { 4 }, data[0].second);
+            break;
+        case 2:
+            if (data[0].first < data[1].first) {
+                res[0] = data[0];
+                res[4] = data[1];
+            } else {
+                res[0] = data[1];
+                res[4] = data[0];
+            }
+            for (std::size_t i = 1; i < 4; ++i) {
+                res[i].first = res[0].first + (static_cast<T>(i) / T { 4 }) * (res[4].first - res[0].first);
+                res[i].second = interp(res[0].first, res[4].first, res[0].second, res[4].second, res[i].first);
+            }
+            break;
+        case 3:
+            for (std::size_t i = 0; i < 3; ++i)
+                res[i] = data[i];
+            std::sort(res.begin(), res.begin() + 3, [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
+            res[3].first = res[0].first + (res[1].first - res[0].first) / 2;
+            res[3].second = interp(res[0].first, res[1].first, res[0].second, res[1].second, res[3].first);
+            res[4].first = res[1].first + (res[2].first - res[1].first) / 2;
+            res[4].second = interp(res[1].first, res[2].first, res[1].second, res[2].second, res[4].first);
+            std::sort(res.begin(), res.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
+            break;
+        case 4:
+            for (std::size_t i = 0; i < 3; ++i)
+                res[i] = data[i];
+            std::sort(res.begin(), res.begin() + 4, [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
+            res[4].first = res[0].first + (res[1].first - res[0].first) / 2;
+            res[4].second = interp(res[0].first, res[1].first, res[0].second, res[1].second, res[4].first);
+            std::sort(res.begin(), res.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
+            break;
+        default:
+            res = data;
+            break;
+        }
+        return res;
+    }
+
 private:
     struct Interval {
         T x = 0, a = 1, b = 0, c = 0, d = 0;
@@ -433,7 +483,7 @@ private:
     std::vector<Interval> m_data;
 };
 
-template <Floating T, std::size_t N_KNOTS = 5>
+template <Floating T = double, std::size_t N_KNOTS = 5>
 class AkimaSplineStatic {
 public:
     AkimaSplineStatic()
@@ -596,7 +646,7 @@ private:
     std::array<Interval, N_KNOTS> m_data;
 };
 
-template <Floating T>
+template <Floating T = double>
 class CubicSplineInterpolator {
 public:
     CubicSplineInterpolator()

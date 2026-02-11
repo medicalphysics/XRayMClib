@@ -19,6 +19,7 @@ set(TEST_SOURCES
     "testdirectionsampler.cpp"
     "testinteractions.cpp"
     "testmaterialshellscatter.cpp"
+    "testinterpolation.cpp"
 )
 
 
