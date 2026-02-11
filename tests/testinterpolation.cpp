@@ -50,7 +50,6 @@ bool testAkimaSpline()
         { 0.390607044, 0.947716 }
     };
 
-
     std::cout << "Flash filter:" << std::endl;
     sp.setup(flash);
     for (int i = 0; i <= 20; ++i) {
@@ -58,6 +57,8 @@ bool testAkimaSpline()
         std::cout << a << " " << sp(a) << std::endl;
     }
 
+    xraymc::AkimaSplineStatic<double, 5> sp2;
+    sp2.setup(flat);
     return true;
 }
 

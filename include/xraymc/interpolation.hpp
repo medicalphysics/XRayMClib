@@ -583,24 +583,15 @@ public:
         std::sort(data_r.begin(), data_r.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
 
         std::vector<std::pair<T, T>> data(N_KNOTS + 1);
-        if (data_r.size() < N_KNOTS + 1) {
-            std::copy(data_r.cbegin(), data_r.cend(), data.begin());
+        if (data_r.size() != N_KNOTS + 1) {
             AkimaSpline<T> sp(data_r);
-            const auto N_rest = N_KNOTS + 1 - data_r.size();
-            for (std::size_t i = 0; i < N_rest; ++i) {
-                const auto idx = data_r.size() * (i + 1) / (N_rest + 1);
-                const auto x = (data_r[idx].first + data_r[idx + 1].first) / 2;
-                const auto y = sp(x);
-                data[i + data_r.size()] = std::make_pair(x, y);
+            data[0].first = data_r.front().first;
+            data[N_KNOTS].first = data_r.back().first;
+            for (std::size_t i = 1; i < N_KNOTS; ++i) {
+                data[i].first = data[0].first + (static_cast<T>(i) / T { N_KNOTS }) * (data[N_KNOTS].first - data[0].first);
             }
-            std::sort(data.begin(), data.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
-        } else if (data_r.size() > N_KNOTS + 1) {
-            for (std::size_t i = 0; i < N_KNOTS + 1; ++i) {
-                const auto frac = static_cast<T>(i) / N_KNOTS;
-                const auto dIdx = static_cast<std::size_t>(frac * (data_r.size() - 1));
-                data[i] = data_r[dIdx];
-            }
-            std::sort(data.begin(), data.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
+            for (auto& el : data)
+                el.second = sp(el.first);
         } else {
             data = data_r;
         }
