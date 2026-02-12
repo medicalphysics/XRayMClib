@@ -227,6 +227,11 @@ public:
     }
 
 protected:
+    static std::pair<double, double> minmax(const double a, const double b)
+    {
+        return a < b ? std::pair { a, b } : std::pair { b, a };
+    }
+
     std::array<double, 6> calculateAABB() const
     {
         const auto normal_vec = normal();
@@ -243,7 +248,7 @@ protected:
         };
         for (const auto& s : span_vecs)
             for (std::size_t i = 0; i < 3; ++i) {
-                const auto [mi, ma] = std::minmax(m_center[i] - s[i], m_center[i] + s[i]);
+                const auto [mi, ma] = minmax(m_center[i] - s[i], m_center[i] + s[i]);
                 aabb[i] = std::min(aabb[i], mi);
                 aabb[i + 3] = std::max(aabb[i + 3], ma);
             }
