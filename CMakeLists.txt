@@ -123,6 +123,7 @@ set(HEADER_LIST
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/collisions/meshcollision.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worldintersectionresult.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/ctdiphantom.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/flatdetector.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/depthdose.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worlditemtype.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/enclosedroom.hpp"

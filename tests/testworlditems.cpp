@@ -24,6 +24,7 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/world/worlditems/ctdiphantom.hpp"
 #include "xraymc/world/worlditems/depthdose.hpp"
 #include "xraymc/world/worlditems/enclosedroom.hpp"
+#include "xraymc/world/worlditems/flatdetector.hpp"
 #include "xraymc/world/worlditems/fluencescore.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh.hpp"
 #include "xraymc/world/worlditems/triangulatedmesh.hpp"
@@ -149,6 +150,7 @@ bool basicTestAllItems()
     success = success && testItem<xraymc::WorldCylinder<>>();
     success = success && testItem<xraymc::WorldSphere<>>();
     success = success && testItem<xraymc::EnclosedRoom<>>();
+    success = success && testItem<xraymc::FlatDetector>();
 
     return success;
 }
