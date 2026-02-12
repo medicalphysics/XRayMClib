@@ -122,8 +122,8 @@ public:
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         WorldIntersectionResult res;
-        const auto dir = vectormath::changeBasis(m_direction_cosines[0], m_direction_cosines[1], normal(), p.dir);
-        const auto pos = vectormath::changeBasis(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
+        const auto dir = vectormath::changeBasisInverse(m_direction_cosines[0], m_direction_cosines[1], normal(), p.dir);
+        const auto pos = vectormath::changeBasisInverse(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
         const auto denom = dir[2];
         if (std::abs(denom) > GEOMETRIC_ERROR<>()) {
             const auto t = -pos[2] / denom;
@@ -144,8 +144,8 @@ public:
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
         VisualizationIntersectionResult<U> res;
-        const auto dir = vectormath::changeBasis(m_direction_cosines[0], m_direction_cosines[1], normal(), p.dir);
-        const auto pos = vectormath::changeBasis(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
+        const auto dir = vectormath::changeBasisInverse(m_direction_cosines[0], m_direction_cosines[1], normal(), p.dir);
+        const auto pos = vectormath::changeBasisInverse(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
         const auto denom = dir[2];
         if (std::abs(denom) > GEOMETRIC_ERROR<>()) {
             const auto t = -pos[2] / denom;
@@ -174,7 +174,7 @@ public:
             m_tracker.registerParticle(p);
         }
 
-        const auto pos = vectormath::changeBasis(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
+        const auto pos = vectormath::changeBasisInverse(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
         const auto x = pos[0];
         const auto y = pos[1];
         const auto indx = (x + m_pixel_spacing[0] * m_detector_dimensions[0] * 0.5) / m_pixel_spacing[0];
