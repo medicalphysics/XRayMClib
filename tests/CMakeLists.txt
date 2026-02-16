@@ -21,6 +21,7 @@ set(TEST_SOURCES
     "testmaterialshellscatter.cpp"
     "testinterpolation.cpp"
     "testflatdetector.cpp"
+    "testvoxelgrid.cpp"
 )
 
 
