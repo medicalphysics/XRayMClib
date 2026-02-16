@@ -130,7 +130,7 @@ bool test()
     xraymc::World<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>, xraymc::FlatDetector> world;
     world.reserveNumberOfItems(2);
 
-   // auto mat = generateDonut<std::uint8_t, double>({ 64, 64, 64 }, { 1.0, 1.0, 1.0 });
+    // auto mat = generateDonut<std::uint8_t, double>({ 64, 64, 64 }, { 1.0, 1.0, 1.0 });
     auto mat = generateSphere<std::uint8_t, double>({ 64, 64, 64 }, { 1.0, 1.0, 1.0 });
     // auto mat = generateBox<std::uint8_t, double>({ 64, 64, 64 }, { 1.0, 1.0, 1.0 });
 
@@ -145,7 +145,7 @@ bool test()
     detector.setCenter({ 0, 0, 64.5 });
     detector.setDirectionCosines({ 1, 0, 0 }, { 0, 1, 0 });
     detector.setDetectorDimensions({ 512, 512 });
-    const double spacing = 64.0 / 512.0;
+    const double spacing = 32.0 / 512.0;
     detector.setPixelSpacing({ spacing, spacing });
     world.setMaterialDensity(0.001);
     world.build();
@@ -155,7 +155,7 @@ bool test()
     beam.setPosition({ 0, 0, -200 });
     beam.setDirectionCosines({ 1, 0, 0 }, { 0, 1, 0 });
     const auto SID = beam.position()[2] + 64 * 1.0 / 2.0 + 1.0;
-    const auto angle = std::tan(32.0 / SID);
+    const auto angle = std::tan(32.0 / SID / 2);
 
     beam.setCollimationHalfAngles(angle, angle);
     beam.setNumberOfExposures(100);
