@@ -143,6 +143,16 @@ public:
         m_collimationHalfAngles[3] = maxY;
     }
 
+    void setCollimationHalfAngles(double X, double Y)
+    {
+        X = std::abs(X);
+        Y = std::abs(Y);
+        m_collimationHalfAngles[0] = -X;
+        m_collimationHalfAngles[1] = -Y;
+        m_collimationHalfAngles[2] = X;
+        m_collimationHalfAngles[3] = Y;
+    }
+
     IsotropicMonoEnergyBeamExposure<ENABLETRACKING> exposure(std::size_t i) const noexcept
     {
         IsotropicMonoEnergyBeamExposure<ENABLETRACKING> exp(m_pos, m_dirCosines, m_energy, m_particlesPerExposure);
