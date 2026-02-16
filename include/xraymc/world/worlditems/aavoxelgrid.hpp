@@ -440,7 +440,7 @@ protected:
     {
         const auto c = center();
         for (std::size_t i = 0; i < 3; ++i) {
-            const auto half_dist = (m_dim[i] * 0.5) * m_spacing[i];
+            const auto half_dist = m_dim[i] * 0.5 * m_spacing[i];
             m_aabb[i] = -half_dist;
             m_aabb[i + 3] = half_dist;
         }
@@ -452,6 +452,12 @@ protected:
         return a[0] < a[1] ? a[0] < a[2] ? 0 : 2 : a[1] < a[2] ? 1
                                                                : 2;
     }
+static inline std::uint_fast8_t argmax3(const std::array<double, 3>& a)
+    {
+        return a[0] > a[1] ? a[0] > a[2] ? 0 : 2 : a[1] > a[2] ? 1
+                                                               : 2;
+    }
+
 
     template <typename Intersection = WorldIntersectionResult, std::uint_fast8_t IGNOREIDX = 255>
     void voxelIntersect(const ParticleType auto& p, Intersection& intersection) const
@@ -459,7 +465,7 @@ protected:
         std::array<std::size_t, 3> xyz;
 
         if (intersection.rayOriginIsInsideItem) {
-            xyz = index<false>(p.pos);
+            xyz = index<true>(p.pos);
         } else {
             // make sure we are well inside a voxel
             const auto t = intersection.intersection + GEOMETRIC_ERROR();
@@ -473,55 +479,57 @@ protected:
 
         auto index_flat = flatIndex(xyz);
         if (m_data[index_flat].materialIndex != IGNOREIDX) {
+            if constexpr (!std::is_same_v<Intersection, WorldIntersectionResult>) {
+                intersection.value = m_dose[index_flat].dose();
+                std::array<double, 3> tMax;
+                for (std::size_t i = 0; i < 3; ++i) {
+                    if (std::abs(p.dir[i]) > GEOMETRIC_ERROR()) {
+                        const auto plane = p.dir[i] > 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
+                        tMax[i] = (plane - (p.pos[i])) / p.dir[i];
+                    } else {
+                        tMax[i] = std::numeric_limits<double>::max();
+                    }
+                }
+                const auto planeIdx = argmax3(tMax);
+                intersection.normal = { 0, 0, 0 };
+                intersection.normal[planeIdx] = p.dir[planeIdx] < 0 ? 1 : -1;
+            }
             return;
         }
 
-        const std::array<int, 3> xyz_step = {
-            p.dir[0] < 0 ? -1 : 1,
-            p.dir[1] < 0 ? -1 : 1,
-            p.dir[2] < 0 ? -1 : 1
-        };
-
-        // by using int, max x*y size is about 2e9
-        const std::array<int, 3> xyz_step_flat = {
-            p.dir[0] < 0 ? -1 : 1,
-            p.dir[1] < 0 ? -static_cast<int>(m_dim[0]) : static_cast<int>(m_dim[0]),
-            p.dir[2] < 0 ? -static_cast<int>(m_dim[0] * m_dim[1]) : static_cast<int>(m_dim[0] * m_dim[1])
-        };
-
-        const std::array<double, 3> delta = {
-            m_spacing[0] / std::abs(p.dir[0]),
-            m_spacing[1] / std::abs(p.dir[1]),
-            m_spacing[2] / std::abs(p.dir[2])
-        };
-
         std::array<double, 3> tMax;
         for (std::size_t i = 0; i < 3; ++i) {
-            const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
-            tMax[i] = (plane - (p.pos[i] + p.dir[i] * intersection.intersection)) / p.dir[i];
-        }
-
-        bool still_inside = true;
-        std::uint_fast8_t dIdx;
-        while (still_inside && m_data[index_flat].materialIndex == IGNOREIDX) {
-            dIdx = argmin3(tMax);
-            xyz[dIdx] += xyz_step[dIdx];
-            still_inside = xyz[dIdx] < m_dim[dIdx];
-            index_flat += xyz_step_flat[dIdx];
-            tMax[dIdx] += delta[dIdx];
-        }
-
-        if (still_inside) {
-            intersection.intersection += tMax[dIdx] - delta[dIdx];
-            intersection.rayOriginIsInsideItem = false;
-            if constexpr (!std::is_same<Intersection, WorldIntersectionResult>::value) {
-                intersection.normal[dIdx] = p.dir[dIdx] < 0 ? -1 : 1;
-                intersection.value = m_dose[index_flat].dose();
+            if (std::abs(p.dir[i]) > GEOMETRIC_ERROR()) {
+                const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
+                tMax[i] = (plane - (p.pos[i])) / p.dir[i];
+            } else {
+                tMax[i] = std::numeric_limits<double>::max();
             }
-            intersection.intersectionValid = true;
-        } else {
-            intersection.intersectionValid = false;
         }
+
+        intersection.intersectionValid = false;
+        bool still_inside;
+        do {
+            const auto planeIdx = argmin3(tMax);
+            xyz[planeIdx] += p.dir[planeIdx] < 0 ? -1 : 1;
+            if (xyz[planeIdx] < m_dim[planeIdx]) {
+                still_inside = m_data[flatIndex(xyz)].materialIndex == IGNOREIDX;
+                if (still_inside) {
+                    tMax[planeIdx] += m_spacing[planeIdx] / std::abs(p.dir[planeIdx]);
+                } else {
+                    intersection.intersection = std::min({ tMax[0], tMax[1], tMax[2] });
+                    intersection.rayOriginIsInsideItem = false;
+                    intersection.intersectionValid = true;
+                    if constexpr (!std::is_same_v<Intersection, WorldIntersectionResult>) {
+                        intersection.value = m_dose[flatIndex(xyz)].dose();
+                        intersection.normal = { 0, 0, 0 };
+                        intersection.normal[planeIdx] = p.dir[planeIdx] < 0 ? 1 : -1;
+                    }
+                }
+            } else {
+                still_inside = false;
+            }
+        } while (still_inside);
     }
 
     template <std::uint_fast8_t IGNOREIDX = 255>
