@@ -452,12 +452,11 @@ protected:
         return a[0] < a[1] ? a[0] < a[2] ? 0 : 2 : a[1] < a[2] ? 1
                                                                : 2;
     }
-static inline std::uint_fast8_t argmax3(const std::array<double, 3>& a)
+    static inline std::uint_fast8_t argmax3(const std::array<double, 3>& a)
     {
         return a[0] > a[1] ? a[0] > a[2] ? 0 : 2 : a[1] > a[2] ? 1
                                                                : 2;
     }
-
 
     template <typename Intersection = WorldIntersectionResult, std::uint_fast8_t IGNOREIDX = 255>
     void voxelIntersect(const ParticleType auto& p, Intersection& intersection) const
@@ -535,101 +534,55 @@ static inline std::uint_fast8_t argmax3(const std::array<double, 3>& a)
     template <std::uint_fast8_t IGNOREIDX = 255>
     void voxelTransport(ParticleType auto& p, RandomState& state)
     {
-        bool still_inside;
+
+        // Assume valid voxel when we start
+
+        std::array<std::size_t, 3> xyz = index<true>(p.pos);
+
         do {
-            std::array<std::size_t, 3> xyz = index<false>(p.pos);
-
-            auto index_flat = flatIndex(xyz);
-
-            const std::array<int, 3> xyz_step = {
-                p.dir[0] < 0 ? -1 : 1,
-                p.dir[1] < 0 ? -1 : 1,
-                p.dir[2] < 0 ? -1 : 1
-            };
-
-            const std::array<int, 3> xyz_step_flat = {
-                p.dir[0] < 0 ? -1 : 1,
-                p.dir[1] < 0 ? -static_cast<int>(m_dim[0]) : static_cast<int>(m_dim[0]),
-                p.dir[2] < 0 ? -static_cast<int>(m_dim[0] * m_dim[1]) : static_cast<int>(m_dim[0] * m_dim[1])
-            };
-
-            const std::array<double, 3> delta = {
-                m_spacing[0] / std::abs(p.dir[0]),
-                m_spacing[1] / std::abs(p.dir[1]),
-                m_spacing[2] / std::abs(p.dir[2])
-            };
-
-            std::array<double, 3> tMax;
+            std::array<double, 3> tstep;
             for (std::size_t i = 0; i < 3; ++i) {
-                const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
-                tMax[i] = (plane - p.pos[i]) / p.dir[i];
-            }
-            // Endre denne??? sjekk voxel intersect
-            double tCurrent = 0;
-
-            double interaction_accum = 1;
-            const auto interaction_thres = state.randomUniform();
-
-            const auto tLimit = (*basicshape::AABB::intersectForwardInterval(p, m_aabb))[1];
-
-            bool cont = true;
-            std::uint_fast8_t dIdx;
-
-            do {
-                // current material
-                const auto matInd = m_data[index_flat].materialIndex;
-                const auto density = m_data[index_flat].density;
-                auto& energyScored = m_data[index_flat].energyScored;
-
-                // updating stepping
-                dIdx = argmin3(tMax);
-
-                // updating radiological path
-                const auto att = m_materials[matInd].attenuationValues(p.energy);
-                const auto att_tot = att.sum() * density;
-                const auto step = tMax[dIdx] - tCurrent;
-                const auto radio_step = std::exp(-att_tot * step);
-                interaction_accum *= radio_step;
-                if (interaction_accum < interaction_thres) {
-                    // interaction happends
-                    // Correcting for not traversing the whole voxel (step_correction is negative)
-                    const auto step_correction = std::log(interaction_accum / interaction_thres) / att_tot;
-                    tMax[dIdx] += step_correction;
-
-                    if (tMax[dIdx] > tLimit) { // interaction happends outside volume, we exits
-                        p.border_translate(tLimit);
-                        still_inside = false;
-                    } else {
-                        // translate particle before interaction
-                        p.translate(tMax[dIdx]);
-
-                        const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_materials[matInd], state);
-                        energyScored.scoreEnergy(intRes.energyImparted);
-                        still_inside = intRes.particleAlive;
-                        // particle energy or direction has changed, we restart stepping
-                        cont = false;
-                    }
-
+                if (std::abs(p.dir[i] > GEOMETRIC_ERROR())) {
+                    const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
+                    tstep[i] = (plane - p.pos[i]) / p.dir[i];
                 } else {
-                    xyz[dIdx] += xyz_step[dIdx];
-                    if (xyz[dIdx] < m_dim[dIdx]) {
-                        // true if we are in a not ignored material.
-                        still_inside = m_data[index_flat].materialIndex != IGNOREIDX;
-                    } else {
-                        still_inside = false;
-                    }
-
-                    if (!still_inside) {
-                        // next step is outside, we exits
-                        p.border_translate(tMax[dIdx]);
-                    } else {
-                        tCurrent = tMax[dIdx];
-                        tMax[dIdx] += delta[dIdx];
-                    }
+                    tstep[i] = std::numeric_limits<double>::max();
                 }
-            } while (cont && still_inside);
+            }
+            auto nextPlane = argmin3(tstep);
+            // probability
+            const auto index_flat = flatIndex(xyz);
+            const auto matInd = m_data[index_flat].materialIndex;
+            if (matInd == IGNOREIDX) {
+                return;
+            }
+            const auto density = m_data[index_flat].density;
+            const auto att = m_materials[matInd].attenuationValues(p.energy);
 
-        } while (still_inside);
+            const auto prob = std::exp(-att.sum() * density * tstep[nextPlane]);
+            const auto rand = state.randomUniform();
+            if (rand < prob) {
+                // no interaction, we translate to next plane
+                xyz[nextPlane] = xyz[nextPlane] + (p.dir[nextPlane] < 0 ? -1 : 1);
+                if (xyz[nextPlane] >= m_dim[nextPlane]) {
+                    // We are outside of the volume, we translate to the border and exit
+                    p.border_translate(tstep[nextPlane]);
+                    return;
+                } else {
+                    p.translate(tstep[nextPlane]);
+                }
+            } else {
+                // interaction
+                const auto step_correction = -std::log(rand) / (att.sum() * density);
+                p.translate(step_correction);
+                const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(att, p, m_materials[matInd], state);
+                auto& energyScored = m_data[index_flat].energyScored;
+                energyScored.scoreEnergy(intRes.energyImparted);
+                if (!intRes.particleAlive) {
+                    return;
+                }
+            }
+        } while (true);
     }
 
     void generateWoodcockStepTable()
@@ -702,9 +655,9 @@ static inline std::uint_fast8_t argmax3(const std::array<double, 3>& a)
 
             if (steplen < intersection.intersection) {
                 p.translate(steplen);
-                const auto flat_index = flatIndex<true>(p.pos);
+                const auto flat_index = flatIndex<false>(p.pos);
                 const auto matIdx = m_data[flat_index].materialIndex;
-                const auto& dens = m_data[flat_index].density;
+                const auto dens = m_data[flat_index].density;
                 const auto att = m_materials[matIdx].attenuationValues(p.energy);
                 const auto attTot = att.sum() * dens;
                 // check if real or virtual interaction
