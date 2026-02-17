@@ -534,42 +534,47 @@ protected:
     template <std::uint_fast8_t IGNOREIDX = 255>
     void voxelTransport(ParticleType auto& p, RandomState& state)
     {
-
         // Assume valid voxel when we start
-
         std::array<std::size_t, 3> xyz = index<true>(p.pos);
+        std::array<double, 3> tstep;
+        for (std::size_t i = 0; i < 3; ++i) {
+            if (std::abs(p.dir[i]) > GEOMETRIC_ERROR()) {
+                const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
+                tstep[i] = (plane - p.pos[i]) / p.dir[i];
+            } else {
+                tstep[i] = std::numeric_limits<double>::max();
+            }
+        }
 
         do {
-            std::array<double, 3> tstep;
-            for (std::size_t i = 0; i < 3; ++i) {
-                if (std::abs(p.dir[i] > GEOMETRIC_ERROR())) {
-                    const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
-                    tstep[i] = (plane - p.pos[i]) / p.dir[i];
-                } else {
-                    tstep[i] = std::numeric_limits<double>::max();
-                }
-            }
-            auto nextPlane = argmin3(tstep);
-            // probability
             const auto index_flat = flatIndex(xyz);
-            const auto matInd = m_data[index_flat].materialIndex;
-            if (matInd == IGNOREIDX) {
-                return;
-            }
             const auto density = m_data[index_flat].density;
+            const auto matInd = m_data[index_flat].materialIndex;
             const auto att = m_materials[matInd].attenuationValues(p.energy);
-
+            const auto nextPlane = argmin3(tstep);
             const auto prob = std::exp(-att.sum() * density * tstep[nextPlane]);
             const auto rand = state.randomUniform();
-            if (rand < prob) {
-                // no interaction, we translate to next plane
-                xyz[nextPlane] = xyz[nextPlane] + (p.dir[nextPlane] < 0 ? -1 : 1);
+            if (rand <= prob) {
+                // No interaction transport to next voxel
+                const double particle_t = tstep[nextPlane];
+                tstep[nextPlane] += m_spacing[nextPlane] / std::abs(p.dir[nextPlane]);
+                xyz[nextPlane] = xyz[nextPlane] + (p.dir[nextPlane] > 0 ? 1 : -1);
                 if (xyz[nextPlane] >= m_dim[nextPlane]) {
-                    // We are outside of the volume, we translate to the border and exit
-                    p.border_translate(tstep[nextPlane]);
+                    // next plne is outside
+                    p.border_translate(particle_t);
                     return;
                 } else {
-                    p.translate(tstep[nextPlane]);
+                    const auto nextMatInd = m_data[flatIndex(xyz)].materialIndex;
+                    if (nextMatInd == IGNOREIDX) {
+                        // next voxel is outside
+                        p.border_translate(particle_t);
+                        return;
+                    } else {
+                        tstep[0] -= particle_t;
+                        tstep[1] -= particle_t;
+                        tstep[2] -= particle_t;
+                        p.translate(particle_t);
+                    }
                 }
             } else {
                 // interaction
@@ -580,8 +585,18 @@ protected:
                 energyScored.scoreEnergy(intRes.energyImparted);
                 if (!intRes.particleAlive) {
                     return;
+                } else {
+                    for (std::size_t i = 0; i < 3; ++i) {
+                        if (std::abs(p.dir[i]) > GEOMETRIC_ERROR()) {
+                            const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
+                            tstep[i] = (plane - p.pos[i]) / p.dir[i];
+                        } else {
+                            tstep[i] = std::numeric_limits<double>::max();
+                        }
+                    }
                 }
             }
+
         } while (true);
     }
 

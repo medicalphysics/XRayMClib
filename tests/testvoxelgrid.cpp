@@ -123,7 +123,7 @@ bool dose_test()
     materials.push_back(xraymc::Material<N>::byNistName("Air, Dry (near sea level)").value());
     materials.push_back(xraymc::Material<N>::byNistName("Water, Liquid").value());
     std::transform(mat.cbegin(), mat.cend(), dens.begin(), [](const auto v) { return v == 0 ? 0.001 : 1.0; });
-    auto& donut = world.addItem<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>>({ { 64, 64, 64 }, { 1.0, 1.0, 1.0 }, dens, mat, materials });
+    auto& donut = world.addItem<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>>({ { 64, 64, 64 }, { 1.0, 1.0, 1.0 }, dens, mat, materials }, "Target");
 
     auto& sphere = world.addItem<xraymc::WorldSphere<N, 2, true>>("Sphere");
     sphere.setCenter({ 0, 0, 40 });
@@ -152,7 +152,7 @@ bool dose_test()
 
     xraymc::VisualizeWorld viz(world);
     viz.setPolarAngleDeg(60);
-    viz.setAzimuthalAngleDeg(60);
+    viz.setAzimuthalAngleDeg(120);
     viz.setDistance(200);
     viz.suggestFOV(1);
     auto buffer = viz.createBuffer(2048, 2048);
@@ -173,7 +173,7 @@ bool dose_test()
     }
 
     std::cout << " Total detector dose: " << std::accumulate(dose_buffer.cbegin(), dose_buffer.cend(), 0.0) << " mGy";
-    std::cout << " Sphere dose: " << sphere.doseScored().dose() << " mGy\n";
+    std::cout << " Sphere dose: " << sphere.doseScored().dose() << " mGy";
 
     const auto max_dose = *std::max_element(dose_buffer.cbegin(), dose_buffer.cend());
     const auto min_dose = *std::min_element(dose_buffer.cbegin(), dose_buffer.cend());
@@ -187,10 +187,29 @@ bool dose_test()
     xraymc::xraymclodepng::savePNG("image" + suff, image_buffer, detector.detectorDimensions()[0], detector.detectorDimensions()[1]);
 
     viz.addColorByValueItem(world.getItemPointerFromName("Detector"));
-    viz.setColorByValueMinMax(min_dose, max_dose);
-    viz.generate(world, buffer);
-    viz.savePNG("dose" + suff, buffer);
+    viz.addColorByValueItem(world.getItemPointerFromName("Target"));
 
+    double max_target_dose = 0;
+    double dose_target_sum = 0;
+    const auto matIdx = donut.getMaterialIndex();
+    for (std::size_t i = 0; i < donut.size(); ++i) {
+        const auto d = donut.doseScored(i).dose();
+        if (matIdx[i] == 1 && d > max_target_dose) {
+            max_target_dose = d;
+            dose_target_sum += d;
+        }
+    }
+
+    std::cout << " Water dose: " << dose_target_sum << " mGy\n";
+
+    // viz.setColorByValueMinMax(min_dose, max_dose);
+    viz.setColorByValueMinMax(0.0, max_target_dose);
+    viz.generate(world, buffer);
+    viz.savePNG("doseLower" + suff, buffer);
+    viz.setAzimuthalAngleDeg(60);
+    viz.suggestFOV(1);
+    viz.generate(world, buffer);
+    viz.savePNG("doseUpper" + suff, buffer);
     return true;
 }
 
