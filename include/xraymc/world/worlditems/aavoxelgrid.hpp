@@ -536,29 +536,39 @@ protected:
     {
         // Assume valid voxel when we start
         std::array<std::size_t, 3> xyz = index<true>(p.pos);
-        std::array<double, 3> tstep;
+        std::array<double, 3> tstep = {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max()
+        };
         for (std::size_t i = 0; i < 3; ++i) {
             if (std::abs(p.dir[i]) > GEOMETRIC_ERROR()) {
                 const auto plane = p.dir[i] < 0 ? m_aabb[i] + xyz[i] * m_spacing[i] : m_aabb[i] + (xyz[i] + 1) * m_spacing[i];
                 tstep[i] = (plane - p.pos[i]) / p.dir[i];
-            } else {
-                tstep[i] = std::numeric_limits<double>::max();
             }
         }
 
+        const std::array<std::size_t, 3> index_flat_dist = {
+            1, m_dim[0], m_dim[0] * m_dim[1]
+        };
+
+        auto index_flat = flatIndex(xyz);
         do {
-            const auto index_flat = flatIndex(xyz);
             const auto density = m_data[index_flat].density;
             const auto matInd = m_data[index_flat].materialIndex;
             const auto att = m_materials[matInd].attenuationValues(p.energy);
+
             const auto nextPlane = argmin3(tstep);
+
             const auto prob = std::exp(-att.sum() * density * tstep[nextPlane]);
             const auto rand = state.randomUniform();
+
             if (rand <= prob) {
                 // No interaction transport to next voxel
                 const double particle_t = tstep[nextPlane];
                 tstep[nextPlane] += m_spacing[nextPlane] / std::abs(p.dir[nextPlane]);
                 xyz[nextPlane] = xyz[nextPlane] + (p.dir[nextPlane] > 0 ? 1 : -1);
+                index_flat += (p.dir[nextPlane] > 0 ? index_flat_dist[nextPlane] : -index_flat_dist[nextPlane]);
                 if (xyz[nextPlane] >= m_dim[nextPlane]) {
                     // next plne is outside
                     p.border_translate(particle_t);

@@ -147,7 +147,7 @@ bool dose_test()
     const auto angle = std::tan(32.0 / SID);
 
     beam.setCollimationHalfAngles(angle, angle);
-    beam.setNumberOfExposures(100);
+    beam.setNumberOfExposures(1000);
     beam.setNumberOfParticlesPerExposure(1000000);
 
     xraymc::VisualizeWorld viz(world);
