@@ -71,7 +71,7 @@ public:
 
     void setCenter(const std::array<double, 3>& position)
     {
-        m_cylinder.position = position;
+        m_cylinder.center = position;
         updateAABB();
     }
 
