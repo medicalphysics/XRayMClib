@@ -476,7 +476,7 @@ protected:
         // tet[2], tet[3], tet[0]
         // tet[3], tet[2], tet[1]
 
-        auto lenght = std::numeric_limits<double>::lowest();
+        double lenght = 0;
         auto nextIdx = currentIdx;
 
         // optimize: we really only can hit one, early exit?
