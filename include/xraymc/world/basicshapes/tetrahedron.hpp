@@ -251,20 +251,54 @@ namespace basicshape {
 
         static std::optional<double> intersectTriangle(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const ParticleType auto& p)
         {
-            const auto E1 = vectormath::subtract(v1, v0);
+            /*const auto E1 = vectormath::subtract(v1, v0);
             const auto TT = vectormath::subtract(p.pos, v0);
             const auto Q = vectormath::cross(TT, E1);
 
             const auto E2 = vectormath::subtract(v2, v0);
             const auto P = vectormath::cross(p.dir, E2);
 
-            const auto det_inv = 1 / vectormath::dot(P, E1);
+            const auto det = vectormath::dot(P, E1)
+            if(std::abs(det) < GEOMETRIC_ERROR())
+                return std::nullopt;
+
+            const auto det_inv = 1 / det;
 
             const auto v = vectormath::dot(Q, p.dir) * det_inv;
             const auto u = vectormath::dot(P, TT) * det_inv;
 
-            return v >= 0 && u >= 0 && (u + v) <= 1 && u <= 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
-                                                              : std::nullopt;
+            return v > 0 && u > 0 && (u + v) < 1 && u < 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
+                                                          : std::nullopt;
+
+*/
+            const auto edge1 = vectormath::subtract(v1, v0);
+            const auto edge2 = vectormath::subtract(v2, v0);
+
+            const auto h = vectormath::cross(p.dir, edge2);
+            const auto a = vectormath::dot(edge1, h);
+
+            // If a is near zero, ray is parallel to triangle
+            if (std::abs(a) < GEOMETRIC_ERROR())
+                return std::nullopt;
+
+            const auto f = 1.0 / a;
+            const auto s = vectormath::subtract(p.pos, v0);
+            const auto u = f * vectormath::dot(s, h);
+
+            // Check if intersection is outside triangle
+            if (u < 0.0 || u > 1.0)
+                return std::nullopt;
+
+            const auto q = vectormath::cross(s, edge1);
+            const auto v = f * vectormath::dot(p.dir, q);
+
+            if (v < 0.0 || u + v > 1.0)
+                return std::nullopt;
+
+            // Compute t to find intersection point
+            double t = f * vectormath::dot(edge2, q);
+
+            return t;
         }
 
         static WorldIntersectionResult intersect(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
