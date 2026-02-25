@@ -350,11 +350,7 @@ public:
         if constexpr (std::is_same_v<P, ParticleTrack>) {
             m_tracker.registerParticle(particle);
         }
-        if constexpr (FORCEDINTERACTION) {
-            siddonTransportForced(particle, state);
-        } else {
-            siddonTransport(particle, state);
-        }
+        siddonTransport(particle, state);
     }
 
 protected:
@@ -519,11 +515,23 @@ protected:
             const auto attSum = attenuation.sum();
             const auto steplen = -std::log(state.randomUniform()) / (attSum * m_collectionDensities[collIdx]);
 
+            if constexpr (FORCEDINTERACTION) {
+                // Forced photoelectric effect
+                const auto relativePeProbability = attenuation.photoelectric / attSum;
+                const auto probNotInteraction = std::exp(-attSum * m_collectionDensities[collIdx] * borderlen);
+                m_energyScore[currentTetIdx].scoreEnergy(particle.energy * particle.weight * (1 - probNotInteraction) * relativePeProbability);
+            }
+
             if (steplen < borderlen) {
                 // interaction
                 particle.translate(steplen);
                 const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(attenuation, particle, m_collectionMaterials[collIdx], state);
-                m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                if constexpr (FORCEDINTERACTION) {
+                    if (intRes.interactionWasIncoherent) // We have already scored PE events
+                        m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                } else {
+                    m_energyScore[currentTetIdx].scoreEnergy(intRes.energyImparted);
+                }
                 still_inside = intRes.particleAlive;
                 updateAtt = intRes.particleEnergyChanged;
             } else {
@@ -546,7 +554,7 @@ protected:
     void siddonTransportForced(ParticleType auto& particle, RandomState& state)
     {
         // we do cummulative steps instead of stepping on each tet due to numerical stability of tet intersections
-        // when tets become very small
+        // when tets become very small NOT USED
 
         auto currentTetIdx = intersectedTetrahedron(particle);
         auto collIdx = m_collectionIdx[currentTetIdx];
