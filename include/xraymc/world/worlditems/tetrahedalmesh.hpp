@@ -620,13 +620,15 @@ protected:
                 }
             } else {
                 // something is wrong, advance
-                still_inside = currentTetIdx != nextTetIdx;
-                if (still_inside) {
-                    currentTetIdx = nextTetIdx;
-                    updateAtt = collIdx != m_collectionIdx[nextTetIdx];
-                } else {
-                    particle.border_translate(steplenght);
-                }
+                // still_inside = currentTetIdx != nextTetIdx;
+                // if (still_inside) {
+                //    currentTetIdx = nextTetIdx;
+                //    updateAtt = collIdx != m_collectionIdx[nextTetIdx];
+                //} else {
+                //    particle.border_translate(steplenght);
+                //}
+                // per now simply kill particle, once per 1E7 photons
+                still_inside = false;
             }
         } while (still_inside);
     }
