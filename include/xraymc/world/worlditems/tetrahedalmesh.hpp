@@ -628,6 +628,7 @@ protected:
                 //    particle.border_translate(steplenght);
                 //}
                 // per now simply kill particle, once per 1E7 photons
+                particle.energy = 0;
                 still_inside = false;
             }
         } while (still_inside);
