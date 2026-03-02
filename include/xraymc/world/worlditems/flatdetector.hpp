@@ -177,9 +177,9 @@ public:
         const auto pos = vectormath::changeBasisInverse(m_direction_cosines[0], m_direction_cosines[1], normal(), vectormath::subtract(p.pos, m_center));
         const auto x = pos[0];
         const auto y = pos[1];
-        const auto indx = (x + m_pixel_spacing[0] * m_detector_dimensions[0] * 0.5) / m_pixel_spacing[0];
-        const auto indy = (y + m_pixel_spacing[1] * m_detector_dimensions[1] * 0.5) / m_pixel_spacing[1];
-        const auto flatIdx = static_cast<std::size_t>(std::floor(indx)) * m_detector_dimensions[1] + static_cast<std::size_t>(std::floor(indy));
+        const auto indx = std::clamp((x + m_pixel_spacing[0] * m_detector_dimensions[0] * 0.5) / m_pixel_spacing[0], 0.0, static_cast<double>(m_detector_dimensions[0] - 1));
+        const auto indy = std::clamp((y + m_pixel_spacing[1] * m_detector_dimensions[1] * 0.5) / m_pixel_spacing[1], 0.0, static_cast<double>(m_detector_dimensions[1] - 1));
+        const auto flatIdx = static_cast<std::size_t>(indx) * m_detector_dimensions[1] + static_cast<std::size_t>(indy);
         m_energyScore[flatIdx].scoreEnergy(p.energy * p.weight);
         p.energy = 0;
     }
