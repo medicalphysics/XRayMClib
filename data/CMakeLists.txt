@@ -153,3 +153,6 @@ function(xraymclib_add_icrp145_organ_data func_target)
                 "$<TARGET_FILE_DIR:${func_target}>/icrp145organs.csv"            
         )        
 endfunction()
+
+# Include protocol buffer cmake files
+add_subdirectory(protobuff)

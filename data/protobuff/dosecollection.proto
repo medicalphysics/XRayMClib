@@ -1,0 +1,17 @@
+edition = "2023";
+
+package xraymc;
+
+message WorldItem {
+  string name = 1;
+  message DoseElement {
+    double dose = 1;
+    double variance = 2;
+    uint64 events = 3;
+  }
+  repeated DoseElement elements = 2;
+}
+
+message WorldItems {
+  repeated WorldItem items = 1;
+}

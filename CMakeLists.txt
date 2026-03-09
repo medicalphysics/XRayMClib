@@ -196,7 +196,7 @@ install(TARGETS libxraymc
     EXPORT libxraymc    
     )
 
-# EPICS data parser and physics data
+# EPICS data parser, protocol buffer and physics data
 add_subdirectory(data)
 
 # Thirdparty libraries
