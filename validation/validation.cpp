@@ -1596,10 +1596,8 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
 
 template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
-bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
+bool TG195Case5AbsorbedEnergyWorker(std::uint32_t N_threads, const std::uint64_t N_EXPOSURES, const std::uint64_t N_HISTORIES)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
-    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     constexpr int TRANSPARENTVOXELS = 255;
     using World = World<AAVoxelGrid<NShellsCase3and5, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
@@ -1724,10 +1722,8 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
 
 template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicCircularMonoEnergyBeam<>> || std::same_as<B, IsotropicCircularBeam<>>)
-bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
+bool TG195Case5AbsorbedEnergyWorker(std::uint32_t N_threads, const std::uint64_t N_EXPOSURES, const std::uint64_t N_HISTORIES)
 {
-    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 1000;
-    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
 
     constexpr int TRANSPARENTVOXELS = 255;
     using World = World<AAVoxelGrid<NShellsCase3and5, LOWENERGYCORRECTION, TRANSPARENTVOXELS>>;
@@ -1820,6 +1816,15 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     world.clearDoseScored();
 
     return true;
+}
+
+template <BeamType B, int LOWENERGYCORRECTION = 2>
+    requires(std::same_as<B, IsotropicCircularMonoEnergyBeam<>> || std::same_as<B, IsotropicCircularBeam<>> || std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
+bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
+{
+    const std::uint64_t N_EXPOSURES = SAMPLE_RUN ? 24 : 4000;
+    const std::uint64_t N_HISTORIES = SAMPLE_RUN ? 1000000 : 1000000;
+    return TG195Case5AbsorbedEnergyWorker<B, LOWENERGYCORRECTION>(N_threads, N_EXPOSURES, N_HISTORIES);
 }
 
 template <int LOWENERGYCORRECTION>
