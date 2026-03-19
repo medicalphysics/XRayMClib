@@ -174,12 +174,6 @@ target_include_directories(
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
-# Set type of material class
-option(XRAYMCLIB_USE_LINEAR_INTERPOLATION "Use linear attenuation coeff interpolation" OFF)
-if(XRAYMCLIB_USE_LINEAR_INTERPOLATION)
-    target_compile_definitions(material INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
-    target_compile_definitions(libxraymc INTERFACE -DMATERIAL_LINEAR_INTERPOLATION=1)
-endif()
 
 # Linking to other libraries. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
