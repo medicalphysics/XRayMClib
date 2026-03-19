@@ -160,7 +160,8 @@ set(HEADER_LIST
     "${xraymclib_SOURCE_DIR}/include/xraymc/constants.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/particle.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/particletracker.hpp"
-    "${xraymclib_SOURCE_DIR}/include/xraymc/interpolation.hpp"        
+    "${xraymclib_SOURCE_DIR}/include/xraymc/interpolation.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/serializer.hpp"
     )
 
 add_library(libxraymc INTERFACE

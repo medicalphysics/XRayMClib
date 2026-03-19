@@ -22,6 +22,7 @@ set(TEST_SOURCES
     "testinterpolation.cpp"
     "testflatdetector.cpp"
     "testvoxelgrid.cpp"
+    "testserializer.cpp"
 )
 
 
