@@ -41,8 +41,6 @@ Copyright 2023 Erlend Andersen
 
 using namespace xraymc;
 
-static constexpr bool USING_NIST = XRAYMCLIB_USE_NIST;
-
 // Set this to true for a reduced number of photons (for testing)
 constexpr bool SAMPLE_RUN = false;
 constexpr std::size_t NShells = 12;
@@ -111,11 +109,7 @@ public:
         m_myfile << r.rCase << ",";
         m_myfile << r.volume << ",";
         m_myfile << r.specter << ",";
-        if constexpr (USING_NIST) {
-            m_myfile << r.model << "_NIST,";
-        } else {
-            m_myfile << r.model << ",";
-        }
+        m_myfile << r.model << ",";
         m_myfile << r.modus << ",";
         m_myfile << r.result << ",";
         m_myfile << r.result_std << ",";

@@ -95,7 +95,16 @@ public:
         return NISTMaterials::listNames();
     }
 
-    inline double effectiveZ() const { return m_effectiveZ; }
+    double effectiveZ() const
+    {
+        double Zeff = std::transform_reduce(m_composition.cbegin(), m_composition.cend(), 0.0, std::plus<>(), [](const auto& pair) -> double { return pair.first * pair.second; });
+        return Zeff;
+    }
+
+    const std::map<std::size_t, double>& composition() const
+    {
+        return m_composition;
+    }
 
     inline double scatterFactor(double momentumTransfer) const
     {
@@ -559,7 +568,7 @@ protected:
             constructSplineInterpolator(weight, LUTType::incoherentenergy),
         };
         Material<N> m;
-        m.m_effectiveZ = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& pair) -> double { return pair.first * pair.second; });
+        m.m_composition = weight; // setting composition
 
         m.m_attenuationTable.clear();
         std::array<std::size_t, attenuation.size() + N> offset;
@@ -664,12 +673,12 @@ protected:
     }
 
 private:
-    double m_effectiveZ = 0;
-    std::vector<std::array<double, 3>> m_attenuationTable;
     std::array<std::uint_fast32_t, 6 + N + 1> m_attenuationTableOffset;
     CPDFSampling<double, 20> m_formFactorInvSamp;
     std::array<MaterialShell, N + 1> m_shells;
     std::uint8_t m_numberOfShells = 0;
+    std::vector<std::array<double, 3>> m_attenuationTable;
+    std::map<std::size_t, double> m_composition;
 };
 
 }
