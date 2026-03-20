@@ -40,10 +40,6 @@ Example:
 
 */
 
-
-
-
-
 class Serializer {
 public:
     Serializer() { }
@@ -103,16 +99,16 @@ public:
 
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
-    static char* deserialize(T& value, char* begin)
+    static std::span<const char> deserialize(T& value, std::span<const char> begin)
     {
-        auto val_ptr = reinterpret_cast<T*>(begin);
+        auto val_ptr = reinterpret_cast<const T*>(begin.data());
         value = *val_ptr;
-        return begin + sizeof(T);
+        return begin.subspan(sizeof(T));
     }
 
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
-    static void serialize(std::span<T> in, std::vector<char>& buffer)
+    static void serialize(std::span<const T> in, std::vector<char>& buffer)
     {
         const std::uint64_t n_elements = in.size();
         const std::uint64_t size = n_elements * sizeof(T);
@@ -124,49 +120,103 @@ public:
 
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
-    static void serialize(std::vector<T>& in, std::vector<char>& buffer)
+    static void serialize(const std::vector<T>& in, std::vector<char>& buffer)
     {
-        serialize(std::span { in }, buffer);
+        serialize(std::span<const T> { in }, buffer);
     }
     template <typename T, std::uint64_t N>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
-    static void serialize(std::array<T, N>& in, std::vector<char>& buffer)
+    static void serialize(const std::array<T, N>& in, std::vector<char>& buffer)
     {
-        serialize(std::span { in }, buffer);
+        serialize(std::span<const T> { in }, buffer);
+    }
+
+    template <std::uint64_t N>
+    static void serialize(const std::array<char, N>& in, std::vector<char>& buffer)
+    {
+        auto dest = std::back_inserter(buffer);
+        std::copy(in.cbegin(), in.cend(), dest);
     }
 
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
-    static char* deserialize(std::vector<T>& out, char* begin)
+    static std::span<const char> deserialize(std::vector<T>& out, std::span<const char> begin)
     {
         std::uint64_t size;
         auto data_start = deserialize(size, begin);
+        if (size > data_start.size()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
         const auto n_elements = size / sizeof(T);
 
         out.clear();
         out.reserve(n_elements);
-        auto start = reinterpret_cast<T*>(data_start);
+        auto start = reinterpret_cast<const T*>(data_start.data());
         std::copy(start, start + n_elements, std::back_inserter(out));
-        return data_start + n_elements * sizeof(T);
+        return data_start.subspan(n_elements * sizeof(T));
     }
 
     template <typename T, std::uint64_t N>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
-    static char* deserialize(std::array<T, N>& out, char* begin)
+    static std::span<const char> deserialize(std::array<T, N>& out, std::span<const char> begin)
     {
         std::uint64_t size;
         auto data_start = deserialize(size, begin);
+        if (size > data_start.size()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
         const auto n_elements = size / sizeof(T);
 
         if (n_elements != out.size()) {
-            throw std::length_error("Buffer data lenghtr do not match in array lenght.");
+            throw std::length_error("Buffer data lenght do not match in_array lenght.");
         }
 
-        out.clear();
-        out.reserve(n_elements);
-        auto start = reinterpret_cast<T*>(data_start);
+        auto start = reinterpret_cast<const T*>(data_start.data());
         std::copy(start, start + n_elements, out.data());
-        return data_start + n_elements * sizeof(T);
+        return data_start.subspan(n_elements * sizeof(T));
+    }
+
+    static void serializeMaterialWeights(const std::map<std::uint64_t, double>& map, std::vector<char>& buffer)
+    {
+        constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
+        const auto size = static_cast<std::uint64_t>(map.size());
+        if (size == 0)
+            return;
+        serialize(mat, buffer);
+        serialize(size, buffer);
+        for (const auto& [Z, w] : map) {
+            serialize(Z, buffer);
+            serialize(w, buffer);
+        }
+        return;
+    }
+    static std::optional<std::map<std::uint64_t, double>> deserializeMaterialWeights(std::span<const char>& buffer)
+    {
+        constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
+        if (buffer.size() < 8)
+            return std::nullopt;
+
+        if (std::search(buffer.cbegin(), buffer.cbegin() + mat.size(), mat.cbegin(), mat.cend()) != buffer.cbegin())
+            return std::nullopt;
+        else
+            buffer = buffer.subspan(mat.size());
+        if (buffer.size() < sizeof(std::uint64_t))
+            return std::nullopt;
+
+        std::uint64_t size;
+        buffer = deserialize(size, buffer);
+        if (size % 2 != 0) {
+            return std::nullopt;
+        }
+        std::map<std::uint64_t, double> map;
+        for (std::uint64_t i = 0; i < size; i++) {
+            std::uint64_t Z;
+            double w;
+            buffer = deserialize(Z, buffer);
+            buffer = deserialize(w, buffer);
+            map[Z] = w;
+        }
+        return map;
     }
 
 private:

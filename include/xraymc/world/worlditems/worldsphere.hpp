@@ -22,6 +22,7 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
 #include "xraymc/particletracker.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/basicshapes/sphere.hpp"
@@ -164,6 +165,49 @@ public:
     ParticleTracker& particleTracker()
     {
         return m_tracker;
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "Sphere1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(FORCEINTERACTIONS) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    bool serialize(std::vector<char>& buffer) const
+    {
+        Serializer::serialize(magicID(), buffer);
+        Serializer::serialize(m_radius, buffer);
+        Serializer::serialize(m_center, buffer);
+
+        Serializer::serialize(m_materialDensity, buffer);
+        return true;
+    }
+
+    static std::optional<WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>> deserialize(std::span<const char>& buffer)
+    {
+        if (!validMagicID(buffer)) {
+            return std::nullopt; // Magic ID not equal
+        }
+        buffer = buffer.subspan(32); // skip
+
+        WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS> item;
+
+        buffer = Serializer::deserialize(item.m_radius, buffer);
+        buffer = Serializer::deserialize(item.m_center, buffer);
+        buffer = Serializer::deserialize(item.m_materialDensity, buffer);
+
+        return std::make_optional(item);
     }
 
 protected:

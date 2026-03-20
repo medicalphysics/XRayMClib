@@ -17,32 +17,31 @@ Copyright 2026 Erlend Andersen
 */
 
 #include "xraymc/serializer.hpp"
+#include "xraymc/world/worlditems/worldsphere.hpp"
 
+#include <iostream>
 int main()
 {
 
     xraymc::Serializer s;
     auto buffer = s.getEmptyBuffer();
 
-    double in = 1.0;
-    s.serialize(in, buffer);
+    xraymc::WorldSphere<12, 2, true> sphere;
+    sphere.setCenter({ 1, 2, 3 });
+    sphere.setMaterialDensity(1.9);
+    sphere.setRadius(5);
 
-    std::vector<double> vec_in(5, 1.0);
-    s.serialize(vec_in, buffer);
+    sphere.serialize(buffer);
 
-    double in2 = 2;
-    s.serialize(in2, buffer);
+    s.write("testsphere.xr", buffer);
 
-    s.write("test.xray", buffer);
+    auto rbuffer = s.read("testsphere.xr").value();
+    std::span<const char> span(rbuffer);
 
-    auto t = s.read("test.xray");
+    auto sphere_opt = xraymc::WorldSphere<12, 2, true>::deserialize(span);
 
-    double out;
-    auto start = s.deserialize(out, buffer.data());
-    std::vector<double> vec_out;
-    start = s.deserialize(vec_out, start);
-    double out2;
-    start = s.deserialize(out2, start);
+    std::cout << span.size() << std::endl;
+
 
     return EXIT_SUCCESS;
 }
