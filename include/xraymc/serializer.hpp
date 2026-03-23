@@ -20,10 +20,10 @@ Copyright 2026 Erlend Andersen
 
 #include <algorithm>
 #include <concepts>
+#include <expected>
 #include <fstream>
 #include <iterator>
 #include <map>
-#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -42,8 +42,15 @@ Example:
 
 class Serializer {
 public:
+    enum class parse_error {
+        buffer_size_short,
+        buffer_heading_mismatch,
+        buffer_version_mismatch,
+        buffer_file_error
+    };
+
     Serializer() { }
-    Serializer(const std::string& filename)
+    Serializer(const std::string& filename = "")
         : m_filename(filename)
     {
     }
@@ -56,6 +63,14 @@ public:
     static std::span<const char, 16> version()
     {
         return std::span { "xraymc1        " };
+    }
+
+    bool write(const std::vector<char>& buffer) const
+    {
+        if (m_filename.size() == 0)
+            return false;
+        else
+            return write(m_filename, buffer);
     }
 
     static bool write(const std::string& filename, const std::vector<char>& buffer)
@@ -71,21 +86,25 @@ public:
         return false;
     }
 
-    static std::optional<std::vector<char>> read(const std::string& filename)
+    static std::expected<std::vector<char>, parse_error> read(const std::string& filename)
     {
         // reading buffer
         std::ifstream buffer_file(filename, std::ios::binary);
         if (buffer_file.good()) {
             std::vector<char> data(std::istreambuf_iterator<char>(buffer_file), {});
-            auto ver = version();
+            const auto ver = version();
             if (data.size() > ver.size()) {
                 if (std::search(data.cbegin(), data.cbegin() + ver.size(), ver.cbegin(), ver.cend()) < data.cbegin() + ver.size()) {
                     data.erase(data.cbegin(), data.cbegin() + ver.size());
                     return data;
+                } else {
+                    return std::unexpected(parse_error::buffer_version_mismatch);
                 }
+            } else {
+                return std::unexpected(parse_error::buffer_size_short);
             }
         }
-        return std::nullopt;
+        return std::unexpected(parse_error::buffer_file_error);
     }
 
     template <typename T>
@@ -101,6 +120,9 @@ public:
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static std::span<const char> deserialize(T& value, std::span<const char> begin)
     {
+        if (begin.size() < sizeof(T))
+            throw std::length_error("Buffer lenght do not contain data requested.");
+
         auto val_ptr = reinterpret_cast<const T*>(begin.data());
         value = *val_ptr;
         return begin.subspan(sizeof(T));
@@ -112,7 +134,7 @@ public:
     {
         const std::uint64_t n_elements = in.size();
         const std::uint64_t size = n_elements * sizeof(T);
-        serialize(size, buffer);
+        serialize(n_elements, buffer);
         auto in_c = reinterpret_cast<const char*>(in.data());
         auto dest = std::back_inserter(buffer);
         std::copy(in_c, in_c + size, dest);
@@ -142,12 +164,11 @@ public:
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static std::span<const char> deserialize(std::vector<T>& out, std::span<const char> begin)
     {
-        std::uint64_t size;
-        auto data_start = deserialize(size, begin);
-        if (size > data_start.size()) {
+        std::uint64_t n_elements;
+        auto data_start = deserialize(n_elements, begin);
+        if (n_elements * sizeof(T) > data_start.size()) {
             throw std::length_error("Buffer lenght do not contain data requested.");
         }
-        const auto n_elements = size / sizeof(T);
 
         out.clear();
         out.reserve(n_elements);
@@ -160,13 +181,11 @@ public:
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static std::span<const char> deserialize(std::array<T, N>& out, std::span<const char> begin)
     {
-        std::uint64_t size;
-        auto data_start = deserialize(size, begin);
-        if (size > data_start.size()) {
+        std::uint64_t n_elements;
+        auto data_start = deserialize(n_elements, begin);
+        if (n_elements * sizeof(T) > data_start.size()) {
             throw std::length_error("Buffer lenght do not contain data requested.");
         }
-        const auto n_elements = size / sizeof(T);
-
         if (n_elements != out.size()) {
             throw std::length_error("Buffer data lenght do not match in_array lenght.");
         }
@@ -183,6 +202,7 @@ public:
         if (size == 0)
             return;
         serialize(mat, buffer);
+        serialize(std::uint64_t { 1 }, buffer);
         serialize(size, buffer);
         for (const auto& [Z, w] : map) {
             serialize(Z, buffer);
@@ -190,24 +210,26 @@ public:
         }
         return;
     }
-    static std::optional<std::map<std::uint64_t, double>> deserializeMaterialWeights(std::span<const char>& buffer)
+    static std::span<const char> deserializeMaterialWeights(std::map<std::uint64_t, double>& out, std::span<const char>& buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
-        if (buffer.size() < 8)
-            return std::nullopt;
+        if (buffer.size() < 8) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
 
-        if (std::search(buffer.cbegin(), buffer.cbegin() + mat.size(), mat.cbegin(), mat.cend()) != buffer.cbegin())
-            return std::nullopt;
-        else
-            buffer = buffer.subspan(mat.size());
-        if (buffer.size() < sizeof(std::uint64_t))
-            return std::nullopt;
+        if (std::search(buffer.cbegin(), buffer.cbegin() + mat.size(), mat.cbegin(), mat.cend()) != buffer.cbegin()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        buffer = buffer.subspan(mat.size());
+
+        std::uint64_t n_materials;
+        buffer = deserialize(n_materials, buffer);
+        if (n_materials != 1)
+            throw std::length_error("Requested to deserialize ONE material but the buffer contains a material list");
 
         std::uint64_t size;
         buffer = deserialize(size, buffer);
-        if (size % 2 != 0) {
-            return std::nullopt;
-        }
+
         std::map<std::uint64_t, double> map;
         for (std::uint64_t i = 0; i < size; i++) {
             std::uint64_t Z;
@@ -216,7 +238,7 @@ public:
             buffer = deserialize(w, buffer);
             map[Z] = w;
         }
-        return map;
+        buffer;
     }
 
 private:
