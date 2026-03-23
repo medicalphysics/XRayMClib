@@ -19,15 +19,19 @@ Copyright 2026 Erlend Andersen
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <concepts>
 #include <expected>
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "xraymc/world/dosescore.hpp"
 
 namespace xraymc {
 
@@ -39,6 +43,21 @@ Example:
 
 
 */
+template <typename U>
+concept SerializeItemType = requires(U u, std::span<const char> buffer) {
+    {
+        u.deserialize(buffer)
+    } -> std::same_as<std::optional<U>>;
+    {
+        u.serialize()
+    } -> std::same_as<std::vector<char>>;
+    {
+        u.magicID()
+    } -> std::same_as<std::array<char, 32>>;
+    {
+        u.validMagicID(buffer)
+    } -> std::same_as<bool>;
+};
 
 class Serializer {
 public:
@@ -49,7 +68,6 @@ public:
         buffer_file_error
     };
 
-    Serializer() { }
     Serializer(const std::string& filename = "")
         : m_filename(filename)
     {
@@ -107,6 +125,44 @@ public:
         return std::unexpected(parse_error::buffer_file_error);
     }
 
+    static void serializeItem(const std::array<char, 32>& name, std::span<const char> in, std::vector<char>& buffer)
+    {
+
+        buffer.reserve(in.size() + name.size() + sizeof(std::uint64_t));
+        std::copy(name.cbegin(), name.cend(), std::back_inserter(buffer));
+
+        const std::uint64_t size = in.size();
+        const auto char_size = reinterpret_cast<const char*>(&size);
+        std::copy(char_size, char_size + sizeof(std::uint64_t), std::back_inserter(buffer));
+        std::copy(in.cbegin(), in.cend(), std::back_inserter(buffer));
+    }
+    static std::span<const char> deserializeItem(std::array<char, 32>& name, std::vector<char>& out, std::span<const char> buffer)
+    {
+        if (buffer.size() < name.size()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+
+        if (std::search(buffer.cbegin(), buffer.cbegin() + name.size(), name.cbegin(), name.cend()) != buffer.cbegin()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        buffer = buffer.subspan(name.size());
+        std::uint64_t size;
+        buffer = deserialize(size, buffer);
+        if (buffer.size() < size)
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        out.resize(size);
+        std::copy(buffer.cbegin(), buffer.cbegin() + size, out.begin());
+        return buffer.subspan(size);
+    }
+
+    template <SerializeItemType U>
+    static void serializeItem(const U& item, std::vector<char>& buffer)
+    {
+        const auto name = item.magicID();
+        const auto ser = item.serialize();
+        serializeItem(name, ser, buffer);
+    }
+
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static void serialize(T in, std::vector<char>& buffer)
@@ -146,6 +202,7 @@ public:
     {
         serialize(std::span<const T> { in }, buffer);
     }
+
     template <typename T, std::uint64_t N>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static void serialize(const std::array<T, N>& in, std::vector<char>& buffer)
@@ -153,9 +210,9 @@ public:
         serialize(std::span<const T> { in }, buffer);
     }
 
-    template <std::uint64_t N>
-    static void serialize(const std::array<char, N>& in, std::vector<char>& buffer)
+    static void serialize(std::span<const char> in, std::vector<char>& buffer)
     {
+        buffer.reserve(buffer.size() + in.size());
         auto dest = std::back_inserter(buffer);
         std::copy(in.cbegin(), in.cend(), dest);
     }
@@ -210,7 +267,8 @@ public:
         }
         return;
     }
-    static std::span<const char> deserializeMaterialWeights(std::map<std::uint64_t, double>& out, std::span<const char>& buffer)
+
+    static std::span<const char> deserializeMaterialWeights(std::map<std::uint64_t, double>& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
         if (buffer.size() < 8) {
@@ -230,15 +288,154 @@ public:
         std::uint64_t size;
         buffer = deserialize(size, buffer);
 
-        std::map<std::uint64_t, double> map;
+        out.clear();
         for (std::uint64_t i = 0; i < size; i++) {
             std::uint64_t Z;
             double w;
             buffer = deserialize(Z, buffer);
             buffer = deserialize(w, buffer);
-            map[Z] = w;
+            out[Z] = w;
         }
-        buffer;
+        return buffer;
+    }
+
+    static void serializeMaterialWeights(const std::vector<std::map<std::uint64_t, double>>& maps, std::vector<char>& buffer)
+    {
+        constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
+
+        if (maps.size() == 0)
+            return;
+        serialize(mat, buffer);
+        serialize(static_cast<std::uint64_t>(maps.size()), buffer);
+
+        for (const auto& map : maps) {
+            serialize(static_cast<std::uint64_t>(map.size()), buffer);
+            for (const auto& [Z, w] : map) {
+                serialize(Z, buffer);
+                serialize(w, buffer);
+            }
+        }
+        return;
+    }
+
+    static std::span<const char> deserializeMaterialWeights(std::vector<std::map<std::uint64_t, double>>& out, std::span<const char> buffer)
+    {
+        constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
+        if (buffer.size() < 8) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+
+        if (std::search(buffer.cbegin(), buffer.cbegin() + mat.size(), mat.cbegin(), mat.cend()) != buffer.cbegin()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        buffer = buffer.subspan(mat.size());
+
+        std::uint64_t n_materials;
+        buffer = deserialize(n_materials, buffer);
+        if (n_materials == 0)
+            throw std::length_error("Requested to deserialize material but the buffer contains zero materials");
+
+        out.clear();
+        out.resize(n_materials);
+        for (std::uint64_t j = 0; j < n_materials; ++j) {
+            std::uint64_t size;
+            buffer = deserialize(size, buffer);
+            for (std::uint64_t i = 0; i < size; i++) {
+                std::uint64_t Z;
+                double w;
+                buffer = deserialize(Z, buffer);
+                buffer = deserialize(w, buffer);
+                out[j][Z] = w;
+            }
+        }
+        return buffer;
+    }
+
+    static void serializeDoseScore(std::span<const DoseScore> in, std::vector<char>& buffer)
+    {
+        constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
+
+        if (in.size() == 0)
+            return;
+        serialize(dose, buffer);
+
+        const std::uint64_t size = in.size();
+        serialize(size, buffer);
+
+        for (const auto& d : in) {
+            serialize(d.dose(), buffer);
+            serialize(d.variance(), buffer);
+            serialize(d.numberOfEvents(), buffer);
+        }
+        return;
+    }
+
+    static std::span<const char> deserializeDoseScore(std::vector<DoseScore>& out, std::span<const char> buffer)
+    {
+        constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
+        if (buffer.size() < 8) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+
+        if (std::search(buffer.cbegin(), buffer.cbegin() + dose.size(), dose.cbegin(), dose.cend()) != buffer.cbegin()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        buffer = buffer.subspan(dose.size());
+
+        std::uint64_t n_doses;
+        buffer = deserialize(n_doses, buffer);
+        if (n_doses == 0)
+            throw std::length_error("Requested to deserialize doses but the buffer contains zero doses");
+
+        out.clear();
+        out.resize(n_doses);
+        for (std::uint64_t i = 0; i < n_doses; ++i) {
+            double d, v;
+            std::uint64_t n;
+            buffer = deserialize(d, buffer);
+            buffer = deserialize(v, buffer);
+            buffer = deserialize(n, buffer);
+            out[i].set(d, v, n);
+        }
+        return buffer;
+    }
+
+    static void serializeDoseScore(const DoseScore& in, std::vector<char>& buffer)
+    {
+        constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
+        serialize(dose, buffer);
+        constexpr std::uint64_t size = 1;
+        serialize(size, buffer);
+        serialize(in.dose(), buffer);
+        serialize(in.variance(), buffer);
+        serialize(in.numberOfEvents(), buffer);
+        return;
+    }
+    static std::span<const char> deserializeDoseScore(DoseScore& out, std::span<const char> buffer)
+    {
+        constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
+        if (buffer.size() < 8) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+
+        if (std::search(buffer.cbegin(), buffer.cbegin() + dose.size(), dose.cbegin(), dose.cend()) != buffer.cbegin()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        buffer = buffer.subspan(dose.size());
+
+        std::uint64_t n_doses;
+        buffer = deserialize(n_doses, buffer);
+        if (n_doses != 1)
+            throw std::length_error("Requested to deserialize ONE doses but the buffer contains not one dose");
+
+        double d, v;
+        std::uint64_t n;
+        buffer = deserialize(d, buffer);
+        buffer = deserialize(v, buffer);
+        buffer = deserialize(n, buffer);
+        out.set(d, v, n);
+
+        return buffer;
     }
 
 private:

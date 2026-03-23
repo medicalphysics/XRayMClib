@@ -67,6 +67,13 @@ public:
         m_doseVariance = 0;
     }
 
+    void set(double dose, double variance, std::uint64_t n_events)
+    {
+        m_dose = dose;
+        m_doseVariance = variance;
+        m_nEvents = n_events;
+    }
+
 private:
     double m_dose = 0;
     double m_doseVariance = 0;

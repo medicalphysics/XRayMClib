@@ -184,28 +184,35 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
-    bool serialize(std::vector<char>& buffer) const
+    std::vector<char> serialize() const
     {
-        Serializer::serialize(magicID(), buffer);
+        auto buffer = Serializer::getEmptyBuffer();
         Serializer::serialize(m_radius, buffer);
         Serializer::serialize(m_center, buffer);
-
         Serializer::serialize(m_materialDensity, buffer);
-        return true;
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
+
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
     }
 
-    static std::optional<WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>> deserialize(std::span<const char>& buffer)
+    static std::optional<WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>> deserialize(std::span<const char> buffer)
     {
-        if (!validMagicID(buffer)) {
-            return std::nullopt; // Magic ID not equal
-        }
-        buffer = buffer.subspan(32); // skip
-
         WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS> item;
 
         buffer = Serializer::deserialize(item.m_radius, buffer);
         buffer = Serializer::deserialize(item.m_center, buffer);
         buffer = Serializer::deserialize(item.m_materialDensity, buffer);
+
+        std::map<std::uint64_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        if (auto matCand = Material<NMaterialShells>::byWeight(mat_weights); matCand)
+            item.m_material = matCand.value();
+        else
+            return std::nullopt;
+
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
 
         return std::make_optional(item);
     }

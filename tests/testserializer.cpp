@@ -31,17 +31,17 @@ int main()
     sphere.setMaterialDensity(1.9);
     sphere.setRadius(5);
 
-    sphere.serialize(buffer);
+    s.serializeItem(sphere, buffer);
 
     s.write("testsphere.xr", buffer);
 
     auto rbuffer = s.read("testsphere.xr").value();
-    std::span<const char> span(rbuffer);
 
-    auto sphere_opt = xraymc::WorldSphere<12, 2, true>::deserialize(span);
+    auto name = xraymc::WorldSphere<12, 2, true>::magicID();
+    std::vector<char> itemBuffer;
+    s.deserializeItem(name, itemBuffer, rbuffer);
 
-    std::cout << span.size() << std::endl;
-
+    auto sphere_opt = xraymc::WorldSphere<12, 2, true>::deserialize(itemBuffer);
 
     return EXIT_SUCCESS;
 }
