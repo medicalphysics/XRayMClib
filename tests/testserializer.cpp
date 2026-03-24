@@ -17,31 +17,51 @@ Copyright 2026 Erlend Andersen
 */
 
 #include "xraymc/serializer.hpp"
+#include "xraymc/world/worlditems/aavoxelgrid.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <iostream>
-int main()
+
+template <typename T>
+bool testItem(const T& item)
 {
 
+    auto m1 = xraymc::Material<12>::byZ(6).value();
+    auto m2 = xraymc::Material<12>::byZ(6).value();
+
     xraymc::Serializer s;
-    auto buffer = s.getEmptyBuffer();
+
+    auto buffer = xraymc::Serializer::getEmptyBuffer();
+    xraymc::Serializer::serializeItem(item, buffer);
+
+    xraymc::Serializer::write("testitem.xr", buffer);
+
+    auto rbuffer = s.read("testitem.xr").value();
+
+    auto name = T::magicID();
+    std::vector<char> itemBuffer;
+    s.deserializeItem(name, itemBuffer, rbuffer);
+    auto item_opt = T::deserialize(itemBuffer);
+    if (item_opt) {
+        // auto& item_read = item_opt.value();
+        // return item_read == item;
+    }
+
+    return false;
+}
+
+int main()
+{
+    bool success = true;
 
     xraymc::WorldSphere<12, 2, true> sphere;
     sphere.setCenter({ 1, 2, 3 });
     sphere.setMaterialDensity(1.9);
     sphere.setRadius(5);
 
-    s.serializeItem(sphere, buffer);
+    success = success && testItem(sphere);
 
-    s.write("testsphere.xr", buffer);
-
-    auto rbuffer = s.read("testsphere.xr").value();
-
-    auto name = xraymc::WorldSphere<12, 2, true>::magicID();
-    std::vector<char> itemBuffer;
-    s.deserializeItem(name, itemBuffer, rbuffer);
-
-    auto sphere_opt = xraymc::WorldSphere<12, 2, true>::deserialize(itemBuffer);
-
-    return EXIT_SUCCESS;
+    if (success)
+        return EXIT_SUCCESS;
+    return EXIT_FAILURE;
 }

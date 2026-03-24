@@ -136,20 +136,21 @@ public:
         std::copy(char_size, char_size + sizeof(std::uint64_t), std::back_inserter(buffer));
         std::copy(in.cbegin(), in.cend(), std::back_inserter(buffer));
     }
+    
     static std::span<const char> deserializeItem(std::array<char, 32>& name, std::vector<char>& out, std::span<const char> buffer)
     {
         if (buffer.size() < name.size()) {
-            throw std::length_error("Buffer lenght do not contain data requested.");
+            throw std::length_error("Buffer lenght is too short to contain item requested.");
         }
 
         if (std::search(buffer.cbegin(), buffer.cbegin() + name.size(), name.cbegin(), name.cend()) != buffer.cbegin()) {
-            throw std::length_error("Buffer lenght do not contain data requested.");
+            throw std::length_error("Buffer do not contain item requested.");
         }
         buffer = buffer.subspan(name.size());
         std::uint64_t size;
         buffer = deserialize(size, buffer);
         if (buffer.size() < size)
-            throw std::length_error("Buffer lenght do not contain data requested.");
+            throw std::length_error("Buffer lenght is too short to contain item requested.");
         out.resize(size);
         std::copy(buffer.cbegin(), buffer.cbegin() + size, out.begin());
         return buffer.subspan(size);
@@ -163,6 +164,7 @@ public:
         serializeItem(name, ser, buffer);
     }
 
+    // Serialize a double or uint64 value
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static void serialize(T in, std::vector<char>& buffer)
@@ -172,6 +174,7 @@ public:
         std::copy(in_c, in_c + sizeof(T), dest);
     }
 
+    // Deserialize a double or uint64 value
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static std::span<const char> deserialize(T& value, std::span<const char> begin)
@@ -184,6 +187,7 @@ public:
         return begin.subspan(sizeof(T));
     }
 
+    // Serialize a span of doubles or uint64 values
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static void serialize(std::span<const T> in, std::vector<char>& buffer)
@@ -196,6 +200,7 @@ public:
         std::copy(in_c, in_c + size, dest);
     }
 
+    // Serialize a vector of doubles or uint64 values
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static void serialize(const std::vector<T>& in, std::vector<char>& buffer)
@@ -203,6 +208,7 @@ public:
         serialize(std::span<const T> { in }, buffer);
     }
 
+    // Serialize an array of doubles or uint64 values
     template <typename T, std::uint64_t N>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
     static void serialize(const std::array<T, N>& in, std::vector<char>& buffer)
@@ -210,11 +216,24 @@ public:
         serialize(std::span<const T> { in }, buffer);
     }
 
-    static void serialize(std::span<const char> in, std::vector<char>& buffer)
+    // Serialize a span of char values
+    static void serialize(std::span<const char> in,  std::vector<char>& buffer)
     {
-        buffer.reserve(buffer.size() + in.size());
-        auto dest = std::back_inserter(buffer);
-        std::copy(in.cbegin(), in.cend(), dest);
+        buffer.reserve(buffer.size() + in.size() + sizeof(std::uint64_t));
+        serialize(static_cast<std::uint64_t>(in.size()), buffer);
+        std::copy(in.cbegin(), in.cend(), std::back_inserter(buffer));
+    }
+
+    // Deserialize a span of char values
+    static void deserialize(std::vector<char>& out, std::span<const char> buffer)
+    {
+        std::uint64_t n_elements;
+        buffer = deserialize(n_elements, buffer);
+        if (n_elements > buffer.size()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        out.reserve(n_elements);
+        std::copy(buffer.cbegin(), buffer.cbegin() + n_elements, out.begin());
     }
 
     template <typename T>
@@ -258,7 +277,7 @@ public:
         const auto size = static_cast<std::uint64_t>(map.size());
         if (size == 0)
             return;
-        serialize(mat, buffer);
+        std::copy(mat.cbegin(), mat.cend(), std::back_inserter(buffer));
         serialize(std::uint64_t { 1 }, buffer);
         serialize(size, buffer);
         for (const auto& [Z, w] : map) {
@@ -305,7 +324,7 @@ public:
 
         if (maps.size() == 0)
             return;
-        serialize(mat, buffer);
+        std::copy(mat.cbegin(), mat.cend(), std::back_inserter(buffer));
         serialize(static_cast<std::uint64_t>(maps.size()), buffer);
 
         for (const auto& map : maps) {
@@ -357,7 +376,7 @@ public:
 
         if (in.size() == 0)
             return;
-        serialize(dose, buffer);
+        std::copy(dose.cbegin(), dose.cend(), std::back_inserter(buffer));
 
         const std::uint64_t size = in.size();
         serialize(size, buffer);
@@ -403,7 +422,7 @@ public:
     static void serializeDoseScore(const DoseScore& in, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
-        serialize(dose, buffer);
+        std::copy(dose.cbegin(), dose.cend(), std::back_inserter(buffer));
         constexpr std::uint64_t size = 1;
         serialize(size, buffer);
         serialize(in.dose(), buffer);

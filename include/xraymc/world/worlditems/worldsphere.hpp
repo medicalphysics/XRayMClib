@@ -46,6 +46,8 @@ public:
         m_materialDensity = NISTMaterials::density("Air, Dry (near sea level)");
     }
 
+    bool operator==(const WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>& other) const = default;
+
     void setRadius(double r)
     {
         m_radius = std::abs(r);

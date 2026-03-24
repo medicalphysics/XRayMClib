@@ -22,6 +22,7 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/interpolation.hpp"
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/dosescore.hpp"
@@ -30,6 +31,7 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/xraymcrandom.hpp"
 
 #include <array>
+#include <optional>
 
 namespace xraymc {
 
@@ -433,6 +435,94 @@ public:
     double maxAttenuationValue(const double energy) const
     {
         return interpolate(m_woodcockStepTableLin, energy);
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "AAVoxelGrid1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(TRANSPARENTVOXELS) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        const std::array<std::uint64_t, 3> dims = { m_dim[0], m_dim[1], m_dim[2] };
+        Serializer::serialize(dims, buffer);
+        Serializer::serialize(m_spacing, buffer);
+        Serializer::serialize(m_aabb, buffer);
+
+        std::vector<double> dens(m_data.size());
+        std::transform(std::execution::unseq, dens.begin(), dens.end(), m_data.cbegin(), [](const auto& v) { return v.density; });
+        Serializer::serialize(dens, buffer);
+
+        std::vector<char> matIdx(m_data.size());
+        std::transform(std::execution::unseq, matIdx.begin(), matIdx.end(), m_data.cbegin(), [](const auto& v) { return static_cast<char>(v.materialIndex); });
+        Serializer::serialize(matIdx, buffer);
+
+        Serializer::serialize(m_dose, buffer);
+
+        std::vector<std::map<std::uint64_t, double>> mats(m_materials.size());
+        std::transform(std::execution::unseq, mats.begin(), mats.end(), m_materials.begin(), [](const auto& m) { return m.composition(); });
+        Serializer::serialize(mats, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>> deserialize(std::span<const char> buffer)
+    {
+        std::array<std::uint64_t, 3> dim_uint;
+        std::array<double, 3> spacing;
+        std::array<double, 6> aabb;
+
+        buffer = Serializer::deserialize(dim_uint, buffer);
+        buffer = Serializer::deserialize(spacing, buffer);
+        buffer = Serializer::deserialize(aabb, buffer);
+
+        std::vector<double> dens;
+        buffer = Serializer::deserialize(dens, buffer);
+
+        std::vector<char> matIdx;
+        buffer = Serializer::deserialize(matIdx, buffer);
+
+        std::vector<DoseScore> dose;
+        buffer = Serializer::deserialize(dose, buffer);
+
+        std::vector<std::map<std::uint64_t, double>> mats(m_materials.size());
+        buffer = Serializer::deserialize(mats, buffer);
+        std::vector<std::optional<Material<NMaterialShells>>> materials_opt;
+        materials_opt.reserve(mats.size());
+        std::transform(std::execution::unseq, mats.cbegin(), mats.cend(), std::back_inserter(materials_opt), [](const auto& w) { return Material<NMaterialShells>::byWeight(w); });
+        std::vector<Material<NMaterialShells>> materials;
+        materials.reserve(materials_opt.size());
+        for (const auto& m_opt : materials_opt) {
+            if (m_opt)
+                materials.push_back(m_opt.value());
+            else
+                return std::nullopt;
+        }
+
+        const std::array<std::size_t, 3> dim = { dim_uint[0], dim_uint[0], dim_uint[0] };
+        AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS> item(dim, spacing, matIdx, dens, materials);
+        item.m_dose = dose;
+
+        // translate item if translated
+        const auto [start, stop] = vectormath::splice(item.AABB());
+        const auto [rstart, rstop] = vectormath::splice(aabb);
+        const auto dist = vectormath::subtract(rstart, start);
+        item.translate(dist);
+
+        return std::make_optional(item);
     }
 
 protected:
