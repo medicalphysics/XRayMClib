@@ -21,6 +21,7 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/interactions.hpp"
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/basicshapes/cylinder.hpp"
@@ -196,6 +197,66 @@ public:
     void clearDoseScored()
     {
         m_dose.clear();
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "Cylinder1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        // Serialize cylinder
+        Serializer::serialize(m_cylinder.center, buffer);
+        Serializer::serialize(m_cylinder.direction, buffer);
+        Serializer::serialize(m_cylinder.radius, buffer);
+        Serializer::serialize(m_cylinder.half_height, buffer);
+        // materials
+        Serializer::serialize(m_materialDensity, buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<WorldCylinder<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    {
+        std::array<double, 3> center, direction;
+        buffer = Serializer::deserialize(center, buffer);
+        buffer = Serializer::deserialize(direction, buffer);
+
+        double radius, half_heigh;
+        buffer = Serializer::deserialize(radius, buffer);
+        buffer = Serializer::deserialize(half_heigh, buffer);
+
+        WorldCylinder<NMaterialShells, LOWENERGYCORRECTION> item(radius, half_heigh * 2, center, direction);
+
+        double density;
+        buffer = Serializer::deserialize(density, buffer);
+        std::map<std::uint64_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+
+        auto material_opt = Material<NMaterialShells>::byWeight(mat_weights);
+        if (material_opt) {
+            item.setMaterial(material_opt.value(), density);
+        }
+
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
+
+        return std::make_optional(item);
     }
 
 protected:

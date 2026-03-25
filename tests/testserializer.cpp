@@ -18,6 +18,7 @@ Copyright 2026 Erlend Andersen
 
 #include "xraymc/serializer.hpp"
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/worldcylinder.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <iostream>
@@ -26,8 +27,10 @@ template <typename T>
 bool testItem(const T& item)
 {
 
-    auto m1 = xraymc::Material<12>::byZ(6).value();
-    auto m2 = xraymc::Material<12>::byZ(6).value();
+    auto m1 = xraymc::Material<16>::byZ(6).value();
+    auto m2 = xraymc::Material<16>::byZ(6).value();
+
+    return m1 == m2;
 
     xraymc::Serializer s;
 
@@ -43,7 +46,9 @@ bool testItem(const T& item)
     s.deserializeItem(name, itemBuffer, rbuffer);
     auto item_opt = T::deserialize(itemBuffer);
     if (item_opt) {
-        // auto& item_read = item_opt.value();
+        auto& item_read = item_opt.value();
+        return item_read == item;
+
         // return item_read == item;
     }
 
@@ -60,6 +65,9 @@ int main()
     sphere.setRadius(5);
 
     success = success && testItem(sphere);
+
+    xraymc::WorldCylinder<16, 2> cylinder;
+    success = success && testItem(cylinder);
 
     if (success)
         return EXIT_SUCCESS;

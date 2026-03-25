@@ -136,7 +136,7 @@ public:
         std::copy(char_size, char_size + sizeof(std::uint64_t), std::back_inserter(buffer));
         std::copy(in.cbegin(), in.cend(), std::back_inserter(buffer));
     }
-    
+
     static std::span<const char> deserializeItem(std::array<char, 32>& name, std::vector<char>& out, std::span<const char> buffer)
     {
         if (buffer.size() < name.size()) {
@@ -164,9 +164,9 @@ public:
         serializeItem(name, ser, buffer);
     }
 
-    // Serialize a double or uint64 value
+    // Serialize a double or uint64 or uint8_t value
     template <typename T>
-        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
+        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static void serialize(T in, std::vector<char>& buffer)
     {
         auto dest = std::back_inserter(buffer);
@@ -174,9 +174,9 @@ public:
         std::copy(in_c, in_c + sizeof(T), dest);
     }
 
-    // Deserialize a double or uint64 value
+    // Deserialize a double or uint64 or uint8_t value
     template <typename T>
-        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
+        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static std::span<const char> deserialize(T& value, std::span<const char> begin)
     {
         if (begin.size() < sizeof(T))
@@ -217,7 +217,7 @@ public:
     }
 
     // Serialize a span of char values
-    static void serialize(std::span<const char> in,  std::vector<char>& buffer)
+    static void serialize(std::span<const char> in, std::vector<char>& buffer)
     {
         buffer.reserve(buffer.size() + in.size() + sizeof(std::uint64_t));
         serialize(static_cast<std::uint64_t>(in.size()), buffer);

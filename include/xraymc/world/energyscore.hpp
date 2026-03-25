@@ -68,7 +68,7 @@ public:
         // Var(N) = Z
         // Var(Sn) = Z*Var(X) + E(X)*E(X) * Z
         // E(X) is the expectation value of X, i.e (energy imparted) / (number of events)
-        // Var(X) is the variance of X, Var(X) = ( E(X**2) - E(X)*E(X) ) / ( N-1 ) 
+        // Var(X) is the variance of X, Var(X) = ( E(X**2) - E(X)*E(X) ) / ( N-1 )
         if (numberOfEvents() > 1) {
 
             // expected energy per event
@@ -87,7 +87,6 @@ public:
 
             // For a fixed number of N the variance is simply the Var(X)*N*N
             // Var(Sn) = N*(e2-e*e)/(N-1)
-
         }
         return 0;
     }
