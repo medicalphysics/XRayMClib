@@ -25,6 +25,8 @@ namespace xraymc {
 class EnergyScore {
 public:
     EnergyScore() { }
+    bool operator==(const EnergyScore&) const = default;
+
     void scoreEnergy(double energy)
     {
         if (energy <= 0.0)

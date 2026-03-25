@@ -44,6 +44,9 @@ namespace basicshape {
             {
                 direction = vectormath::normalized(direction_arr);
             }
+
+            bool operator==(const Cylinder&) const = default;
+
             double volume() const
             {
                 return std::numbers::pi_v<double> * radius * radius * half_height * 2;

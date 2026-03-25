@@ -25,6 +25,7 @@ namespace xraymc {
 class DoseScore {
 public:
     DoseScore() { }
+    bool operator==(const DoseScore&) const = default;
 
     void addScoredEnergy(const EnergyScore& energy, double volume, double density, double calibrationfactor = 1)
     {

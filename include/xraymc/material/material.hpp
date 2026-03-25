@@ -38,6 +38,8 @@ struct MaterialShell {
     double HartreeFockOrbital_0 = 0;
     double numberOfPhotonsPerInitVacancy = 0;
     double energyOfPhotonsPerInitVacancy = 0;
+
+    bool operator==(const MaterialShell& other) const = default;
 };
 
 struct AttenuationValues {
@@ -50,7 +52,9 @@ struct AttenuationValues {
 template <std::size_t N = 16>
 class Material {
 public:
-    static std::optional<Material<N>> byZ(std::size_t Z)
+    bool operator==(const Material<N>& other) const = default;
+
+    static std::optional<Material<N>> byZ(std::integral auto Z)
     {
         auto a = AtomHandler::Atom(Z);
         if (a.Z == Z) {

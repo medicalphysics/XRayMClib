@@ -64,6 +64,8 @@ public:
         setSpacing(spacing);
     }
 
+    bool operator==(const AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>&) const = default;
+
     bool setData(const std::array<std::size_t, 3>& dim, const std::vector<double>& density, const std::vector<uint8_t>& materialIdx, const std::vector<Material<NMaterialShells>>& materials)
     {
         const auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
@@ -793,6 +795,7 @@ protected:
         EnergyScore energyScored;
         double density = 0;
         std::uint8_t materialIndex = 0;
+        bool operator==(const DataElement&) const = default;
     };
 
 private:

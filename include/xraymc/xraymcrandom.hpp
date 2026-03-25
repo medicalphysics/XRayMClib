@@ -347,6 +347,7 @@ template <Floating T, std::size_t N = 20>
 class CPDFSampling {
 public:
     CPDFSampling() = default;
+    bool operator==(const CPDFSampling<T, N>&) const = default;
 
     template <std::regular_invocable<T> F>
         requires std::is_same<std::invoke_result_t<F, T>, T>::value
@@ -417,6 +418,7 @@ protected:
         T e = 0;
         T a = 0;
         T b = 0;
+        bool operator==(const GridEl&) const = default;
     };
 
     // calcluate p from points

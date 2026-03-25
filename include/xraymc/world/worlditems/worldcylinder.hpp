@@ -46,6 +46,8 @@ public:
         m_materialDensity = NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)");
     }
 
+    bool operator==(const WorldCylinder<NMaterialShells, LOWENERGYCORRECTION>&) const = default;
+
     void setMaterial(const Material<NMaterialShells>& material)
     {
         m_material = material;

@@ -32,6 +32,8 @@ public:
         m_points.resize(size);
     }
 
+    bool operator==(const ParticleTracker&) const = default;
+
     void setNumberOfPoints(std::size_t size)
     {
         m_points.resize(size);
@@ -76,6 +78,7 @@ private:
     struct TrackPoint {
         std::uint64_t particleID = 0;
         std::array<double, 3> position;
+        bool operator==(const TrackPoint&) const = default;
     };
     std::vector<TrackPoint> m_points;
     std::size_t m_index = 0;
