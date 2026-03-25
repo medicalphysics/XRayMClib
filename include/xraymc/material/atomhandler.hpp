@@ -33,7 +33,7 @@ namespace xraymc {
 
 class AtomHandler {
 public:
-    static const AtomicElement& Atom(std::uint64_t Z)
+    static const AtomicElement& Atom(std::integral auto Z)
     {
         auto& instance = Instance();
         if (instance.m_elements.contains(Z)) {
@@ -42,13 +42,13 @@ public:
         return instance.m_dummyElement;
     }
 
-    static bool atomExists(std::uint64_t Z)
+    static bool atomExists(std::integral auto Z)
     {
         auto& instance = Instance();
         return instance.m_elements.contains(Z);
     }
 
-    static const std::map<std::uint64_t, AtomicElement>& allAtoms()
+    static const std::map<std::uint8_t, AtomicElement>& allAtoms()
     {
         const auto& instance = Instance();
         return instance.m_elements;
@@ -90,14 +90,13 @@ protected:
         std::ifstream buffer_file(datapath, std::ios::binary);
         if (buffer_file.good()) {
             std::vector<char> data(std::istreambuf_iterator<char>(buffer_file), {});
-
-            m_elements = AtomSerializer::deserializeAtoms(data);
+            m_elements = AtomSerializer::deserializeAtoms<std::uint8_t>(data);
         }
     }
 
 private:
     AtomicElement m_dummyElement;
-    std::map<std::uint64_t, AtomicElement> m_elements;
+    std::map<std::uint8_t, AtomicElement> m_elements;
 };
 
 }

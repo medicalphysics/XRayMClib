@@ -43,9 +43,11 @@ public:
         }
         return buffer;
     }
-    static std::map<std::uint64_t, AtomicElement> deserializeAtoms(std::vector<char>& buffer)
+
+    template <std::integral T = std::uint8_t>
+    static std::map<T, AtomicElement> deserializeAtoms(std::vector<char>& buffer)
     {
-        std::map<std::uint64_t, AtomicElement> elements;
+        std::map<T, AtomicElement> elements;
         if (buffer.size() == 0)
             return elements;
         std::uint64_t number_elements;
@@ -54,7 +56,11 @@ public:
         for (std::uint64_t i = 0; i < number_elements; i++) {
             AtomicElement atom;
             start = deserializeAtomicElement(atom, start);
-            elements[atom.Z] = atom;
+            if constexpr (std::is_same<T, std::uint64_t>::value) {
+                elements[atom.Z] = atom;
+            } else {
+                elements[static_cast<T>(atom.Z)] = atom;
+            }
         }
         return elements;
     }

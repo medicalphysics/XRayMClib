@@ -28,6 +28,7 @@ Copyright 2022 Erlend Andersen
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <concepts>
 #include <execution>
 
 namespace xraymc {
@@ -57,17 +58,28 @@ public:
     static std::optional<Material<N>> byZ(std::integral auto Z)
     {
         auto a = AtomHandler::Atom(Z);
-        if (a.Z == Z) {
-            std::map<std::size_t, double> w;
-            w[Z] = 1;
+        if (a.Z == static_cast<std::uint64_t>(Z)) {
+            std::map<std::uint8_t, double> w;
+            w[static_cast<std::uint64_t>(Z)] = 1;
             return byWeight(w);
         }
         return std::nullopt;
     }
-    static std::optional<Material<N>> byWeight(const std::map<std::size_t, double>& weights)
+
+    template <std::integral I>
+    static std::optional<Material<N>> byWeight(const std::map<I, double>& weights)
     {
-        auto m = constructMaterial(weights);
-        return m;
+        if constexpr (std::is_same<I, std::uint8_t>::value) {
+            auto m = constructMaterial(weights);
+            return m;
+        } else {
+            std::map<std::uint8_t, double> wt;
+            for (const auto& [Z, w] : weights) {
+                wt[static_cast<std::uint8_t>(Z)] = w;
+            }
+            auto m = constructMaterial(wt);
+            return m;
+        }
     }
 
     static std::optional<Material<N>> byChemicalFormula(const std::string& str)
@@ -105,7 +117,7 @@ public:
         return Zeff;
     }
 
-    const std::map<std::size_t, double>& composition() const
+    const std::map<std::uint8_t, double>& composition() const
     {
         return m_composition;
     }
@@ -460,7 +472,7 @@ protected:
     // constructs a least squares spline interpolator from attenuation data from a compound
     // This function is a bit convoluted since we want to preserve discontiuities in the interpolation
     // But is basicly an weighted average of attenuation coefficients for each element.
-    static CubicLSInterpolator<double> constructSplineInterpolator(const std::map<std::size_t, double>& normalizedWeight, LUTType type)
+    static CubicLSInterpolator<double> constructSplineInterpolator(const std::map<std::uint8_t, double>& normalizedWeight, LUTType type)
     {
         auto getAtomArr = [&](const AtomicElement& atom, LUTType type = LUTType::photoelectric) -> const std::vector<std::pair<double, double>>& {
             if (type == LUTType::photoelectric)
@@ -551,7 +563,7 @@ protected:
         return lut;
     }
 
-    static std::optional<Material<N>> constructMaterial(const std::map<std::size_t, double>& compositionByWeight)
+    static std::optional<Material<N>> constructMaterial(const std::map<std::uint8_t, double>& compositionByWeight)
     {
         for (const auto& [Z, w] : compositionByWeight) {
             const auto& a = AtomHandler::Atom(Z);
@@ -610,7 +622,7 @@ protected:
         material.m_formFactorInvSamp = CPDFSampling<double, 20>(qmin * qmin, qmax * qmax, func);
     }
 
-    static void createMaterialAtomicShells(Material<N>& material, const std::map<std::size_t, double>& normalizedWeight, std::array<std::size_t, 6 + N>& offset)
+    static void createMaterialAtomicShells(Material<N>& material, const std::map<std::uint8_t, double>& normalizedWeight, std::array<std::size_t, 6 + N>& offset)
     {
         struct Shell {
             std::uint64_t Z = 0;
@@ -682,7 +694,7 @@ private:
     std::array<MaterialShell, N + 1> m_shells;
     std::uint8_t m_numberOfShells = 0;
     std::vector<std::array<double, 3>> m_attenuationTable;
-    std::map<std::size_t, double> m_composition;
+    std::map<std::uint8_t, double> m_composition;
 };
 
 }

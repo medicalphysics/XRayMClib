@@ -271,7 +271,7 @@ public:
         return data_start.subspan(n_elements * sizeof(T));
     }
 
-    static void serializeMaterialWeights(const std::map<std::uint64_t, double>& map, std::vector<char>& buffer)
+    static void serializeMaterialWeights(const std::map<std::uint8_t, double>& map, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
         const auto size = static_cast<std::uint64_t>(map.size());
@@ -287,7 +287,7 @@ public:
         return;
     }
 
-    static std::span<const char> deserializeMaterialWeights(std::map<std::uint64_t, double>& out, std::span<const char> buffer)
+    static std::span<const char> deserializeMaterialWeights(std::map<std::uint8_t, double>& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
         if (buffer.size() < 8) {
@@ -318,7 +318,7 @@ public:
         return buffer;
     }
 
-    static void serializeMaterialWeights(const std::vector<std::map<std::uint64_t, double>>& maps, std::vector<char>& buffer)
+    static void serializeMaterialWeights(const std::vector<std::map<std::uint8_t, double>>& maps, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
 
@@ -337,7 +337,7 @@ public:
         return;
     }
 
-    static std::span<const char> deserializeMaterialWeights(std::vector<std::map<std::uint64_t, double>>& out, std::span<const char> buffer)
+    static std::span<const char> deserializeMaterialWeights(std::vector<std::map<std::uint8_t, double>>& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
         if (buffer.size() < 8) {
@@ -360,7 +360,7 @@ public:
             std::uint64_t size;
             buffer = deserialize(size, buffer);
             for (std::uint64_t i = 0; i < size; i++) {
-                std::uint64_t Z;
+                std::uint8_t Z;
                 double w;
                 buffer = deserialize(Z, buffer);
                 buffer = deserialize(w, buffer);
