@@ -83,7 +83,7 @@ public:
         m_dose.resize(size);
 
         std::transform(std::execution::par_unseq, density.cbegin(), density.cend(), materialIdx.cbegin(), m_data.begin(), [](const auto d, const auto mIdx) -> DataElement {
-            return { .energyScored = EnergyScore {}, .density = d, .materialIndex = mIdx };
+            return { .energyScored = EnergyScore { }, .density = d, .materialIndex = mIdx };
         });
 
         m_materials = materials;
@@ -465,18 +465,18 @@ public:
         Serializer::serialize(m_aabb, buffer);
 
         std::vector<double> dens(m_data.size());
-        std::transform(std::execution::unseq, dens.begin(), dens.end(), m_data.cbegin(), [](const auto& v) { return v.density; });
+        std::transform(std::execution::unseq, m_data.cbegin(), m_data.cend(), dens.begin(), [](const auto& v) { return v.density; });
         Serializer::serialize(dens, buffer);
 
-        std::vector<char> matIdx(m_data.size());
-        std::transform(std::execution::unseq, matIdx.begin(), matIdx.end(), m_data.cbegin(), [](const auto& v) { return static_cast<char>(v.materialIndex); });
+        std::vector<std::uint8_t> matIdx(m_data.size());
+        std::transform(std::execution::unseq, m_data.cbegin(), m_data.cend(), matIdx.begin(), [](const auto& v) { return static_cast<char>(v.materialIndex); });
         Serializer::serialize(matIdx, buffer);
 
-        Serializer::serialize(m_dose, buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
 
-        std::vector<std::map<std::uint64_t, double>> mats(m_materials.size());
-        std::transform(std::execution::unseq, mats.begin(), mats.end(), m_materials.begin(), [](const auto& m) { return m.composition(); });
-        Serializer::serialize(mats, buffer);
+        std::vector<std::map<std::uint8_t, double>> mats(m_materials.size());
+        std::transform(std::execution::unseq, m_materials.cbegin(), m_materials.cend(), mats.begin(), [](const auto& m) { return m.composition(); });
+        Serializer::serializeMaterialWeights(mats, buffer);
 
         return buffer;
     }
@@ -494,17 +494,17 @@ public:
         std::vector<double> dens;
         buffer = Serializer::deserialize(dens, buffer);
 
-        std::vector<char> matIdx;
+        std::vector<std::uint8_t> matIdx;
         buffer = Serializer::deserialize(matIdx, buffer);
 
         std::vector<DoseScore> dose;
-        buffer = Serializer::deserialize(dose, buffer);
+        buffer = Serializer::deserializeDoseScore(dose, buffer);
 
-        std::vector<std::map<std::uint64_t, double>> mats(m_materials.size());
-        buffer = Serializer::deserialize(mats, buffer);
-        std::vector<std::optional<Material<NMaterialShells>>> materials_opt;
+        std::vector<std::map<std::uint8_t, double>> mats;
+        buffer = Serializer::deserializeMaterialWeights(mats, buffer);
+        std::vector<std::optional<Material<NMaterialShells>>> materials_opt(mats.size());
         materials_opt.reserve(mats.size());
-        std::transform(std::execution::unseq, mats.cbegin(), mats.cend(), std::back_inserter(materials_opt), [](const auto& w) { return Material<NMaterialShells>::byWeight(w); });
+        std::transform(std::execution::unseq, mats.cbegin(), mats.cend(), materials_opt.begin(), [](const auto& w) { return Material<NMaterialShells>::byWeight(w); });
         std::vector<Material<NMaterialShells>> materials;
         materials.reserve(materials_opt.size());
         for (const auto& m_opt : materials_opt) {
@@ -515,7 +515,7 @@ public:
         }
 
         const std::array<std::size_t, 3> dim = { dim_uint[0], dim_uint[0], dim_uint[0] };
-        AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS> item(dim, spacing, matIdx, dens, materials);
+        AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS> item(dim, spacing, dens, matIdx, materials);
         item.m_dose = dose;
 
         // translate item if translated

@@ -69,6 +69,11 @@ int main()
     xraymc::WorldCylinder<16, 2> cylinder;
     success = success && testItem(cylinder);
 
+    xraymc::AAVoxelGrid<12, 2, 255> vgrid;
+    success = success && testItem(vgrid);
+
+    auto water_opt = xraymc::Material<12>::byChemicalFormula("H2O");
+
     if (success)
         return EXIT_SUCCESS;
     return EXIT_FAILURE;

@@ -207,7 +207,7 @@ public:
         buffer = Serializer::deserialize(item.m_center, buffer);
         buffer = Serializer::deserialize(item.m_materialDensity, buffer);
 
-        std::map<std::uint64_t, double> mat_weights;
+        std::map<std::uint8_t, double> mat_weights;
         buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
         if (auto matCand = Material<NMaterialShells>::byWeight(mat_weights); matCand)
             item.m_material = matCand.value();

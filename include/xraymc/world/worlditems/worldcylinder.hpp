@@ -246,7 +246,7 @@ public:
 
         double density;
         buffer = Serializer::deserialize(density, buffer);
-        std::map<std::uint64_t, double> mat_weights;
+        std::map<std::uint8_t, double> mat_weights;
         buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
 
         auto material_opt = Material<NMaterialShells>::byWeight(mat_weights);
