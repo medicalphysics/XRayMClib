@@ -28,7 +28,7 @@ Copyright 2022 Erlend Andersen
 namespace xraymc {
 
 struct AtomicElement {
-    std::uint64_t Z = 0;
+    std::uint8_t Z = 0;
     double atomicWeight = 0;
     double standardDensity = 0;
     std::vector<std::pair<double, double>> coherent;

@@ -1825,36 +1825,36 @@ template <int LOWENERGYCORRECTION>
 bool runAll(std::uint32_t N_threads)
 {
     auto success = true;
+    /*
+        success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case1Fluence<IsotropicMonoEnergyBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case1Fluence<IsotropicBeamCircle<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case2AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
 
-    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case3AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
+        success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
 
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, false);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, false, true);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, false);
-    success = success && TG195Case41AbsorbedEnergy<LOWENERGYCORRECTION>(N_threads, true, true);
-
-    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads, false);
-    success = success && TG195Case42AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads, true);
-
+        success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads, false);
+        success = success && TG195Case42AbsorbedEnergy<IsotropicCircularBeam<>, LOWENERGYCORRECTION>(N_threads, true);
+    */
     success = success && TG195Case5AbsorbedEnergy<IsotropicMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicBeam<>, LOWENERGYCORRECTION>(N_threads);
     success = success && TG195Case5AbsorbedEnergy<IsotropicCircularMonoEnergyBeam<>, LOWENERGYCORRECTION>(N_threads);

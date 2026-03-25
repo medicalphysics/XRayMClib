@@ -60,7 +60,7 @@ public:
         auto a = AtomHandler::Atom(Z);
         if (a.Z == static_cast<std::uint64_t>(Z)) {
             std::map<std::uint8_t, double> w;
-            w[static_cast<std::uint64_t>(Z)] = 1;
+            w[static_cast<std::uint8_t>(Z)] = 1;
             return byWeight(w);
         }
         return std::nullopt;
@@ -87,7 +87,7 @@ public:
         auto numberDensCompound = parseCompoundStr(str);
         if (numberDensCompound.size() == 0)
             return std::nullopt;
-        std::map<std::size_t, double> weight;
+        std::map<std::uint8_t, double> weight;
         for (const auto [Z, numDens] : numberDensCompound) {
             if (Z == 0 || Z > 99)
                 return std::nullopt;
@@ -291,11 +291,11 @@ public:
      * Z and number density (not normalized). It's kinda messy but supports parenthesis
      * in the expression.
      */
-    static std::map<std::uint64_t, double> parseCompoundStr(const std::string& str)
+    static std::map<std::uint8_t, double> parseCompoundStr(const std::string& str)
     {
         static std::array<std::string, 100> S { "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm" };
 
-        std::map<std::uint64_t, double> parsed;
+        std::map<std::uint8_t, double> parsed;
 
         auto begin = str.begin();
         std::vector<std::pair<std::string, std::string>> vals;
@@ -353,7 +353,7 @@ public:
         for (const auto& [el, num] : vals) {
             auto pos = std::find(S.begin(), S.end(), el);
             if (pos != S.end()) {
-                std::uint64_t Z = std::distance(S.begin(), pos) + 1;
+                std::uint8_t Z = std::distance(S.begin(), pos) + 1;
                 double w = 1.0;
                 try {
                     w = std::stod(num);
