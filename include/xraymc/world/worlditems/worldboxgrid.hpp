@@ -21,6 +21,7 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/interactions.hpp"
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/dosescore.hpp"
@@ -45,6 +46,15 @@ public:
         setVoxelDimensions({ 1, 1, 1 });
     }
 
+    WorldBoxGrid(const std::array<double, 6>& aabb, const Material<NMaterialShells>& material, double density = 1)
+        : m_aabb(aabb)
+        , m_materialDensity(density)
+        , m_material(material)
+    {
+        correctAABB();
+        setVoxelDimensions({ 1, 1, 1 });
+    }
+
     WorldBoxGrid(double aabb_size, std::array<double, 3> pos = { 0, 0, 0 })
         : m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
     {
@@ -56,6 +66,8 @@ public:
         correctAABB();
         setVoxelDimensions({ 1, 1, 1 });
     }
+
+    bool operator==(const WorldBoxGrid<NMaterialShells, LOWENERGYCORRECTION>&) const = default;
 
     void setMaterial(const Material<NMaterialShells>& material)
     {
@@ -80,10 +92,10 @@ public:
         return false;
     }
 
-    void setVoxelDimensions(const std::array<std::uint_fast32_t, 3>& dim)
+    void setVoxelDimensions(const std::array<std::uint64_t, 3>& dim)
     {
         for (std::size_t i = 0; i < 3; ++i)
-            m_voxelDim[i] = std::min(std::max(std::uint_fast32_t { 1 }, dim[i]), std::uint_fast32_t { 1000 });
+            m_voxelDim[i] = std::min(std::max(std::uint64_t { 1 }, dim[i]), std::uint64_t { 1000 });
 
         for (std::size_t i = 0; i < 3; ++i) {
             m_voxelSize[i] = (m_aabb[i + 3] - m_aabb[i]) / m_voxelDim[i];
@@ -94,12 +106,12 @@ public:
         m_dose.resize(ndim);
     }
 
-    std::uint_fast32_t totalNumberOfVoxels() const
+    std::uint64_t totalNumberOfVoxels() const
     {
         return m_voxelDim[0] * m_voxelDim[1] * m_voxelDim[2];
     }
 
-    const std::array<std::uint_fast32_t, 3>& voxelDimensions() const
+    const std::array<std::uint64_t, 3>& voxelDimensions() const
     {
         return m_voxelDim;
     }
@@ -110,17 +122,17 @@ public:
     }
 
     template <bool BOUNDSCHECK = true>
-    std::uint_fast32_t gridIndex(const std::array<double, 3>& pos) const noexcept
+    std::uint64_t gridIndex(const std::array<double, 3>& pos) const noexcept
     {
         if constexpr (BOUNDSCHECK) {
-            const auto x = static_cast<std::uint_fast32_t>(std::clamp((pos[0] - m_aabb[0]) * m_voxelSizeInv[0], double { 0 }, static_cast<double>(m_voxelDim[0] - 1)));
-            const auto y = static_cast<std::uint_fast32_t>(std::clamp((pos[1] - m_aabb[1]) * m_voxelSizeInv[1], double { 0 }, static_cast<double>(m_voxelDim[1] - 1)));
-            const auto z = static_cast<std::uint_fast32_t>(std::clamp((pos[2] - m_aabb[2]) * m_voxelSizeInv[2], double { 0 }, static_cast<double>(m_voxelDim[2] - 1)));
+            const auto x = static_cast<std::uint64_t>(std::clamp((pos[0] - m_aabb[0]) * m_voxelSizeInv[0], double { 0 }, static_cast<double>(m_voxelDim[0] - 1)));
+            const auto y = static_cast<std::uint64_t>(std::clamp((pos[1] - m_aabb[1]) * m_voxelSizeInv[1], double { 0 }, static_cast<double>(m_voxelDim[1] - 1)));
+            const auto z = static_cast<std::uint64_t>(std::clamp((pos[2] - m_aabb[2]) * m_voxelSizeInv[2], double { 0 }, static_cast<double>(m_voxelDim[2] - 1)));
             return x + (y + z * m_voxelDim[1]) * m_voxelDim[0];
         } else {
-            const auto x = static_cast<std::uint_fast32_t>((pos[0] - m_aabb[0]) * m_voxelSizeInv[0]);
-            const auto y = static_cast<std::uint_fast32_t>((pos[1] - m_aabb[1]) * m_voxelSizeInv[1]);
-            const auto z = static_cast<std::uint_fast32_t>((pos[2] - m_aabb[2]) * m_voxelSizeInv[2]);
+            const auto x = static_cast<std::uint64_t>((pos[0] - m_aabb[0]) * m_voxelSizeInv[0]);
+            const auto y = static_cast<std::uint64_t>((pos[1] - m_aabb[1]) * m_voxelSizeInv[1]);
+            const auto z = static_cast<std::uint64_t>((pos[2] - m_aabb[2]) * m_voxelSizeInv[2]);
             return x + (y + z * m_voxelDim[1]) * m_voxelDim[0];
         }
     }
@@ -229,6 +241,60 @@ public:
         }
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BoxGrid1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_aabb, buffer);
+        Serializer::serialize(m_materialDensity, buffer);
+        Serializer::serialize(m_voxelDim, buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+        return buffer;
+    }
+
+    static std::optional<WorldBoxGrid<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    {
+
+        std::array<double, 6> aabb;
+        buffer = Serializer::deserialize(aabb, buffer);
+
+        double dens;
+        buffer = Serializer::deserialize(dens, buffer);
+        std::array<std::uint64_t, 3> dim;
+        buffer = Serializer::deserialize(dim, buffer);
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+
+        auto mat_opt = Material<NMaterialShells>::byWeight(mat_weights);
+        if (mat_opt) {
+            WorldBoxGrid<NMaterialShells, LOWENERGYCORRECTION> item(aabb, mat_opt.value(), dens);
+            item.setMaterialDensity(dens);
+            item.setVoxelDimensions(dim);
+            buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
+
+            return std::make_optional(item);
+        }
+        return std::nullopt;
+    }
+
 protected:
     void correctAABB()
     {
@@ -258,7 +324,7 @@ private:
     double m_materialDensity = 1;
     std::array<double, 3> m_voxelSize = { 1, 1, 1 };
     std::array<double, 3> m_voxelSizeInv = { 1, 1, 1 };
-    std::array<std::uint_fast32_t, 3> m_voxelDim = { 1, 1, 1 };
+    std::array<std::uint64_t, 3> m_voxelDim = { 1, 1, 1 };
     Material<NMaterialShells> m_material;
     std::vector<EnergyScore> m_energyScored;
     std::vector<DoseScore> m_dose;

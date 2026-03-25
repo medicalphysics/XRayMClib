@@ -18,6 +18,7 @@ Copyright 2026 Erlend Andersen
 
 #include "xraymc/serializer.hpp"
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/worldboxgrid.hpp"
 #include "xraymc/world/worlditems/worldcylinder.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
@@ -48,8 +49,6 @@ bool testItem(const T& item)
     if (item_opt) {
         auto& item_read = item_opt.value();
         return item_read == item;
-
-        // return item_read == item;
     }
 
     return false;
@@ -72,7 +71,8 @@ int main()
     xraymc::AAVoxelGrid<12, 2, 255> vgrid;
     success = success && testItem(vgrid);
 
-    auto water_opt = xraymc::Material<12>::byChemicalFormula("H2O");
+    xraymc::WorldBoxGrid<15, 2> boxgrid;
+    success = success && testItem(boxgrid);
 
     if (success)
         return EXIT_SUCCESS;
