@@ -243,7 +243,7 @@ public:
 
     constexpr static std::array<char, 32> magicID()
     {
-        std::string name = "BoxGrid1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        std::string name = "WorldBoxGrid1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
         name.resize(32, ' ');
         std::array<char, 32> k;
         std::copy(name.cbegin(), name.cend(), k.begin());

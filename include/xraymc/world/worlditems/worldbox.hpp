@@ -54,6 +54,8 @@ public:
         m_materialDensity = NISTMaterials::density("Air, Dry (near sea level)");
     }
 
+    bool operator==(const WorldBox<NMaterialShells, LOWENERGYCORRECTION>&) const = default;
+
     void setAABB(const std::array<double, 6>& aabb)
     {
         m_aabb = aabb;
@@ -162,6 +164,58 @@ public:
         m_dose.clear();
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "WorldBox1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_aabb, buffer);
+        Serializer::serialize(m_materialDensity, buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+        return buffer;
+    }
+
+    static std::optional<WorldBox<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    {
+
+        std::array<double, 6> aabb;
+        buffer = Serializer::deserialize(aabb, buffer);
+
+        double dens;
+        buffer = Serializer::deserialize(dens, buffer);
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+
+        auto mat_opt = Material<NMaterialShells>::byWeight(mat_weights);
+
+        WorldBox<NMaterialShells, LOWENERGYCORRECTION> item(aabb, mat_opt.value(), dens);
+
+        if (mat_opt) {
+            item.setMaterial(mat_opt.value(), dens);
+        } else {
+            return std::nullopt;
+        }
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
+        return std::nullopt;
+    }
+
 protected:
     void transportForced(ParticleType auto& p, RandomState& state) noexcept
     {
@@ -226,8 +280,8 @@ protected:
 
 private:
     std::array<double, 6> m_aabb;
-    Material<NMaterialShells> m_material;
     double m_materialDensity = 1;
+    Material<NMaterialShells> m_material;
     EnergyScore m_energyScored;
     DoseScore m_dose;
 };
