@@ -43,6 +43,7 @@ public:
     {
         setPlaneNormal(normal);
         setEnergyStep(1);
+        calculateAABB();
     }
 
     void setEnergyStep(double step)
@@ -135,7 +136,7 @@ public:
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         const auto aabb_inter = basicshape::AABB::intersectForwardInterval(p, m_aabb);
-        return aabb_inter ? intersectDisc(p) : WorldIntersectionResult {};
+        return aabb_inter ? intersectDisc(p) : WorldIntersectionResult { };
     }
 
     template <typename U>
@@ -170,7 +171,7 @@ public:
 
     const DoseScore doseScored(std::size_t index = 0) const
     {
-        return DoseScore {};
+        return DoseScore { };
     }
 
     void clearDoseScored()
@@ -188,6 +189,61 @@ public:
         counter++;
         m_energyScored.scoreEnergy(particle.energy);
         particle.border_translate(0);
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "FluenceScore1";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_center, buffer);
+        Serializer::serialize(m_normal, buffer);
+        Serializer::serialize(m_radius, buffer);
+        Serializer::serialize(m_energy_step, buffer);
+        Serializer::serialize(m_intensity, buffer);
+        Serializer::serialize(m_energyScored.energyImparted(), buffer);
+        Serializer::serialize(m_energyScored.energyImpartedSquared(), buffer);
+        Serializer::serialize(m_energyScored.numberOfEvents(), buffer);
+        return buffer;
+    }
+
+    static std::optional<FluenceScore> deserialize(std::span<const char> buffer)
+    {
+        FluenceScore item;
+
+        buffer = Serializer::deserialize(item.m_center, buffer);
+        buffer = Serializer::deserialize(item.m_normal, buffer);
+        buffer = Serializer::deserialize(item.m_radius, buffer);
+        buffer = Serializer::deserialize(item.m_energy_step, buffer);
+        buffer = Serializer::deserialize(item.m_intensity, buffer);
+        
+        double energy, energySq;
+        buffer = Serializer::deserialize(energy, buffer);
+        buffer = Serializer::deserialize(energySq, buffer);
+        
+        std::uint64_t nevents;
+        buffer = Serializer::deserialize(nevents, buffer);
+        
+        item.m_energyScored.set(energy, energySq, nevents);
+
+        item.calculateAABB();
+
+        return std::make_optional(item);
     }
 
 protected:

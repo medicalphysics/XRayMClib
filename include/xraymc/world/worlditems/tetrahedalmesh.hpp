@@ -18,6 +18,7 @@ Copyright 2025 Erlend Andersen
 
 #pragma once
 #include "xraymc/particle.hpp"
+#include "xraymc/particletracker.hpp"
 #include "xraymc/world/dosescore.hpp"
 #include "xraymc/world/energyscore.hpp"
 #include "xraymc/world/visualizationintersectionresult.hpp"
@@ -223,7 +224,7 @@ public:
 
     WorldIntersectionResult intersect(const ParticleType auto& particle) const
     {
-        WorldIntersectionResult res {};
+        WorldIntersectionResult res { };
         if (auto inter = basicshape::AABB::intersectForwardInterval(particle, m_aabb); inter) {
             auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
             if (kdres.valid()) {
@@ -238,7 +239,7 @@ public:
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& particle) const
     {
-        VisualizationIntersectionResult<U> res {};
+        VisualizationIntersectionResult<U> res { };
         if (auto inter = basicshape::AABB::intersectForwardInterval(particle, m_aabb); inter) {
             auto kdres = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, *inter);
             if (kdres.valid()) {
@@ -352,6 +353,115 @@ public:
         }
 
         siddonTransportStep(particle, state);
+    }
+
+    TetrahedalMeshData copyData() const
+    {
+        TetrahedalMeshData data;
+        data.nodes = m_vertices;
+
+        data.elements.resize(m_tetrahedrons.size());
+        std::transform(std::execution::unseq, m_tetrahedrons.cbegin(), m_tetrahedrons.cend(), data.elements.begin(), [](const auto& t) { return t.verticeIdx; });
+
+        data.collectionIndices = m_collectionIdx;
+        data.collectionDensities = m_collectionDensities;
+        data.collectionMaterialComposition.resize(m_collectionMaterials.size());
+        std::transform(std::execution::unseq, m_collectionMaterials.cbegin(), m_collectionMaterials.cend(), data.collectionMaterialComposition.begin(), [](const auto& m) { return m.composition(); });
+        data.collectionNames = m_collectionNames;
+
+        return data;
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "TetMesh1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells) + std::to_string(FORCEDINTERACTION);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+
+        auto buffer = Serializer::getEmptyBuffer();
+        {
+            std::vector<double> nodes_flat;
+            nodes_flat.reserve(m_vertices.size() * 3);
+            for (const auto& n : m_vertices)
+                for (const auto& v : n)
+                    nodes_flat.push_back(v);
+            Serializer::serialize(nodes_flat, buffer);
+        }
+        {
+            std::vector<std::uint32_t> elements_flat;
+            elements_flat.reserve(m_tetrahedrons.size() * 4);
+            for (const auto& n : m_tetrahedrons)
+                for (const auto& v : n.verticeIdx)
+                    elements_flat.push_back(v);
+            Serializer::serialize(elements_flat, buffer);
+        }
+        Serializer::serialize(m_collectionIdx, buffer);
+        Serializer::serialize(m_collectionDensities, buffer);
+        {
+            std::vector<std::map<std::uint8_t, double>> material_weights(m_collectionMaterials.size());
+            std::transform(std::execution::unseq, m_collectionMaterials.cbegin(), m_collectionMaterials.cend(),
+                material_weights.begin(), [](const auto& m) {
+                    return m.composition();
+                });
+            Serializer::serializeMaterialWeights(material_weights, buffer);
+        }
+        Serializer::serialize(m_collectionNames, buffer);
+
+        Serializer::serializeDoseScore(m_doseScore, buffer);
+        return buffer;
+    }
+
+    static std::optional<TetrahedalMesh<NMaterialShells, LOWENERGYCORRECTION, FORCEDINTERACTION>> deserialize(std::span<const char> buffer)
+    {
+
+        TetrahedalMeshData data;
+        { // nodes
+            std::vector<double> nodes_flat;
+            buffer = Serializer::deserialize(nodes_flat, buffer);
+            data.nodes.resize(nodes_flat.size() / 3);
+            for (std::size_t i = 0; i < data.nodes.size(); ++i) {
+                for (std::size_t j = 0; j < 3; ++j) {
+                    data.nodes[i][j] = nodes_flat[i * 3 + j];
+                }
+            }
+        }
+        { // elements
+            std::vector<std::uint32_t> elements_flat;
+            buffer = Serializer::deserialize(elements_flat, buffer);
+            data.elements.resize(elements_flat.size() / 4);
+            for (std::size_t i = 0; i < data.elements.size(); ++i) {
+                for (std::size_t j = 0; j < 4; ++j) {
+                    data.elements[i][j] = elements_flat[i * 4 + j];
+                }
+            }
+        }
+        buffer = Serializer::deserialize(data.collectionIndices, buffer);
+        buffer = Serializer::deserialize(data.collectionDensities, buffer);
+        buffer = Serializer::deserializeMaterialWeights(data.collectionMaterialComposition, buffer);
+        buffer = Serializer::deserialize(data.collectionNames, buffer);
+
+        TetrahedalMesh<NMaterialShells, LOWENERGYCORRECTION, FORCEDINTERACTION> item;
+
+        if (item.setData(data)) {
+            buffer = Serializer::deserializeDoseScore(item.m_doseScore, buffer);
+            if (item.m_doseScore.size() == item.m_tetrahedrons.size())
+                return item;
+        }
+        return std::nullopt;
     }
 
 protected:

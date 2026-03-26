@@ -317,6 +317,77 @@ public:
         return std::abs(vol) / 6;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "TriMesh1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+
+        std::vector<double> tris_points;
+        tris_points.reserve(m_triangles.size() * 3 * 3); // three vertices and three coords per vertice
+        for (const auto& tri : m_triangles) {
+            for (const auto& v : tri) {
+                for (const auto& p : v) {
+                    tris_points.push_back(p);
+                }
+            }
+        }
+        Serializer::serialize(tris_points);
+
+        Serializer::serialize(m_materialDensity, buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<TriangulatedMesh<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    {
+        std::vector<double> points;
+        buffer = Serializer::deserialize(points, buffer);
+        std::vector<Triangle> triangles(points.size() / (3 * 3));
+        std::size_t idx = 0;
+        for (auto& tri : triangles) {
+            for (auto& v : tri) {
+                for (auto& p : v) {
+                    p = points[idx++];
+                }
+            }
+        }
+
+        TriangulatedMesh<NMaterialShells, LOWENERGYCORRECTION> item(triangles);
+
+        buffer = Serializer::deserialize(item.m_materialDensity, buffer);
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        auto material_opt = Material<NMaterialShells>::byWeight(mat_weights);
+        if (material_opt) {
+            item.m_material = material_opt.value();
+        } else {
+            return std::nullopt;
+        }
+
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
+
+        return item;
+    }
+
 protected:
     void calculateAABB()
     {

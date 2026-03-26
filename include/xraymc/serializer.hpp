@@ -189,7 +189,7 @@ public:
 
     // Serialize a vector of doubles or uint64 values or uint8
     template <typename T>
-        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
+        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value || std::is_same<T, std::uint32_t>::value)
     static void serialize(const std::vector<T>& in, std::vector<char>& buffer)
     {
         const std::uint64_t n_elements = in.size();
@@ -212,7 +212,7 @@ public:
     }
 
     template <typename T>
-        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
+        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value || std::is_same<T, std::uint32_t>::value)
     static std::span<const char> deserialize(std::vector<T>& out, std::span<const char> begin)
     {
         std::uint64_t n_elements;
@@ -229,7 +229,7 @@ public:
     }
 
     template <typename T, std::size_t N>
-        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value)
+        requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static std::span<const char> deserialize(std::array<T, N>& out, std::span<const char> begin)
     {
         std::uint64_t n_elements;
@@ -244,6 +244,31 @@ public:
         auto start = reinterpret_cast<const T*>(data_start.data());
         std::copy(start, start + n_elements, out.data());
         return data_start.subspan(n_elements * sizeof(T));
+    }
+
+    static void serialize(const std::vector<std::string>& in, std::vector<char>& buffer)
+    {
+        const std::uint64_t n_elements = in.size();
+        serialize(n_elements, buffer);
+        for (const auto& s : in) {
+            const std::uint64_t len = s.size();
+            serialize(len, buffer);
+            std::copy(s.c_str(), s.c_str() + len, std::back_inserter(buffer));
+        }
+    }
+
+    static std::span<const char> deserialize(std::vector<std::string>& out, std::span<const char> begin)
+    {
+        std::uint64_t n_elements;
+        begin = deserialize(n_elements, begin);
+        out.resize(n_elements);
+        for (std::size_t i = 0; i < n_elements; ++i) {
+            std::uint64_t len;
+            begin = deserialize(len, begin);
+            out[i] = std::string(begin.data(), len);
+            begin = begin.subspan(len);
+        }
+        return begin;
     }
 
     static void serializeMaterialWeights(const std::map<std::uint8_t, double>& map, std::vector<char>& buffer)

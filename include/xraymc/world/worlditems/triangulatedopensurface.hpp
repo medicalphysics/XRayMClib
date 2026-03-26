@@ -39,12 +39,6 @@ namespace xraymc {
 template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class TriangulatedOpenSurface {
 public:
-    TriangulatedOpenSurface()
-        : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
-        , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
-    {
-    }
-
     TriangulatedOpenSurface(const std::vector<Triangle>& triangles, double surfaceThickness = 0.035, const std::size_t max_tree_dept = 8)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -300,6 +294,79 @@ public:
         return m_aabb;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "TriOpenSurface1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+
+        std::vector<double> tris_points;
+        tris_points.reserve(m_triangles.size() * 3 * 3); // three vertices and three coords per vertice
+        for (const auto& tri : m_triangles) {
+            for (const auto& v : tri) {
+                for (const auto& p : v) {
+                    tris_points.push_back(p);
+                }
+            }
+        }
+        Serializer::serialize(tris_points);
+
+        Serializer::serialize(m_materialDensity, buffer);
+        Serializer::serialize(m_thickness, buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<TriangulatedOpenSurface<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    {
+        std::vector<double> points;
+        buffer = Serializer::deserialize(points, buffer);
+        std::vector<Triangle> triangles(points.size() / (3 * 3));
+        std::size_t idx = 0;
+        for (auto& tri : triangles) {
+            for (auto& v : tri) {
+                for (auto& p : v) {
+                    p = points[idx++];
+                }
+            }
+        }
+
+        TriangulatedOpenSurface<NMaterialShells, LOWENERGYCORRECTION> item(triangles);
+
+        buffer = Serializer::deserialize(item.m_materialDensity, buffer);
+        buffer = Serializer::deserialize(item.m_thickness, buffer);
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        auto material_opt = Material<NMaterialShells>::byWeight(mat_weights);
+        if (material_opt) {
+            item.m_material = material_opt.value();
+        } else {
+            return std::nullopt;
+        }
+
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
+
+        return item;
+    }
+
 protected:
     void calculateAABB()
     {
@@ -330,62 +397,6 @@ protected:
         }
         m_aabb = aabb;
     }
-
-    /*std::optional<double> intersectOffsetTriangle(const ParticleType auto& p const Triangle* tri)
-    {
-        Triangle off = *tri;
-        const auto dist = vectormath::scale(off.planeVector(), m_thickness);
-        off.translate(dist);
-        return off.intersect(p)
-    }
-
-    std::optional<double> intersectPrismPlanes(const ParticleType auto& p, const Triangle* tri)
-    {
-        const auto& verts = tri->vertices();
-        const auto v_norm = tri->planeVector();
-
-        double min_inter = -1;
-        // first plane
-        {
-            const auto n = vectormath::cross(v_norm, vectormath::subtract(verts[0], verts[1]));
-            const auto dn = vectormath::dot(p.dir, n);
-            if (std::abs(dn) > GEOMETRIC_ERROR<double>()) {
-                const auto p = vectormath::subtract(p.pos, verts[0]);
-                min_inter = vectormath::dot(p, b) / dn;
-            }
-        }
-        // second plane
-        {
-            const auto n = vectormath::cross(v_norm, vectormath::subtract(verts[1], verts[2]));
-            const auto dn = vectormath::dot(p.dir, n);
-            if (std::abs(dn) > GEOMETRIC_ERROR<double>()) {
-                const auto p = vectormath::subtract(p.pos, verts[1]);
-                const auto cand = vectormath::dot(p, b) / dn;
-                if (cand > 0) {
-                    if (min_inter > 0)
-                        min_inter = std::min(cand, min_inter);
-                    else
-                        min_inter = cand;
-                }
-            }
-        }
-        // third plane
-        {
-            const auto n = vectormath::cross(v_norm, vectormath::subtract(verts[2], verts[0]));
-            const auto dn = vectormath::dot(p.dir, n);
-            if (std::abs(dn) > GEOMETRIC_ERROR<double>()) {
-                const auto p = vectormath::subtract(p.pos, verts[2]);
-                const auto cand = vectormath::dot(p, b) / dn;
-                if (cand > 0) {
-                    if (min_inter > 0)
-                        min_inter = std::min(cand, min_inter);
-                    else
-                        min_inter = cand;
-                }
-            }
-        }
-        return min_inter < 0 ? std::nullopt : min_inter;
-    }*/
 
     static double calculateVolume(const std::vector<Triangle>& triangles, double thickness)
     {

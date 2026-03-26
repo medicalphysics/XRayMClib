@@ -244,6 +244,61 @@ public:
         return m_tracker;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "DepthDose1" + std::to_string(NMaterialShells) + std::to_string(LOWENERGYCORRECTION) + std::to_string(FORCEINTERACTIONS);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_cylinder.center, buffer);
+        Serializer::serialize(m_cylinder.radius, buffer);
+        Serializer::serialize(m_cylinder.direction, buffer);
+        Serializer::serialize(m_cylinder.half_height, buffer);
+        Serializer::serialize(m_materialDensity, buffer);
+        Serializer::serializeMaterialWeights()(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<DepthDose<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>> deserialize(std::span<const char> buffer)
+    {
+        DepthDose<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS> item;
+
+        buffer = Serializer::deserialize(item.m_cylinder.center, buffer);
+        buffer = Serializer::deserialize(item.m_cylinder.radius, buffer);
+        buffer = Serializer::deserialize(item.m_cylinder.direction, buffer);
+        buffer = Serializer::deserialize(item.m_cylinder.half_height, buffer);
+        buffer = Serializer::deserialize(item.m_materialDensity, buffer);
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        if (auto mat_opt = Material<NMaterialShells>::byWeight(mat_weights); mat_opt) {
+            item.m_material = mat_opt.value();
+        } else {
+            return std::nullopt;
+        }
+        buffer = Serializer::deserializeDoseScore(item.m_doseScore, buffer);
+
+        item.updateAABB();
+
+        return item;
+    }
+
 protected:
     void updateAABB()
     {

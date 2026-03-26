@@ -252,6 +252,66 @@ public:
         return m_cylinder.half_height * 2;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "CTDIPhantom1" + std::to_string(NMaterialShells) + std::to_string(LOWENERGYCORRECTION) + std::to_string(FORCEDINTERACTIONS);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_cylinder.center, buffer);
+        Serializer::serialize(m_cylinder.radius, buffer);
+        Serializer::serialize(m_cylinder.direction, buffer);
+        Serializer::serialize(m_cylinder.half_height, buffer);
+
+        Serializer::serialize(m_air_density, buffer);
+
+        Serializer::serializeMaterialWeights()(m_air.composition(), buffer);
+
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<CTDIPhantom<NMaterialShells, LOWENERGYCORRECTION, FORCEDINTERACTIONS>> deserialize(std::span<const char> buffer)
+    {
+        std::array<double, 3> center;
+        buffer = Serializer::deserialize(center, buffer);
+        double radius;
+        buffer = Serializer::deserialize(radius, buffer);
+        std::array<double, 3> direction;
+        buffer = Serializer::deserialize(direction, buffer);
+        double half_height;
+        buffer = Serializer::deserialize(half_height, buffer);
+
+        CTDIPhantom<NMaterialShells, LOWENERGYCORRECTION, FORCEDINTERACTIONS> item(radius, half_height * 2, center, direction);
+        buffer = Serializer::deserialize(item.m_air_density, buffer);
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        if (auto mat_opt = Material<NMaterialShells>::byWeight(mat_weights); mat_opt) {
+            item.m_air = mat_opt.value();
+        } else {
+            return std::nullopt;
+        }
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
+
+        return item;
+    }
+
 protected:
     struct CTDIAirHole {
         basicshape::cylinder::Cylinder cylinder;

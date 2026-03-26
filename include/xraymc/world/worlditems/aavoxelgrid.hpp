@@ -35,7 +35,7 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
-template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, std::uint_fast8_t TRANSPARENTVOXELS = 255>
+template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, std::uint8_t TRANSPARENTVOXELS = 255>
 class AAVoxelGrid {
 public:
     AAVoxelGrid()

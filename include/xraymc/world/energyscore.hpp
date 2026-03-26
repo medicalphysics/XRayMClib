@@ -106,6 +106,13 @@ public:
         return m_nEvents;
     }
 
+    void set(double energy, double energySquared, std::uint64_t n_events)
+    {
+        m_nEvents = n_events;
+        m_energyImparted = energy;
+        m_energyImpartedSquared = energySquared;
+    }
+
     void clear()
     {
         m_nEvents = 0;

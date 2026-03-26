@@ -226,6 +226,52 @@ public:
         return m_tracker;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "FlatDetector1";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_center, buffer);
+        Serializer::serialize(m_pixel_spacing, buffer);
+        Serializer::serialize(m_detector_dimensions, buffer);
+        Serializer::serialize(m_direction_cosines[0], buffer);
+        Serializer::serialize(m_direction_cosines[1], buffer);
+        Serializer::serializeDoseScore(m_doseScore, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<FlatDetector> deserialize(std::span<const char> buffer)
+    {
+        FlatDetector item;
+
+        buffer = Serializer::deserialize(item.m_center, buffer);
+        buffer = Serializer::deserialize(item.m_pixel_spacing, buffer);
+        buffer = Serializer::deserialize(item.m_detector_dimensions, buffer);
+        buffer = Serializer::deserialize(item.m_direction_cosines[0], buffer);
+        buffer = Serializer::deserialize(item.m_direction_cosines[1], buffer);
+        buffer = Serializer::deserializeDoseScore(item.m_doseScore, buffer);
+
+        item.m_aabb = item.calculateAABB();
+
+        return item;
+    }
+
 protected:
     static std::pair<double, double> minmax(const double a, const double b)
     {

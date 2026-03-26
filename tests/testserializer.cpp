@@ -18,21 +18,24 @@ Copyright 2026 Erlend Andersen
 
 #include "xraymc/serializer.hpp"
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"
+#include "xraymc/world/worlditems/ctdiphantom.hpp"
+#include "xraymc/world/worlditems/depthdose.hpp"
+#include "xraymc/world/worlditems/enclosedroom.hpp"
+#include "xraymc/world/worlditems/flatdetector.hpp"
+#include "xraymc/world/worlditems/fluencescore.hpp"
+#include "xraymc/world/worlditems/tetrahedalmesh.hpp"
+#include "xraymc/world/worlditems/triangulatedmesh.hpp"
+#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
 #include "xraymc/world/worlditems/worldboxgrid.hpp"
 #include "xraymc/world/worlditems/worldcylinder.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
-#include "xraymc/world/worlditems/worldbox.hpp"
 
 #include <iostream>
 
 template <typename T>
 bool testItem(const T& item)
 {
-
-    auto m1 = xraymc::Material<16>::byZ(6).value();
-    auto m2 = xraymc::Material<16>::byZ(6).value();
-
-    return m1 == m2;
 
     xraymc::Serializer s;
 
@@ -55,9 +58,26 @@ bool testItem(const T& item)
     return false;
 }
 
+bool testString()
+{
+    xraymc::Serializer s;
+
+    std::vector<std::string> ss;
+    ss.push_back("Test 1");
+    ss.push_back("Testing 2 ");
+
+    auto buffer = s.getEmptyBuffer();
+    s.serialize(ss, buffer);
+
+    std::vector<std::string> ss_out;
+    auto end = s.deserialize(ss_out, buffer);
+    return ss_out == ss;
+}
+
 int main()
 {
-    bool success = true;
+
+    bool success = testString();
 
     xraymc::WorldSphere<12, 2, true> sphere;
     sphere.setCenter({ 1, 2, 3 });

@@ -232,6 +232,55 @@ public:
         }
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "EnclosedRoom1" + std::to_string(NMaterialShells) + std::to_string(LOWENERGYCORRECTION);
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_wallThickness, buffer);
+        Serializer::serialize(m_innerAABB, buffer);
+        Serializer::serialize(m_density, buffer);
+        Serializer::serializeMaterialWeights()(m_material.composition(), buffer);
+        Serializer::serializeDoseScore(m_dose, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<EnclosedRoom<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    {
+        EnclosedRoom<NMaterialShells, LOWENERGYCORRECTION> item;
+
+        buffer = Serializer::deserialize(item.m_wallThickness, buffer);
+        buffer = Serializer::deserialize(item.m_innerAABB, buffer);
+        item.m_outerAABB = item.outerAABfromInner(item.m_innerAABB, item.m_wallThickness);
+        buffer = Serializer::deserialize(item.m_density, buffer);
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        if (auto mat_opt = Material<NMaterialShells>::byWeight(mat_weights); mat_opt) {
+            item.m_material = mat_opt.value();
+        } else {
+            return std::nullopt;
+        }
+        buffer = Serializer::deserializeDoseScore(item.m_doseScore, buffer);
+
+        return item;
+    }
+
 protected:
     static std::array<double, 6> outerAABfromInner(const std::array<double, 6>& inner, double wall_thickness)
     {

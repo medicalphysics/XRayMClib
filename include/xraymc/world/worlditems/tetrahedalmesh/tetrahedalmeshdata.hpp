@@ -38,7 +38,7 @@ struct TetrahedalMeshData {
 
     // specify collection/organ properties
     std::vector<double> collectionDensities;
-    std::vector<std::map<std::size_t, double>> collectionMaterialComposition;
+    std::vector<std::map<std::uint8_t, double>> collectionMaterialComposition;
     std::vector<std::string> collectionNames;
 
     auto maxCollectionNumber() const
@@ -67,7 +67,7 @@ struct TetrahedalMeshData {
         return val;
     }
 
-    void changeMaterialComposition(std::uint32_t collectionIndex, const std::map<std::size_t, double>& newComposition)
+    void changeMaterialComposition(std::uint32_t collectionIndex, const std::map<std::uint8_t, double>& newComposition)
     {
         auto& comp = collectionMaterialComposition.at(collectionIndex);
         comp.clear();
