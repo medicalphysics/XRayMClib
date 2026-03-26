@@ -54,7 +54,15 @@ public:
         m_materialDensity = NISTMaterials::density("Air, Dry (near sea level)");
     }
 
-    bool operator==(const WorldBox<NMaterialShells, LOWENERGYCORRECTION>&) const = default;
+    WorldBox(const std::array<double, 6>& aabb, const Material<NMaterialShells>& material, double density)
+        : m_aabb(aabb)
+        , m_material(material)
+    {
+        m_materialDensity = std::abs(density);
+        correctAABB();
+    }
+
+    bool operator==(const WorldBox<NMaterialShells, LOWENERGYCORRECTION, FORCE_INTERACTIONS>&) const = default;
 
     void setAABB(const std::array<double, 6>& aabb)
     {
@@ -166,7 +174,7 @@ public:
 
     constexpr static std::array<char, 32> magicID()
     {
-        std::string name = "WorldBox1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
+        std::string name = "WorldBox1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells) + std::to_string(FORCE_INTERACTIONS);
         name.resize(32, ' ');
         std::array<char, 32> k;
         std::copy(name.cbegin(), name.cend(), k.begin());
@@ -191,7 +199,7 @@ public:
         return buffer;
     }
 
-    static std::optional<WorldBox<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
+    static std::optional<WorldBox<NMaterialShells, LOWENERGYCORRECTION, FORCE_INTERACTIONS>> deserialize(std::span<const char> buffer)
     {
 
         std::array<double, 6> aabb;
@@ -205,7 +213,7 @@ public:
 
         auto mat_opt = Material<NMaterialShells>::byWeight(mat_weights);
 
-        WorldBox<NMaterialShells, LOWENERGYCORRECTION> item(aabb, mat_opt.value(), dens);
+        WorldBox<NMaterialShells, LOWENERGYCORRECTION, FORCE_INTERACTIONS> item(aabb, mat_opt.value(), dens);
 
         if (mat_opt) {
             item.setMaterial(mat_opt.value(), dens);

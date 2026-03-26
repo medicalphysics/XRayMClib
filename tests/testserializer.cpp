@@ -21,6 +21,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/worlditems/worldboxgrid.hpp"
 #include "xraymc/world/worlditems/worldcylinder.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
 
 #include <iostream>
 
@@ -73,6 +74,9 @@ int main()
 
     xraymc::WorldBoxGrid<15, 2> boxgrid;
     success = success && testItem(boxgrid);
+
+    xraymc::WorldBox<12, 2> box;
+    success = success && testItem(box);
 
     if (success)
         return EXIT_SUCCESS;
