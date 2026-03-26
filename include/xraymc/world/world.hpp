@@ -21,6 +21,7 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/interactions.hpp"
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/kdtreeflat.hpp"
@@ -340,6 +341,80 @@ public:
                 }
             }
         }
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "World1";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+
+        Serializer::serialize(static_cast<std::uint64_t>(m_items.size()), buffer);
+        for (const auto& item : m_items) {
+            auto item_buffer = std::visit([](const auto& arg) { return arg.serialize(); }, item);
+            const auto item_name = std::visit([](const auto& arg) { return arg.magicID(); }, item);
+            Serializer::serializeItem(item_name, item_buffer, buffer);
+        }
+        return buffer;
+    }
+
+    static std::vector<std::array<char, 32>> itemMagicIDs()
+    {
+        std::vector<std::array<char, 32>> names;
+        names.push_back(F::magicID());
+        ((names.push_back(Us::magicID())), ...); // Fold expression magic
+        return names;
+    }
+
+    static std::optional<World<F, Us...>> deserialize(std::span<const char> buffer)
+    {
+        std::uint64_t n_elements;
+        buffer = Serializer::deserialize(n_elements, buffer);
+
+        World<F, Us...> world;
+
+        std::vector<std::array<char, 32>> IDs = world.itemMagicIDs();
+
+        for (std::size_t i = 0; i < n_elements; ++i) {
+            std::vector<char> item_buffer;
+            std::array<char, 32> item_name;
+            buffer = Serializer::deserializeItem(item_name, item_buffer, buffer);
+
+            std::optional<std::variant<F, Us...>> item_opt;
+
+            if (F::validMagicID(item_name)) {
+                item_opt = F::deserialize(item_buffer); // First type
+            } else {
+                if (!item_opt) {
+                    ((item_opt ? item_opt : (Us::validMagicID(item_name) ? Us::deserialize(item_buffer) : item_opt)), ...); // Fold expression for the rest of Us types
+                }
+            }
+
+            if (item_opt)
+                world.m_items.push_back(item_opt.value());
+            else {
+                return std::nullopt;
+            }
+        }
+
+        return world;
+
+        // return buffer;
     }
 
 private:

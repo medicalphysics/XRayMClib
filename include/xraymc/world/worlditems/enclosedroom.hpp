@@ -255,7 +255,7 @@ public:
         Serializer::serialize(m_wallThickness, buffer);
         Serializer::serialize(m_innerAABB, buffer);
         Serializer::serialize(m_density, buffer);
-        Serializer::serializeMaterialWeights()(m_material.composition(), buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
         Serializer::serializeDoseScore(m_dose, buffer);
 
         return buffer;
@@ -276,7 +276,7 @@ public:
         } else {
             return std::nullopt;
         }
-        buffer = Serializer::deserializeDoseScore(item.m_doseScore, buffer);
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
 
         return item;
     }

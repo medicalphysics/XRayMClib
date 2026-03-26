@@ -269,7 +269,7 @@ public:
         Serializer::serialize(m_cylinder.direction, buffer);
         Serializer::serialize(m_cylinder.half_height, buffer);
         Serializer::serialize(m_materialDensity, buffer);
-        Serializer::serializeMaterialWeights()(m_material.composition(), buffer);
+        Serializer::serializeMaterialWeights(m_material.composition(), buffer);
         Serializer::serializeDoseScore(m_dose, buffer);
 
         return buffer;
@@ -292,7 +292,7 @@ public:
         } else {
             return std::nullopt;
         }
-        buffer = Serializer::deserializeDoseScore(item.m_doseScore, buffer);
+        buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
 
         item.updateAABB();
 

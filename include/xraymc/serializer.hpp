@@ -125,6 +125,13 @@ public:
         return std::unexpected(parse_error::buffer_file_error);
     }
 
+    static std::array<char, 32> getCurrentItemName(std::span<const char> buffer)
+    {
+        std::array<char, 32> name;
+        std::copy(buffer.cbegin(), buffer.cbegin() + name.size(), name.begin());
+        return name;
+    }
+
     static void serializeItem(const std::array<char, 32>& name, std::span<const char> in, std::vector<char>& buffer)
     {
 
@@ -143,9 +150,10 @@ public:
             throw std::length_error("Buffer lenght is too short to contain item requested.");
         }
 
-        if (std::search(buffer.cbegin(), buffer.cbegin() + name.size(), name.cbegin(), name.cend()) != buffer.cbegin()) {
+        /*if (std::search(buffer.cbegin(), buffer.cbegin() + name.size(), name.cbegin(), name.cend()) != buffer.cbegin()) {
             throw std::length_error("Buffer do not contain item requested.");
-        }
+        }*/
+        std::copy(buffer.cbegin(), buffer.cbegin() + name.size(), name.begin());
         buffer = buffer.subspan(name.size());
         std::uint64_t size;
         buffer = deserialize(size, buffer);
@@ -309,7 +317,7 @@ public:
 
         out.clear();
         for (std::uint64_t i = 0; i < size; i++) {
-            std::uint64_t Z;
+            std::uint8_t Z;
             double w;
             buffer = deserialize(Z, buffer);
             buffer = deserialize(w, buffer);
