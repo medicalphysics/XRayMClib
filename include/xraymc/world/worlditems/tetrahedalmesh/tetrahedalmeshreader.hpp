@@ -124,7 +124,7 @@ public:
 
     void clear()
     {
-        m_data = TetrahedalMeshData {};
+        m_data = TetrahedalMeshData { };
     }
 
     void rotate(const std::array<double, 3>& axis, double angle)
@@ -146,7 +146,7 @@ protected:
         std::uint32_t index = 1; // default value from tetgen
         std::uint32_t material_index = 0; // internal use
         double density = -1;
-        std::map<std::size_t, double> material_weights;
+        std::map<std::uint8_t, double> material_weights;
         std::string name;
     };
 
@@ -374,7 +374,7 @@ protected:
 
             std::array<std::size_t, 13> Z = { 1, 6, 7, 8, 11, 12, 15, 16, 17, 19, 20, 26, 53 };
             std::size_t zIdx = 0;
-            std::map<std::size_t, double> frac;
+            std::map<std::uint8_t, double> frac;
             while (start < end) {
                 double w = -1;
                 auto [ptr, ec] = std::from_chars(d + start, d + end, w);
@@ -484,8 +484,10 @@ protected:
                 std::size_t Z = 0;
                 double w = 0;
                 begin = parseLine(begin, end, ' ', Z, w) + 1;
-                if (begin < end)
-                    organ.material_weights[Z / 1000] = std::abs(w);
+                if (begin < end) {
+                    const auto Za = static_cast<std::uint8_t>(Z / 1000);
+                    organ.material_weights[Za] = std::abs(w);
+                }
             }
             return organ;
         });

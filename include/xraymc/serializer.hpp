@@ -78,6 +78,13 @@ public:
         return std::vector<char> { };
     }
 
+    static constexpr std::array<char, 32> getNameIDTemplate()
+    {
+        std::array<char, 32> t;
+        t.fill(' ');
+        return t;
+    }
+
     static std::span<const char, 16> version()
     {
         return std::span { "xraymc1        " };
