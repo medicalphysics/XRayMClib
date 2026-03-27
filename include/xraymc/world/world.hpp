@@ -397,11 +397,12 @@ public:
 
             std::optional<std::variant<F, Us...>> item_opt;
 
+            // Match iten_name to type Us by Us::validMagicID
             if (F::validMagicID(item_name)) {
                 item_opt = F::deserialize(item_buffer); // First type
             } else {
                 if (!item_opt) {
-                    ((item_opt ? item_opt : (Us::validMagicID(item_name) ? Us::deserialize(item_buffer) : item_opt)), ...); // Fold expression for the rest of Us types
+                    item_opt = ((item_opt ? item_opt : (Us::validMagicID(item_name) ? Us::deserialize(item_buffer) : item_opt)), ...); // Fold expression for the rest of Us types
                 }
             }
 
@@ -412,6 +413,7 @@ public:
             }
         }
 
+        world.build();
         return world;
 
         // return buffer;
