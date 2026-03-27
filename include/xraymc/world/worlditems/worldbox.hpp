@@ -222,7 +222,7 @@ public:
             return std::nullopt;
         }
         buffer = Serializer::deserializeDoseScore(item.m_dose, buffer);
-        return std::nullopt;
+        return item;
     }
 
 protected:
