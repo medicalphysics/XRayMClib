@@ -325,7 +325,7 @@ public:
                 }
             }
         }
-        Serializer::serialize(tris_points);
+        Serializer::serialize(tris_points, buffer);
 
         Serializer::serialize(m_materialDensity, buffer);
         Serializer::serialize(m_thickness, buffer);
