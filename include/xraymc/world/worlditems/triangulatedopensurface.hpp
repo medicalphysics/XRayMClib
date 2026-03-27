@@ -319,7 +319,7 @@ public:
         std::vector<double> tris_points;
         tris_points.reserve(m_triangles.size() * 3 * 3); // three vertices and three coords per vertice
         for (const auto& tri : m_triangles) {
-            for (const auto& v : tri) {
+            for (const auto& v : tri.vertices()) {
                 for (const auto& p : v) {
                     tris_points.push_back(p);
                 }
