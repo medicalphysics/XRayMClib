@@ -514,7 +514,7 @@ public:
                 return std::nullopt;
         }
 
-        const std::array<std::size_t, 3> dim = { dim_uint[0], dim_uint[0], dim_uint[0] };
+        const std::array<std::size_t, 3> dim = { dim_uint[0], dim_uint[1], dim_uint[2] };
         AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS> item(dim, spacing, dens, matIdx, materials);
         item.m_dose = dose;
 
