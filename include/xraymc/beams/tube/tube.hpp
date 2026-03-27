@@ -23,6 +23,7 @@ Copyright 2019 Erlend Andersen
 #include "xraymc/interpolation.hpp"
 #include "xraymc/material/atomhandler.hpp"
 #include "xraymc/material/material.hpp"
+#include "xraymc/serializer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -68,17 +69,17 @@ public:
         setAnodeAngle(angle * DEG_TO_RAD());
     }
 
-    bool addFiltrationMaterial(const std::size_t Z, const double mm)
+    bool addFiltrationMaterial(const std::integral auto Z, const double mm)
     {
         if (AtomHandler::atomExists(Z)) {
-            m_filtrationMaterials[Z] = std::abs(mm);
+            m_filtrationMaterials[static_cast<std::uint8_t>(Z)] = std::abs(mm);
             m_hasCachedSpecterCalculations = false;
             return true;
         }
         return false;
     }
 
-    const std::map<std::size_t, double>& filtrationMaterials() const { return m_filtrationMaterials; }
+    const std::map<std::uint8_t, double>& filtrationMaterials() const { return m_filtrationMaterials; }
 
     void setAlFiltration(double mm)
     {
@@ -97,10 +98,11 @@ public:
         addFiltrationMaterial(47, mm);
     }
 
-    double filtration(std::size_t Z) const
+    double filtration(std::integral auto Z) const
     {
-        if (m_filtrationMaterials.contains(Z))
-            return m_filtrationMaterials.at(Z);
+        const auto z8 = static_cast<std::uint8_t>(Z);
+        if (m_filtrationMaterials.contains(z8))
+            return m_filtrationMaterials.at(z8);
         return 0;
     }
 
@@ -216,6 +218,46 @@ public:
         return m_cachedMeanEnergy;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "XrayTube";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_voltage, buffer);
+        Serializer::serialize(m_energyResolution, buffer);
+        Serializer::serialize(m_anodeAngle, buffer);
+        Serializer::serializeMaterialWeights(m_filtrationMaterials, buffer);
+        return buffer;
+    }
+
+    static std::optional<Tube> deserialize(std::span<const char> buffer)
+    {
+        double voltage, resolution, angle;
+
+        buffer = Serializer::deserialize(voltage, buffer);
+        buffer = Serializer::deserialize(resolution, buffer);
+        buffer = Serializer::deserialize(angle, buffer);
+
+        Tube item(voltage, resolution, angle);
+        buffer = Serializer::deserializeMaterialWeights(item.m_filtrationMaterials, buffer);
+        return item;
+    }
+
 protected:
     struct SpecterCalculatedValues {
         double HVL, meanEnergy;
@@ -276,7 +318,7 @@ protected:
         SpecterCalculatedValues res;
 
         // Mean energy
-        res.meanEnergy = std::transform_reduce(std::execution::par_unseq, energy.cbegin(), energy.cend(), specter.cbegin(), double { 0 }, std::plus {}, std::multiplies {});
+        res.meanEnergy = std::transform_reduce(std::execution::par_unseq, energy.cbegin(), energy.cend(), specter.cbegin(), double { 0 }, std::plus { }, std::multiplies { });
 
         // HVL
         // Al att vector
@@ -318,7 +360,7 @@ private:
     double m_anodeAngle = 0.21; // about 12 degrees
     double m_cachedHVL = 0;
     double m_cachedMeanEnergy = 0;
-    std::map<std::size_t, double> m_filtrationMaterials;
+    std::map<std::uint8_t, double> m_filtrationMaterials;
     bool m_hasCachedSpecterCalculations = false;
 };
 }

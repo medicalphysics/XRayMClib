@@ -24,6 +24,7 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/floating.hpp"
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/transportprogress.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/xraymcrandom.hpp"
@@ -98,7 +99,7 @@ public:
     DXBeam(
         const std::array<double, 3>& pos = { 0, 0, 0 },
         const std::array<std::array<double, 3>, 2>& dircosines = { { { 1, 0, 0 }, { 0, 1, 0 } } },
-        const std::map<std::size_t, double>& filtrationMaterials = {}, bool updateSpecter = true)
+        const std::map<std::uint8_t, double>& filtrationMaterials = { }, bool updateSpecter = true)
         : m_pos(pos)
     {
         setDirectionCosines(dircosines);
@@ -259,6 +260,69 @@ public:
 
         const auto kerma_total = kerma_per_history * numberOfParticles();
         return m_measuredDAP / kerma_total;
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "DXBeam";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_pos, buffer);
+        Serializer::serialize(m_dirCosines[0], buffer);
+        Serializer::serialize(m_dirCosines[1], buffer);
+        Serializer::serialize(m_collimationHalfAngles, buffer);
+        Serializer::serialize(m_Nexposures, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+        Serializer::serialize(m_weight, buffer);
+        Serializer::serialize(m_measuredDAP, buffer);
+
+        Serializer::serializeItem(m_tube, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<DXBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        std::array<double, 3> pos;
+        buffer = Serializer::deserialize(pos, buffer);
+
+        std::array<std::array<double, 3>, 2> cosines;
+        buffer = Serializer::deserialize(cosines[0], buffer);
+        buffer = Serializer::deserialize(cosines[1], buffer);
+
+        DXBeam<ENABLETRACKING> item(pos, cosines, { }, false);
+        buffer = Serializer::deserialize(item.m_collimationHalfAngles, buffer);
+        buffer = Serializer::deserialize(item.m_Nexposures, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+        buffer = Serializer::deserialize(item.m_weight, buffer);
+        buffer = Serializer::deserialize(item.m_measuredDAP, buffer);
+
+        auto name = Serializer::getNameIDTemplate();
+        auto tube_buffer = Serializer::getEmptyBuffer();
+        buffer = Serializer::deserializeItem(name, tube_buffer, buffer);
+
+        auto tube_opt = Tube::deserialize(tube_buffer);
+        if (!tube_opt)
+            return std::nullopt;
+
+        item.m_tube = tube_opt.value();
+        item.tubeChanged();
+        return std::make_optional(item);
     }
 
 protected:
