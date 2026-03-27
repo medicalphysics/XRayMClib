@@ -19,6 +19,7 @@ Copyright 2025 Erlend Andersen
 #pragma once
 #include "xraymc/particle.hpp"
 #include "xraymc/particletracker.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/world/dosescore.hpp"
 #include "xraymc/world/energyscore.hpp"
 #include "xraymc/world/visualizationintersectionresult.hpp"

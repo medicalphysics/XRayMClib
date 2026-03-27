@@ -22,6 +22,7 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
 #include "xraymc/particletracker.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/basicshapes/cylinder.hpp"
