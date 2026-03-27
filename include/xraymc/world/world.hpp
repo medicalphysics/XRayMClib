@@ -370,6 +370,11 @@ public:
             const auto item_name = std::visit([](const auto& arg) { return arg.magicID(); }, item);
             Serializer::serializeItem(item_name, item_buffer, buffer);
         }
+
+        Serializer::serializeMaterialWeights(m_fillMaterial.composition(), buffer);
+        Serializer::serialize(m_fillMaterialDensity, buffer);
+        Serializer::serialize(m_item_names, buffer);
+
         return buffer;
     }
 
@@ -412,6 +417,18 @@ public:
                 return std::nullopt;
             }
         }
+
+        std::map<std::uint8_t, double> mat_weights;
+        buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);
+        auto material_opt = Material<WorldShells()>::byWeight(mat_weights);
+        if (material_opt) {
+            world.m_fillMaterial = material_opt.value();
+        } else {
+            return std::nullopt;
+        }
+
+        buffer = Serializer::deserialize(world.m_fillMaterialDensity, buffer);
+        buffer = Serializer::deserialize(world.m_item_names, buffer);
 
         world.build();
         return world;
