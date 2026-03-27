@@ -434,6 +434,38 @@ public:
         return buffer;
     }
 
+    template <std::size_t N>
+    static std::span<const char> deserializeDoseScore(std::array<DoseScore, N>& out, std::span<const char> buffer)
+    {
+        constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
+        if (buffer.size() < 8) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+
+        if (std::search(buffer.cbegin(), buffer.cbegin() + dose.size(), dose.cbegin(), dose.cend()) != buffer.cbegin()) {
+            throw std::length_error("Buffer lenght do not contain data requested.");
+        }
+        buffer = buffer.subspan(dose.size());
+
+        std::uint64_t n_doses;
+        buffer = deserialize(n_doses, buffer);
+        if (n_doses == 0)
+            throw std::length_error("Requested to deserialize doses but the buffer contains zero doses");
+
+        if (n_doses != N)
+            throw std::length_error("Requested to deserialize doses but the buffer contains different number of items");
+
+        for (std::uint64_t i = 0; i < n_doses; ++i) {
+            double d, v;
+            std::uint64_t n;
+            buffer = deserialize(d, buffer);
+            buffer = deserialize(v, buffer);
+            buffer = deserialize(n, buffer);
+            out[i].set(d, v, n);
+        }
+        return buffer;
+    }
+
     static void serializeDoseScore(const DoseScore& in, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };

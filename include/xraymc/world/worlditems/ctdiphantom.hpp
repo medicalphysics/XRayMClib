@@ -280,7 +280,7 @@ public:
 
         Serializer::serialize(m_air_density, buffer);
 
-        Serializer::serializeMaterialWeights()(m_air.composition(), buffer);
+        Serializer::serializeMaterialWeights(m_air.composition(), buffer);
 
         Serializer::serializeDoseScore(m_dose, buffer);
 
