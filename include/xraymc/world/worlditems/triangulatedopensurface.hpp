@@ -339,14 +339,22 @@ public:
     {
         std::vector<double> points;
         buffer = Serializer::deserialize(points, buffer);
-        std::vector<Triangle> triangles(points.size() / (3 * 3));
-        std::size_t idx = 0;
-        for (auto& tri : triangles) {
-            for (auto& v : tri) {
+
+        // Test if number of points is making triangles
+        if (points.size() % 9 != 0)
+            return std::nullopt;
+
+        std::vector<Triangle> triangles;
+        triangles.reserve(points.size() / (3 * 3));
+        for (std::size_t i = 0; i < points.size(); i = i + 9) {
+            std::array<std::array<double, 3>, 3> data;
+            std::size_t k = i;
+            for (auto& v : data) {
                 for (auto& p : v) {
-                    p = points[idx++];
+                    p = points[k++];
                 }
             }
+            triangles.emplace_back(Triangle { data });
         }
 
         TriangulatedOpenSurface<NMaterialShells, LOWENERGYCORRECTION> item(triangles);
