@@ -402,7 +402,7 @@ public:
                 item_opt = F::deserialize(item_buffer); // First type
             } else {
                 if (!item_opt) {
-                    item_opt = ((item_opt ? item_opt : (Us::validMagicID(item_name) ? Us::deserialize(item_buffer) : item_opt)), ...); // Fold expression for the rest of Us types
+                    ((Us::validMagicID(item_name) && (void(item_opt = Us::deserialize(item_buffer)), true)) || ...); // Fold expression for the rest of Us types
                 }
             }
 
