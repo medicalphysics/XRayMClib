@@ -37,12 +37,12 @@ public:
             [](const auto& n) { return n.first; });
         return names;
     }
-    static std::map<std::size_t, double> Composition(const std::string& name)
+    static std::map<std::uint8_t, double> Composition(const std::string& name)
     {
         const auto& instance = Instance();
         if (instance.nistdata.contains(name))
             return instance.nistdata.at(name).massFractions;
-        std::map<std::size_t, double> empty;
+        std::map<std::uint8_t, double> empty;
         return empty;
     }
     static double density(const std::string& name)
@@ -59,7 +59,7 @@ public:
 protected:
     struct NISTdata {
         double density = 0;
-        std::map<std::size_t, double> massFractions;
+        std::map<std::uint8_t, double> massFractions;
     };
     static const NISTMaterials& Instance()
     {
