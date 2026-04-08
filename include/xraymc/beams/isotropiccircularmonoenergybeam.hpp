@@ -21,6 +21,7 @@ Copyright 2024 Erlend Andersen
 #include "xraymc/beams/utilities/spheresamplingrectangularfield.hpp"
 #include "xraymc/floating.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/transportprogress.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/xraymcrandom.hpp"

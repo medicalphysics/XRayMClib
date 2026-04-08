@@ -27,6 +27,7 @@ Copyright 2024 Erlend Andersen
 #include "xraymc/floating.hpp"
 #include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
+#include "xraymc/serializer.hpp"
 #include "xraymc/transport.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/worlditems/ctdiphantom.hpp"
