@@ -157,6 +157,60 @@ public:
         return 1;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMIsotropicBeamCircle";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_pos, buffer);
+        Serializer::serialize(m_dir, buffer);
+        Serializer::serialize(m_collimationHalfAngle, buffer);
+        Serializer::serialize(m_Nexposures, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+        Serializer::serialize(m_specter.copyInteralData(), buffer);
+
+        return buffer;
+    }
+
+    static std::optional<IsotropicBeamCircle<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        std::array<double, 3> pos;
+        buffer = Serializer::deserialize(pos, buffer);
+
+        std::array<double, 3> dir;
+        buffer = Serializer::deserialize(dir, buffer);
+
+        IsotropicBeamCircle<ENABLETRACKING> item(pos, dir);
+        buffer = Serializer::deserialize(item.m_collimationHalfAngle, buffer);
+        buffer = Serializer::deserialize(item.m_Nexposures, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+
+        std::vector<double> specter_data;
+        buffer = Serializer::deserialize(specter_data, buffer);
+        auto specter_opt = item.m_specter.fromInternalData(specter_data);
+        if (!specter_opt)
+            return std::nullopt;
+        else
+            item.m_specter = specter_opt.value();
+
+        return std::make_optional(item);
+    }
+
 private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 3> m_dir = { 1, 0, 0 };

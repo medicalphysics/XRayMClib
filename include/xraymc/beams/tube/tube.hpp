@@ -247,13 +247,11 @@ public:
 
     static std::optional<Tube> deserialize(std::span<const char> buffer)
     {
-        double voltage, resolution, angle;
+        Tube item;
 
-        buffer = Serializer::deserialize(voltage, buffer);
-        buffer = Serializer::deserialize(resolution, buffer);
-        buffer = Serializer::deserialize(angle, buffer);
-
-        Tube item(voltage, resolution, angle);
+        buffer = Serializer::deserialize(item.m_voltage, buffer);
+        buffer = Serializer::deserialize(item.m_energyResolution, buffer);
+        buffer = Serializer::deserialize(item.m_anodeAngle, buffer);
         buffer = Serializer::deserializeMaterialWeights(item.m_filtrationMaterials, buffer);
         return item;
     }

@@ -109,10 +109,11 @@ class CBCTBeam {
 public:
     CBCTBeam(
         const std::array<double, 3>& isocenter = { 0, 0, 0 },
-        const std::array<double, 3>& direction = { 0, 0, 1 },
-        const std::map<std::size_t, double>& filtrationMaterials = {})
+        const std::array<double, 3>& rotationAxis = { 0, 0, 1 },
+        const std::map<std::size_t, double>& filtrationMaterials = { })
         : m_isocenter(isocenter)
     {
+        setRotationAxis(rotationAxis);
         for (const auto [Z, mm] : filtrationMaterials)
             m_tube.addFiltrationMaterial(Z, mm);
         tubeChanged();
@@ -293,6 +294,72 @@ public:
 
         const auto kerma_total = kerma_per_history * numberOfParticles();
         return m_measuredDAP / kerma_total;
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMCBCTBeam";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+
+        Serializer::serialize(m_isocenter, buffer);
+        Serializer::serialize(m_direction, buffer);
+        Serializer::serialize(m_collimationHalfAngles, buffer);
+        Serializer::serialize(m_angleStart, buffer);
+        Serializer::serialize(m_angleStep, buffer);
+        Serializer::serialize(m_angleStop, buffer);
+        Serializer::serialize(m_SDD, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+        Serializer::serialize(m_weight, buffer);
+        Serializer::serialize(m_measuredDAP, buffer);
+        Serializer::serializeItem(m_tube, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<CBCTBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+
+        std::array<double, 3> pos, dir;
+        buffer = Serializer::deserialize(pos, buffer);
+        buffer = Serializer::deserialize(dir, buffer);
+
+        CBCTBeam<ENABLETRACKING> item(pos, dir);
+        buffer = Serializer::deserialize(item.m_collimationHalfAngles, buffer);
+        buffer = Serializer::deserialize(item.m_angleStart, buffer);
+        buffer = Serializer::deserialize(item.m_angleStep, buffer);
+        buffer = Serializer::deserialize(item.m_angleStop, buffer);
+        buffer = Serializer::deserialize(item.m_SDD, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+        buffer = Serializer::deserialize(item.m_weight, buffer);
+        buffer = Serializer::deserialize(item.m_measuredDAP, buffer);
+
+        auto name = Serializer::getNameIDTemplate();
+        auto tube_buffer = Serializer::getEmptyBuffer();
+        buffer = Serializer::deserializeItem(name, tube_buffer, buffer);
+
+        auto tube_opt = Tube::deserialize(tube_buffer);
+        if (!tube_opt)
+            return std::nullopt;
+
+        item.m_tube = tube_opt.value();
+        item.tubeChanged();
+        return std::make_optional(item);
     }
 
 protected:

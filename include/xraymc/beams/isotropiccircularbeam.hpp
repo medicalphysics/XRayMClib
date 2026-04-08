@@ -159,6 +159,58 @@ public:
         return 1;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMIsotropicCircularBeam";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_pos, buffer);
+        Serializer::serialize(m_radius, buffer);
+        Serializer::serialize(m_collimationHalfAngles, buffer);
+        Serializer::serialize(m_Nexposures, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+        Serializer::serialize(m_specter.copyInteralData(), buffer);
+
+        return buffer;
+    }
+
+    static std::optional<IsotropicCircularBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        std::array<double, 3> pos;
+        buffer = Serializer::deserialize(pos, buffer);
+
+        IsotropicCircularBeam<ENABLETRACKING> item(pos);
+        buffer = Serializer::deserialize(item.m_radius, buffer);
+        buffer = Serializer::deserialize(item.m_collimationHalfAngles, buffer);
+        buffer = Serializer::deserialize(item.m_Nexposures, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+
+        std::vector<double> specter_data;
+        buffer = Serializer::deserialize(specter_data, buffer);
+        auto specter_opt = item.m_specter.fromInternalData(specter_data);
+        if (!specter_opt)
+            return std::nullopt;
+        else
+            item.m_specter = specter_opt.value();
+
+        return std::make_optional(item);
+    }
+
 private:
     std::array<double, 3> m_pos = { 0, 0, 0 };
     std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };

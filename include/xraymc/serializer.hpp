@@ -289,15 +289,15 @@ public:
     static void serializeMaterialWeights(const std::map<std::uint8_t, double>& map, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
-        const auto size = static_cast<std::uint64_t>(map.size());
-        if (size == 0)
-            return;
         std::copy(mat.cbegin(), mat.cend(), std::back_inserter(buffer));
         serialize(std::uint64_t { 1 }, buffer);
+        const auto size = static_cast<std::uint64_t>(map.size());
         serialize(size, buffer);
-        for (const auto& [Z, w] : map) {
-            serialize(Z, buffer);
-            serialize(w, buffer);
+        if (size > 0) {
+            for (const auto& [Z, w] : map) {
+                serialize(Z, buffer);
+                serialize(w, buffer);
+            }
         }
         return;
     }

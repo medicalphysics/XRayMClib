@@ -117,7 +117,7 @@ public:
     CTSequentialBeam(
         const std::array<double, 3>& start_pos = { 0, 0, 0 },
         const std::array<double, 3>& scan_normal = { 0, 0, 1 },
-        const std::map<std::size_t, double>& filtrationMaterials = {})
+        const std::map<std::size_t, double>& filtrationMaterials = { })
         : m_position(start_pos)
         , m_scanNormal(scan_normal)
     {
@@ -331,6 +331,94 @@ public:
         const auto ctdiw_calc = (ctdi.centerDoseScored() + 2 * ctdi.pheriferyDoseScored()) * 10.0 / (3 * m_collimation);
 
         return m_CTDIw / ctdiw_calc;
+    }
+
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMCTSeqBeam";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+
+        Serializer::serialize(m_position, buffer);
+        Serializer::serialize(m_scanNormal, buffer);
+        Serializer::serialize(m_FOV, buffer);
+        Serializer::serialize(m_SDD, buffer);
+        Serializer::serialize(m_collimation, buffer);
+        Serializer::serialize(m_startAngle, buffer);
+        Serializer::serialize(m_stepAngle, buffer);
+        Serializer::serialize(m_weight, buffer);
+        Serializer::serialize(m_CTDIw, buffer);
+        Serializer::serialize(m_CTDIdiameter, buffer);
+        Serializer::serialize(m_sliceSpacing, buffer);
+        Serializer::serialize(m_numberOfSlices, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+        Serializer::serializeItem(m_tube, buffer);
+        Serializer::serializeItem(m_bowtieFilter, buffer);
+        Serializer::serializeItem(m_organFilter, buffer);
+        return buffer;
+    }
+
+    static std::optional<CTSequentialBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        CTSequentialBeam<ENABLETRACKING> item;
+
+        buffer = Serializer::deserialize(item.m_position, buffer);
+        buffer = Serializer::deserialize(item.m_scanNormal, buffer);
+        buffer = Serializer::deserialize(item.m_FOV, buffer);
+        buffer = Serializer::deserialize(item.m_SDD, buffer);
+        buffer = Serializer::deserialize(item.m_collimation, buffer);
+        buffer = Serializer::deserialize(item.m_startAngle, buffer);
+        buffer = Serializer::deserialize(item.m_stepAngle, buffer);
+        buffer = Serializer::deserialize(item.m_weight, buffer);
+        buffer = Serializer::deserialize(item.m_CTDIw, buffer);
+        buffer = Serializer::deserialize(item.m_CTDIdiameter, buffer);
+        buffer = Serializer::deserialize(item.m_sliceSpacing, buffer);
+        buffer = Serializer::deserialize(item.m_numberOfSlices, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+
+        auto name = Serializer::getNameIDTemplate();
+        auto item_buffer = Serializer::getEmptyBuffer();
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto tube_opt = Tube::deserialize(item_buffer);
+        if (!tube_opt) {
+            return std::nullopt;
+        } else {
+            item.m_tube = tube_opt.value();
+            item.tubeChanged();
+        }
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto bowtie_opt = BowtieFilter::deserialize(item_buffer);
+        if (!bowtie_opt) {
+            return std::nullopt;
+        } else {
+            item.m_bowtieFilter = bowtie_opt.value();
+        }
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto aec_opt = CTOrganAECFilter::deserialize(item_buffer);
+        if (!aec_opt) {
+            return std::nullopt;
+        } else {
+            item.m_organFilter = aec_opt.value();
+        }
+
+        return std::make_optional(item);
     }
 
 protected:

@@ -130,6 +130,57 @@ public:
         return trapz(m_data, start, stop);
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "CTAECFilter";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_start, buffer);
+        Serializer::serialize(m_dir, buffer);
+        Serializer::serialize(m_length, buffer);
+
+        std::vector<double> data;
+        data.reserve(m_data.size() * 2);
+        for (const auto& d : m_data) {
+            data.push_back(d.first);
+            data.push_back(d.second);
+        }
+        Serializer::serialize(data, buffer);
+        return buffer;
+    }
+
+    static std::optional<CTAECFilter> deserialize(std::span<const char> buffer)
+    {
+        CTAECFilter item;
+        buffer = Serializer::deserialize(item.m_start, buffer);
+        buffer = Serializer::deserialize(item.m_dir, buffer);
+        buffer = Serializer::deserialize(item.m_length, buffer);
+        std::vector<double> data;
+        buffer = Serializer::deserialize(data, buffer);
+        std::size_t idx = 0;
+        item.m_data.resize(data.size() / 2);
+        for (auto& d : item.m_data) {
+            d.first = data.at(idx++);
+            d.second = data.at(idx++);
+        }
+        return item;
+    }
+
 protected:
     double positionToIndex(const std::array<double, 3>& start) const
     {

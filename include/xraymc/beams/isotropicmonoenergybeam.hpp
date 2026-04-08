@@ -165,6 +165,51 @@ public:
         return 1;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMIsotropicBeamMono";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_energy, buffer);
+        Serializer::serialize(m_pos, buffer);
+        Serializer::serialize(m_dirCosines[0], buffer);
+        Serializer::serialize(m_dirCosines[1], buffer);
+        Serializer::serialize(m_collimationHalfAngles, buffer);
+        Serializer::serialize(m_Nexposures, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<IsotropicMonoEnergyBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        IsotropicMonoEnergyBeam<ENABLETRACKING> item;
+        buffer = Serializer::deserialize(item.m_energy, buffer);
+        buffer = Serializer::deserialize(item.m_pos, buffer);
+        buffer = Serializer::deserialize(item.m_dirCosines[0], buffer);
+        buffer = Serializer::deserialize(item.m_dirCosines[1], buffer);
+        buffer = Serializer::deserialize(item.m_collimationHalfAngles, buffer);
+        buffer = Serializer::deserialize(item.m_Nexposures, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+
+        return std::make_optional(item);
+    }
+
 private:
     double m_energy = 60;
     std::array<double, 3> m_pos = { 0, 0, 0 };

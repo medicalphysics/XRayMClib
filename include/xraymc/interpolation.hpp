@@ -630,6 +630,38 @@ public:
         }
     }
 
+    static std::optional<AkimaSplineStatic<T, N_KNOTS>> fromInternalData(const std::vector<double>& data)
+    {
+
+        if (data.size() != N_KNOTS * 5)
+            return std::nullopt;
+
+        AkimaSplineStatic<T, N_KNOTS> item;
+        std::size_t idx = 0;
+        for (auto& i : item.m_data) {
+            i.x = data[idx++];
+            i.a = data[idx++];
+            i.b = data[idx++];
+            i.c = data[idx++];
+            i.d = data[idx++];
+        }
+        return item;
+    }
+
+    std::vector<double> copyInternalData() const
+    {
+        std::vector<double> data;
+        data.reserve(N_KNOTS * 5);
+        for (const auto& i : m_data) {
+            data.push_back(i.x);
+            data.push_back(i.a);
+            data.push_back(i.b);
+            data.push_back(i.c);
+            data.push_back(i.d);
+        }
+        return data;
+    }
+
 private:
     struct Interval {
         T x = 0, a = 1, b = 0, c = 0, d = 0;

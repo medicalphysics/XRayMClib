@@ -333,6 +333,41 @@ public:
         return ind < m_data.size() - 1 ? state.randomUniform(m_data[ind].energy, m_data[ind + 1].energy) : m_data[ind].energy;
     }
 
+    /**
+     * @brief Copy internal data.
+     * Copy internal data to reconstruct the object from serialized data.
+     * @return a vector of doubles representing the object state
+     */
+    std::vector<double> copyInteralData() const
+    {
+        std::vector<double> data;
+        data.reserve(m_data.size() * 3);
+        for (const auto& d : m_data) {
+            data.push_back(static_cast<double>(d.alias));
+            data.push_back(static_cast<double>(d.prob));
+            data.push_back(static_cast<double>(d.energy));
+        }
+        return data;
+    }
+
+    /**
+     * @brief Reconstruct SpecterDistribution from internal data.
+     * Reconstruct SpecterDistribution from internal data.
+     * @return an optional<SpecterDistribution<T>>
+     */
+    static std::optional<SpecterDistribution<T>> fromInternalData(const std::vector<double>& data)
+    {
+        SpecterDistribution<T> item;
+        item.m_data.resize(data.size() / 3);
+        std::size_t idx = 0;
+        for (auto& d : item.m_data) {
+            d.alias = static_cast<std::uint64_t>(data.at(idx++));
+            d.prob = static_cast<T>(data.at(idx++));
+            d.energy = static_cast<T>(data.at(idx++));
+        }
+        return item;
+    }
+
 protected:
 private:
     struct DataElement {

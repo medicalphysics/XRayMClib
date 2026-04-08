@@ -41,7 +41,7 @@ public:
     CTSpiralDualEnergyBeam(
         const std::array<double, 3>& start_pos = { 0, 0, 0 },
         const std::array<double, 3>& stop_pos = { 0, 0, 0 },
-        const std::map<std::size_t, double>& filtrationMaterials = {})
+        const std::map<std::size_t, double>& filtrationMaterials = { })
         : m_start(start_pos)
         , m_stop(stop_pos)
     {
@@ -373,10 +373,132 @@ public:
         return ctdiw_beam / ctdiw_calc;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMCTSpiralDualEnergyBeam";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+
+        Serializer::serialize(m_start, buffer);
+        Serializer::serialize(m_stop, buffer);
+        Serializer::serialize(m_FOVA, buffer);
+        Serializer::serialize(m_FOVB, buffer);
+        Serializer::serialize(m_SDD, buffer);
+        Serializer::serialize(m_collimation, buffer);
+        Serializer::serialize(m_startAngle, buffer);
+        Serializer::serialize(m_tubeBoffsetAngle, buffer);
+        Serializer::serialize(m_stepAngle, buffer);
+        Serializer::serialize(m_weightA, buffer);
+        Serializer::serialize(m_weightB, buffer);
+        Serializer::serialize(m_relativeMasA, buffer);
+        Serializer::serialize(m_relativeMasB, buffer);
+        Serializer::serialize(m_CTDIvol, buffer);
+        Serializer::serialize(m_CTDIdiameter, buffer);
+        Serializer::serialize(m_pitch, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+        Serializer::serializeItem(m_tubeA, buffer);
+        Serializer::serializeItem(m_tubeB, buffer);
+        Serializer::serializeItem(m_bowtieFilterA, buffer);
+        Serializer::serializeItem(m_bowtieFilterB, buffer);
+        Serializer::serializeItem(m_organFilter, buffer);
+        Serializer::serializeItem(m_aecFilter, buffer);
+        return buffer;
+    }
+
+    static std::optional<CTSpiralDualEnergyBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        CTSpiralDualEnergyBeam<ENABLETRACKING> item;
+
+        buffer = Serializer::deserialize(item.m_start, buffer);
+        buffer = Serializer::deserialize(item.m_stop, buffer);
+        buffer = Serializer::deserialize(item.m_FOVA, buffer);
+        buffer = Serializer::deserialize(item.m_FOVB, buffer);
+        buffer = Serializer::deserialize(item.m_SDD, buffer);
+        buffer = Serializer::deserialize(item.m_collimation, buffer);
+        buffer = Serializer::deserialize(item.m_startAngle, buffer);
+        buffer = Serializer::deserialize(item.m_tubeBoffsetAngle, buffer);
+        buffer = Serializer::deserialize(item.m_stepAngle, buffer);
+        buffer = Serializer::deserialize(item.m_weightA, buffer);
+        buffer = Serializer::deserialize(item.m_weightB, buffer);
+        buffer = Serializer::deserialize(item.m_relativeMasA, buffer);
+        buffer = Serializer::deserialize(item.m_relativeMasB, buffer);
+        buffer = Serializer::deserialize(item.m_CTDIvol, buffer);
+        buffer = Serializer::deserialize(item.m_CTDIdiameter, buffer);
+        buffer = Serializer::deserialize(item.m_pitch, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+
+        auto name = Serializer::getNameIDTemplate();
+        auto item_buffer = Serializer::getEmptyBuffer();
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto tube_optA = Tube::deserialize(item_buffer);
+        if (!tube_optA) {
+            return std::nullopt;
+        } else {
+            item.m_tubeA = tube_optA.value();
+        }
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto tube_optB = Tube::deserialize(item_buffer);
+        if (!tube_optB) {
+            return std::nullopt;
+        } else {
+            item.m_tubeB = tube_optB.value();
+        }
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto bowtie_optA = BowtieFilter::deserialize(item_buffer);
+        if (!bowtie_optA) {
+            return std::nullopt;
+        } else {
+            item.m_bowtieFilterA = bowtie_optA.value();
+        }
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto bowtie_optB = BowtieFilter::deserialize(item_buffer);
+        if (!bowtie_optB) {
+            return std::nullopt;
+        } else {
+            item.m_bowtieFilterB = bowtie_optB.value();
+        }
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto aec_organ_opt = CTOrganAECFilter::deserialize(item_buffer);
+        if (!aec_organ_opt) {
+            return std::nullopt;
+        } else {
+            item.m_organFilter = aec_organ_opt.value();
+        }
+
+        buffer = Serializer::deserializeItem(name, item_buffer, buffer);
+        auto aec_opt = CTAECFilter::deserialize(item_buffer);
+        if (!aec_opt) {
+            return std::nullopt;
+        } else {
+            item.m_aecFilter = aec_opt.value();
+        }
+        item.tubeChanged();
+        return std::make_optional(item);
+    }
+
 protected:
     void tubeChanged()
     {
-        // Correcting for different field sizes since photon density per area should be equal 
+        // Correcting for different field sizes since photon density per area should be equal
         auto energiesA = m_tubeA.getEnergy();
         auto weightsA = m_tubeA.getSpecter(energiesA, false);
         m_specterA = SpecterDistribution(energiesA, weightsA);

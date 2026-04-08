@@ -129,6 +129,50 @@ public:
         }
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "CTOrganFilter";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_start_angle, buffer);
+        Serializer::serialize(m_stop_angle, buffer);
+        Serializer::serialize(m_ramp_angle, buffer);
+        Serializer::serialize(m_weight_factor, buffer);
+        Serializer::serialize(static_cast<std::uint64_t>(m_compensate_outside), buffer);
+        Serializer::serialize(static_cast<std::uint64_t>(m_useFilter), buffer);
+        return buffer;
+    }
+
+    static std::optional<CTOrganAECFilter> deserialize(std::span<const char> buffer)
+    {
+        CTOrganAECFilter item;
+        buffer = Serializer::deserialize(item.m_start_angle, buffer);
+        buffer = Serializer::deserialize(item.m_stop_angle, buffer);
+        buffer = Serializer::deserialize(item.m_ramp_angle, buffer);
+        buffer = Serializer::deserialize(item.m_weight_factor, buffer);
+        std::uint64_t outside, useFilter;
+        buffer = Serializer::deserialize(outside, buffer);
+        buffer = Serializer::deserialize(useFilter, buffer);
+        item.m_compensate_outside = outside > 0;
+        item.m_useFilter = useFilter > 0;
+        return item;
+    }
+
 protected:
     static double normalize_angle(double angle)
     {

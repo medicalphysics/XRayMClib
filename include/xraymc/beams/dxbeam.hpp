@@ -264,7 +264,7 @@ public:
 
     constexpr static std::array<char, 32> magicID()
     {
-        std::string name = "DXBeam";
+        std::string name = "BEAMDXBeam";
         name.resize(32, ' ');
         std::array<char, 32> k;
         std::copy(name.cbegin(), name.cend(), k.begin());

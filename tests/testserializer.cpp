@@ -31,10 +31,22 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/worlditems/worldcylinder.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
+#include "xraymc/beams/cbctbeam.hpp"
+#include "xraymc/beams/ctsequentialbeam.hpp"
+#include "xraymc/beams/ctspiralbeam.hpp"
+#include "xraymc/beams/ctspiraldualenergybeam.hpp"
+#include "xraymc/beams/dxbeam.hpp"
+#include "xraymc/beams/isotropicbeam.hpp"
+#include "xraymc/beams/isotropicbeamcircle.hpp"
+#include "xraymc/beams/isotropiccircularbeam.hpp"
+#include "xraymc/beams/isotropiccircularmonoenergybeam.hpp"
+#include "xraymc/beams/isotropicmonoenergybeam.hpp"
+#include "xraymc/beams/isotropicmonoenergybeamcircle.hpp"
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
 #include "xraymc/world/visualization/visualizeworld.hpp"
 #include "xraymc/world/world.hpp"
+
 #include <iostream>
 
 template <typename T>
@@ -76,6 +88,23 @@ bool testString()
     std::vector<std::string> ss_out;
     auto end = s.deserialize(ss_out, buffer);
     return ss_out == ss;
+}
+
+template <xraymc::BeamType B>
+bool testBeams()
+{
+    B beam;
+
+    xraymc::Serializer s;
+    auto save_buffer = xraymc::Serializer::getEmptyBuffer();
+    const auto beam_buffer = beam.serialize();
+    xraymc::Serializer::serializeItem(beam.magicID(), beam_buffer, save_buffer);
+
+    auto id = beam.magicID();
+    auto debuffer = xraymc::Serializer::getEmptyBuffer();
+    auto debuffer_end = xraymc::Serializer::deserializeItem(id, debuffer, save_buffer);
+    auto recon_beam_opt = B::deserialize(debuffer);
+    return recon_beam_opt ? true : false;
 }
 
 void example()
@@ -174,9 +203,21 @@ void example()
 int main()
 {
 
-    example();
+    // example();
 
     bool success = testString();
+    success = success && testBeams<xraymc::PencilBeam<>>();
+    success = success && testBeams<xraymc::IsotropicMonoEnergyBeamCircle<>>();
+    success = success && testBeams<xraymc::IsotropicMonoEnergyBeam<>>();
+    success = success && testBeams<xraymc::IsotropicCircularMonoEnergyBeam<>>();
+    success = success && testBeams<xraymc::IsotropicCircularBeam<>>();
+    success = success && testBeams<xraymc::IsotropicBeamCircle<>>();
+    success = success && testBeams<xraymc::IsotropicBeam<>>();
+    success = success && testBeams<xraymc::CTSpiralDualEnergyBeam<>>();
+    success = success && testBeams<xraymc::CTSpiralBeam<>>();
+    success = success && testBeams<xraymc::CTSequentialBeam<>>();
+    success = success && testBeams<xraymc::CBCTBeam<>>();
+    success = success && testBeams<xraymc::DXBeam<>>();
 
     xraymc::WorldSphere<12, 2, true> sphere;
     sphere.setCenter({ 1, 2, 3 });

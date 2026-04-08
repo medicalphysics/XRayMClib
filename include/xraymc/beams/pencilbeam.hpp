@@ -174,6 +174,51 @@ public:
         return m_airKerma / kerma;
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BEAMPencilBeam";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_energy, buffer);
+        Serializer::serialize(m_weight, buffer);
+        Serializer::serialize(m_airKerma, buffer);
+        Serializer::serialize(m_pos, buffer);
+        Serializer::serialize(m_dir, buffer);
+        Serializer::serialize(m_Nexposures, buffer);
+        Serializer::serialize(m_particlesPerExposure, buffer);
+
+        return buffer;
+    }
+
+    static std::optional<PencilBeam<ENABLETRACKING>> deserialize(std::span<const char> buffer)
+    {
+        PencilBeam<ENABLETRACKING> item;
+        buffer = Serializer::deserialize(item.m_energy, buffer);
+        buffer = Serializer::deserialize(item.m_weight, buffer);
+        buffer = Serializer::deserialize(item.m_airKerma, buffer);
+        buffer = Serializer::deserialize(item.m_pos, buffer);
+        buffer = Serializer::deserialize(item.m_dir, buffer);
+        buffer = Serializer::deserialize(item.m_Nexposures, buffer);
+        buffer = Serializer::deserialize(item.m_particlesPerExposure, buffer);
+
+        return std::make_optional(item);
+    }
+
 private:
     double m_energy = 60;
     double m_weight = 1;

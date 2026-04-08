@@ -94,6 +94,43 @@ public:
         setData<ONESIDED>(data);
     }
 
+    constexpr static std::array<char, 32> magicID()
+    {
+        std::string name = "BowtieFilter";
+        name.resize(32, ' ');
+        std::array<char, 32> k;
+        std::copy(name.cbegin(), name.cend(), k.begin());
+        return k;
+    }
+
+    static bool validMagicID(std::span<const char> data)
+    {
+        if (data.size() < 32)
+            return false;
+        const auto id = magicID();
+        return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
+    }
+
+    std::vector<char> serialize() const
+    {
+        auto buffer = Serializer::getEmptyBuffer();
+        Serializer::serialize(m_inter.copyInternalData(), buffer);
+        return buffer;
+    }
+
+    static std::optional<BowtieFilter> deserialize(std::span<const char> buffer)
+    {
+        BowtieFilter item;
+        std::vector<double> filterdata;
+        buffer = Serializer::deserialize(filterdata, buffer);
+        auto inter_opt = item.m_inter.fromInternalData(filterdata);
+        if (inter_opt)
+            item.m_inter = inter_opt.value();
+        else
+            return std::nullopt;
+        return std::make_optional(item);
+    }
+
 private:
     AkimaSplineStatic<double, 6> m_inter;
 };
