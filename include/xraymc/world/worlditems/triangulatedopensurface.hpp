@@ -40,6 +40,12 @@ namespace xraymc {
 template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class TriangulatedOpenSurface {
 public:
+    TriangulatedOpenSurface()
+        : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
+        , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
+    {
+    }
+
     TriangulatedOpenSurface(const std::vector<Triangle>& triangles, double surfaceThickness = 0.035, const std::size_t max_tree_dept = 8)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
