@@ -19,6 +19,7 @@ Copyright 2023 Erlend Andersen
 #pragma once
 
 #include "xraymc/interpolation.hpp"
+#include "xraymc/serializer.hpp"
 
 #include <array>
 
