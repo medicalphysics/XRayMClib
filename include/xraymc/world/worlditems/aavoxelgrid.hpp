@@ -135,9 +135,9 @@ public:
         return names;
     }
 
-    static std::array<std::map<std::size_t, double>, 24> shcneiderMaterialWeights()
+    static std::array<std::map<std::uint8_t, double>, 24> shcneiderMaterialWeights()
     {
-        std::array<std::map<std::size_t, double>, 24> sw;
+        std::array<std::map<std::uint8_t, double>, 24> sw;
         sw[0] = { { 1, 75.5 }, { 6, 23.2 }, { 7, 1.3 } };
         sw[1] = { { 1, 10.3 }, { 6, 10.5 }, { 7, 3.1 }, { 8, 74.9 }, { 11, 0.2 }, { 15, 0.2 }, { 16, 0.3 }, { 17, 0.3 }, { 18, 0.2 } };
         sw[2] = { { 1, 11.6 }, { 6, 68.1 }, { 7, 0.2 }, { 8, 19.8 }, { 11, 0.1 }, { 15, 0.1 }, { 16, 0.1 } };
