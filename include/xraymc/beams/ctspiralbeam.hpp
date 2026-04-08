@@ -35,6 +35,7 @@ Copyright 2023 Erlend Andersen
 #include <array>
 #include <cmath>
 #include <map>
+#include <span>
 
 namespace xraymc {
 template <bool ENABLETRACKING = false>

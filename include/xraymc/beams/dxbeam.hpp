@@ -31,6 +31,7 @@ Copyright 2023 Erlend Andersen
 
 #include <array>
 #include <mutex>
+#include <span>
 
 namespace xraymc {
 template <bool ENABLETRACKING = false>

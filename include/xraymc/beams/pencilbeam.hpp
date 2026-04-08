@@ -26,6 +26,7 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/xraymcrandom.hpp"
 
 #include <array>
+#include <span>
 
 namespace xraymc {
 template <bool ENABLETRACKING = false>
