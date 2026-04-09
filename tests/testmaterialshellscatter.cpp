@@ -41,7 +41,7 @@ void testfluencescore()
     auto& sphere = world.template addItem<Sphere>();
     sphere.setRadius(1);
 
-    auto& fscore = world.addItem<FluenceScore>();
+    auto& fscore = world.template addItem<FluenceScore>();
     fscore.setRadius(1);
     fscore.setCenter({ 0, 2, 0 });
     fscore.setPlaneNormal({ 0, -1, 0 });

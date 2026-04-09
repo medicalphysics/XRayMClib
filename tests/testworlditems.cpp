@@ -161,7 +161,7 @@ bool longTest()
     if constexpr (std::is_base_of_v<xraymc::DepthDose<>, U> == true) {
 
         xraymc::World<U> world;
-        auto& item = world.addItem<U>();
+        auto& item = world.template addItem<U>();
         item.setRadius(2);
         item.setDirection({ 0, 0, -1 });
         item.setLenght(10);
