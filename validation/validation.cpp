@@ -1884,8 +1884,9 @@ struct Arguments {
             return "Livermore";
         case LECorrection::IA:
             return "IA";
+        default:
+            return "ALL";
         }
-        return "All";
     }
 };
 
