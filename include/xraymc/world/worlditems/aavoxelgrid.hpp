@@ -35,9 +35,15 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+
+    
 template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, std::uint8_t TRANSPARENTVOXELS = 255>
 class AAVoxelGrid {
 public:
+    /**
+     * @brief Default constructor. Initializes a 1x1x1 voxel grid with 1 cm spacing
+     *        filled with dry air at sea level density.
+     */
     AAVoxelGrid()
     {
         // setting default constructor up with dummy data
@@ -52,20 +58,44 @@ public:
         setSpacing({ 1, 1, 1 });
     }
 
+    /**
+     * @brief Constructs a voxel grid from explicit material and density data.
+     * @param dim      Grid dimensions as {nx, ny, nz}.
+     * @param spacing  Voxel size in cm along each axis.
+     * @param density  Per-voxel mass density in g/cm³, size must equal nx*ny*nz.
+     * @param materialIdx  Per-voxel index into @p materials, size must equal nx*ny*nz.
+     * @param materials    Material definitions referenced by @p materialIdx.
+     */
     AAVoxelGrid(const std::array<std::size_t, 3>& dim, const std::array<double, 3>& spacing, const std::vector<double>& density, const std::vector<uint8_t>& materialIdx, const std::vector<Material<NMaterialShells>>& materials)
     {
         setData(dim, density, materialIdx, materials);
         setSpacing(spacing);
     }
 
+    /**
+     * @brief Constructs a voxel grid from CT Hounsfield unit values using the
+     *        Schneider material conversion.
+     * @param dim        Grid dimensions as {nx, ny, nz}.
+     * @param spacing    Voxel size in cm along each axis.
+     * @param ctNumbers  Per-voxel Hounsfield units, size must equal nx*ny*nz.
+     */
     AAVoxelGrid(const std::array<std::size_t, 3>& dim, const std::array<double, 3>& spacing, const std::vector<double>& ctNumbers)
     {
         setData(dim, ctNumbers);
         setSpacing(spacing);
     }
 
+    /// @brief Equality comparison — two grids are equal if all data, materials, and geometry match.
     bool operator==(const AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>&) const = default;
 
+    /**
+     * @brief Populates the grid with explicit per-voxel density and material data.
+     * @param dim         Grid dimensions as {nx, ny, nz}.
+     * @param density     Per-voxel mass density in g/cm³.
+     * @param materialIdx Per-voxel index into @p materials.
+     * @param materials   Material definitions.
+     * @return true on success; false if sizes are inconsistent or an index is out of range.
+     */
     bool setData(const std::array<std::size_t, 3>& dim, const std::vector<double>& density, const std::vector<uint8_t>& materialIdx, const std::vector<Material<NMaterialShells>>& materials)
     {
         const auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
@@ -93,6 +123,13 @@ public:
         return true;
     }
 
+    /**
+     * @brief Populates the grid from CT Hounsfield unit values using the Schneider
+     *        material conversion scheme (24 tissue classes).
+     * @param dim       Grid dimensions as {nx, ny, nz}.
+     * @param ctNumbers Per-voxel Hounsfield units.
+     * @return true on success.
+     */
     bool setData(const std::array<std::size_t, 3>& dim, const std::vector<double>& ctNumbers)
     {
         const auto size = std::reduce(dim.cbegin(), dim.cend(), std::size_t { 1 }, std::multiplies<>());
@@ -123,6 +160,7 @@ public:
         return true;
     }
 
+    /// @brief Returns the 24 Schneider tissue-class names (Air, Lung, Soft 0–5, Skeletal 0–15).
     static std::array<std::string, 24> shcneiderMaterialNames()
     {
         std::array<std::string, 24> names;
@@ -135,6 +173,10 @@ public:
         return names;
     }
 
+    /**
+     * @brief Returns the elemental weight fractions for the 24 Schneider tissue classes.
+     *        Keys are atomic numbers; values are weight percentages.
+     */
     static std::array<std::map<std::uint8_t, double>, 24> shcneiderMaterialWeights()
     {
         std::array<std::map<std::uint8_t, double>, 24> sw;
@@ -164,6 +206,12 @@ public:
         sw[23] = { { 1, 3.4 }, { 6, 15.5 }, { 7, 4.2 }, { 8, 43.5 }, { 11, 0.1 }, { 15, 10.3 }, { 16, 0.3 }, { 20, 22.5 } };
         return sw;
     }
+    /**
+     * @brief Converts CT Hounsfield units to mass densities (g/cm³) using the
+     *        piecewise-linear Schneider conversion.
+     * @param ctNumbers Per-voxel Hounsfield units.
+     * @return Per-voxel densities in the same order as @p ctNumbers.
+     */
     static std::vector<double> shcneiderMaterialDensities(const std::vector<double>& ctNumbers)
     {
         std::vector<double> dens(ctNumbers.size());
@@ -184,6 +232,11 @@ public:
         });
         return dens;
     }
+    /**
+     * @brief Maps CT Hounsfield units to Schneider tissue-class indices (0–23).
+     * @param ctNumbers Per-voxel Hounsfield units.
+     * @return Per-voxel material indices in the same order as @p ctNumbers.
+     */
     static std::vector<std::uint8_t> shcneiderMaterialIndices(const std::vector<double>& ctNumbers)
     {
         constexpr std::array<double, 24> schneiderUlim = { -950.0, -120, -83, -53, -23, 7, 18, 80, 120, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600 };
@@ -196,6 +249,10 @@ public:
         return m;
     }
 
+    /**
+     * @brief Reverses voxel order along the specified axis (0=x, 1=y, 2=z).
+     * @param axis Axis index to flip; out-of-range values are ignored silently.
+     */
     void flipAxis(std::size_t axis)
     {
         auto data = m_data;
@@ -217,6 +274,11 @@ public:
         m_dose = dose;
     }
 
+    /**
+     * @brief Swaps two grid axes, rearranging voxel data and spacing accordingly.
+     * @param from Source axis index (0–2).
+     * @param to   Destination axis index (0–2); no-op when @p from == @p to or either is > 2.
+     */
     void rollAxis(std::size_t from, std::size_t to)
     {
         if (from > 2 || to > 2 || from == to)
@@ -250,11 +312,17 @@ public:
         m_dose = dose;
     }
 
+    /// @brief Returns the total number of voxels (nx * ny * nz).
     std::size_t size() const
     {
         return m_dim[0] * m_dim[1] * m_dim[2];
     }
 
+    /**
+     * @brief Sets the voxel size and updates the axis-aligned bounding box.
+     * @param spacing Voxel dimensions in cm along {x, y, z}; negative values are
+     *                treated as their absolute value.
+     */
     void setSpacing(const std::array<double, 3>& spacing)
     {
         for (std::size_t i = 0; i < 3; ++i) {
@@ -264,11 +332,16 @@ public:
         updateAABB();
     }
 
+    /// @brief Returns the voxel spacing in cm along {x, y, z}.
     const std::array<double, 3>& spacing() const
     {
         return m_spacing;
     }
 
+    /**
+     * @brief Translates the grid AABB by @p dist without moving voxel data.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         for (std::size_t i = 0; i < 3; ++i) {
@@ -277,6 +350,7 @@ public:
         }
     }
 
+    /// @brief Returns the geometric center of the AABB in world coordinates.
     std::array<double, 3> center() const
     {
         std::array<double, 3> center;
@@ -286,27 +360,41 @@ public:
         return center;
     }
 
+    /// @brief Returns the axis-aligned bounding box as {xmin, ymin, zmin, xmax, ymax, zmax}.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /// @brief Converts a 3D voxel index array to a flat (linear) array index.
     inline std::size_t flatIndex(const std::array<std::size_t, 3>& index) const
     {
         return flatIndex(index[0], index[1], index[2]);
     }
 
+    /// @brief Converts separate x/y/z voxel indices to a flat (linear) array index.
     inline std::size_t flatIndex(const std::size_t x, const std::size_t y, const std::size_t z) const
     {
         return x + m_dim[0] * (y + m_dim[1] * z);
     }
 
+    /**
+     * @brief Converts a world-space position to a flat voxel index.
+     * @tparam BOUNDSCHECK When true, clamps coordinates to the grid extent.
+     * @param pos World-space position in cm.
+     */
     template <bool BOUNDSCHECK = true>
     inline std::size_t flatIndex(const std::array<double, 3>& pos) const
     {
         return flatIndex(index<BOUNDSCHECK>(pos));
     }
 
+    /**
+     * @brief Converts a world-space position to a 3D voxel index.
+     * @tparam BOUNDSCHECK When true, clamps each component to valid range;
+     *                     when false, no clamping is performed (faster, unsafe outside the grid).
+     * @param pos World-space position in cm.
+     */
     template <bool BOUNDSCHECK = true>
     inline std::array<std::size_t, 3> index(const std::array<double, 3>& pos) const
     {
@@ -327,6 +415,7 @@ public:
         }
     }
 
+    /// @brief Converts a flat (linear) voxel index back to a 3D {x, y, z} index.
     inline std::array<std::size_t, 3> index(const std::size_t flatIndex) const
     {
         const auto z = flatIndex / (m_dim[0] * m_dim[1]);
@@ -336,6 +425,12 @@ public:
         return arr;
     }
 
+    /**
+     * @brief Tests a particle ray against the grid AABB, and for transparent-voxel
+     *        grids steps through voxels until a non-transparent one is found.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result containing the distance to the first hit voxel.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         auto inter = basicshape::AABB::intersect(p, m_aabb);
@@ -347,6 +442,12 @@ public:
         return inter;
     }
 
+    /**
+     * @brief Like intersect(), but returns a visualization result that includes the
+     *        accumulated dose value and surface normal at the hit voxel face.
+     * @tparam U Scalar type used for the dose value in the visualization result.
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
@@ -365,6 +466,7 @@ public:
         return res;
     }
 
+    /// @brief Returns a flat vector of per-voxel material indices in row-major (x-fastest) order.
     std::vector<std::uint8_t> getMaterialIndex() const
     {
         const auto size = m_dim[0] * m_dim[1] * m_dim[2];
@@ -373,6 +475,7 @@ public:
         return i;
     }
 
+    /// @brief Returns a flat vector of per-voxel mass densities (g/cm³) in row-major order.
     std::vector<double> getDensity() const
     {
         const auto size = m_dim[0] * m_dim[1] * m_dim[2];
@@ -381,6 +484,7 @@ public:
         return i;
     }
 
+    /// @brief Returns a flat vector of per-voxel energy-score accumulators in row-major order.
     std::vector<EnergyScore> getEnergyScores() const
     {
         const auto size = m_dim[0] * m_dim[1] * m_dim[2];
@@ -389,16 +493,26 @@ public:
         return i;
     }
 
+    /// @brief Returns a reference to the flat vector of per-voxel dose-score accumulators.
     const std::vector<DoseScore>& getDoseScores() const
     {
         return m_dose;
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for a single voxel.
+     * @param flatIndex Row-major voxel index; defaults to the first voxel.
+     */
     const EnergyScore& energyScored(std::size_t flatIndex = 0) const
     {
         return m_data.at(flatIndex).energyScored;
     }
 
+    /**
+     * @brief Accumulates the current per-voxel energy scores into the dose scores,
+     *        converting energy to dose using voxel volume, density, and a calibration factor.
+     * @param calibration_factor Optional scaling factor applied to each scored energy value.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         const auto size = m_dim[0] * m_dim[1] * m_dim[2];
@@ -410,21 +524,34 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for a single voxel.
+     * @param flatIndex Row-major voxel index; defaults to the first voxel.
+     */
     const DoseScore& doseScored(std::size_t flatIndex = 0) const
     {
         return m_dose.at(flatIndex);
     }
 
+    /// @brief Resets all per-voxel energy-score accumulators to zero.
     void clearEnergyScored()
     {
         std::for_each(std::execution::par_unseq, m_data.begin(), m_data.end(), [](auto& d) { d.energyScored.clear(); });
     }
 
+    /// @brief Resets all per-voxel dose-score accumulators to zero.
     void clearDoseScored()
     {
         std::for_each(std::execution::par_unseq, m_dose.begin(), m_dose.end(), [](auto& d) { d.clear(); });
     }
 
+    /**
+     * @brief Transports a particle through the grid until it either exits or is absorbed.
+     *        Uses voxel-by-voxel tracking when TRANSPARENTVOXELS != 255, otherwise
+     *        uses Woodcock (delta-tracking).
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transport(ParticleType auto& p, RandomState& state)
     {
         if constexpr (TRANSPARENTVOXELS != 255) {
@@ -434,11 +561,17 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the maximum total linear attenuation coefficient (cm⁻¹) across
+     *        all materials and densities in the grid at the given energy.
+     * @param energy Photon energy in keV.
+     */
     double maxAttenuationValue(const double energy) const
     {
         return interpolate(m_woodcockStepTableLin, energy);
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "AAVoxelGrid1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(TRANSPARENTVOXELS) + std::to_string(NMaterialShells);
@@ -448,6 +581,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -456,6 +594,11 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the grid (dimensions, spacing, AABB, densities, material indices,
+     *        dose scores, and material compositions) to a byte vector.
+     * @return Binary representation that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -481,6 +624,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a grid from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed grid on success, or std::nullopt if any material
+     *         weight set cannot be parsed.
+     */
     static std::optional<AAVoxelGrid<NMaterialShells, LOWENERGYCORRECTION, TRANSPARENTVOXELS>> deserialize(std::span<const char> buffer)
     {
         std::array<std::uint64_t, 3> dim_uint;
@@ -528,6 +677,7 @@ public:
     }
 
 protected:
+    /// @brief Recomputes the AABB from the current dimensions, spacing, and center position.
     void updateAABB()
     {
         const auto c = center();
@@ -539,17 +689,28 @@ protected:
         translate(c);
     }
 
+    /// @brief Returns the index of the smallest element in a 3-element array.
     static inline std::uint_fast8_t argmin3(const std::array<double, 3>& a)
     {
         return a[0] < a[1] ? a[0] < a[2] ? 0 : 2 : a[1] < a[2] ? 1
                                                                : 2;
     }
+    /// @brief Returns the index of the largest element in a 3-element array.
     static inline std::uint_fast8_t argmax3(const std::array<double, 3>& a)
     {
         return a[0] > a[1] ? a[0] > a[2] ? 0 : 2 : a[1] > a[2] ? 1
                                                                : 2;
     }
 
+    /**
+     * @brief Walks the grid to find the first non-transparent voxel
+     *        hit by the ray, updating @p intersection in place.
+     * @tparam Intersection    Result type; specialised path for VisualizationIntersectionResult.
+     * @tparam IGNOREIDX       Material index treated as transparent (skipped during traversal).
+     * @param p            Particle defining the ray origin and direction.
+     * @param intersection Intersection result pre-populated with the AABB hit; updated to
+     *                     the first opaque voxel hit, or invalidated if none is found.
+     */
     template <typename Intersection = WorldIntersectionResult, std::uint_fast8_t IGNOREIDX = 255>
     void voxelIntersect(const ParticleType auto& p, Intersection& intersection) const
     {
@@ -623,6 +784,14 @@ protected:
         } while (still_inside);
     }
 
+    /**
+     * @brief Transports a particle voxel-by-voxel using ray-marching and analog
+     *        Monte Carlo interaction sampling. Exits when the particle leaves the
+     *        grid, enters a transparent voxel, or is absorbed.
+     * @tparam IGNOREIDX Material index treated as outside the geometry.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     template <std::uint_fast8_t IGNOREIDX = 255>
     void voxelTransport(ParticleType auto& p, RandomState& state)
     {
@@ -702,6 +871,11 @@ protected:
         } while (true);
     }
 
+    /**
+     * @brief Builds the Woodcock step table by computing the maximum total linear
+     *        attenuation coefficient across all materials and densities for a log-spaced
+     *        energy grid augmented with shell binding-energy edges.
+     */
     void generateWoodcockStepTable()
     {
         std::vector<double> energy;
@@ -755,6 +929,14 @@ protected:
         m_woodcockStepTableLin = data;
     }
 
+    /**
+     * @brief Transports a particle using the Woodcock (delta-tracking) algorithm.
+     *        Virtual interactions are rejected with probability proportional to the
+     *        ratio of the local to maximum attenuation, avoiding explicit voxel boundary
+     *        crossings.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void woodcockTransport(ParticleType auto& p, RandomState& state)
     {
         bool valid = basicshape::AABB::pointInside(p.pos, m_aabb);
