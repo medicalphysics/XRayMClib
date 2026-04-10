@@ -19,7 +19,7 @@ import subprocess, os
 # -- Project information -----------------------------------------------------
 
 project = "xraymclib"
-copyright = "2020, Erlend Andersen"
+copyright = "2026, Erlend Andersen"
 author = "Erlend Andersen"
 
 
@@ -69,7 +69,15 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "classic"
+html_theme_options = {
+    # "rightsidebar": "true",
+    # "sidebarwidth": "20%",
+    # "body_min_width": "20%",
+    "body_max_width": "75%",
+    "tickysidebar": True,
+}
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

@@ -5,7 +5,7 @@ xraymclib (Diagnostic X-ray Monte Carlo) is a radiation dose scoring library for
 
 If you are looking for an application with graphical user interface to perform simulations, Openxraymc_ uses this library as Monte Carlo engine and also allows for import CT images and phantoms as scoring volumes. 
 
-.. _Openxraymc: https://github.com/medicalphysics/Openxraymc/releases
+.. _OpenXrayMC: https://github.com/medicalphysics/Openxraymc/releases
 
 Example of usage
 -----------------
@@ -21,19 +21,37 @@ The example can be built by CMake with the following CMakeLists.txt file.
    :language: cmake
    :linenos:
 
+See complete examples at:
 
-Check also out
---------------
+* Example 1 https://github.com/medicalphysics/xraymcExample1
+
+* Example 2 https://github.com/medicalphysics/xraymcExample2
+
+* Example 3 https://github.com/medicalphysics/xraymcExample3
+
+
+
+C++ API
+-------------
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 1   
+   
+   api/api_root
+
+
+Other
+-------------
+.. toctree::
+   :maxdepth: 1   
    
    about
-   physicsmodel
-   api/api_root
    license
+..
+   physicsmodel
+
    
 
-Indices and tables
+Navigation
 ==================
 
 * :ref:`genindex`
