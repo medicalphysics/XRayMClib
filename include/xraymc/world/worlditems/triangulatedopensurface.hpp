@@ -37,15 +37,39 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief A triangulated open-surface geometry that models a thin shell of material.
+ *
+ * Unlike a closed mesh, this class does not enclose a volume. Instead, each triangle
+ * represents a patch of a surface with a configurable finite thickness. Particles
+ * entering a triangle face travel through a slab of the given thickness perpendicular
+ * to the triangle plane before exiting the other side. Ray–triangle intersections are
+ * accelerated by a flat KD-tree (MeshKDTreeFlat). Absorbed energy is accumulated in
+ * an EnergyScore and can be converted to dose via addEnergyScoredToDoseScore(), using
+ * the total surface area times thickness as the volume estimate.
+ *
+ * @tparam NMaterialShells     Number of electron shells for material cross-sections.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode passed to interaction sampling.
+ */
 template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class TriangulatedOpenSurface {
 public:
+    /**
+     * @brief Default constructor. Initializes the surface with no triangles and
+     *        dry air material at standard sea-level density.
+     */
     TriangulatedOpenSurface()
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
     {
     }
 
+    /**
+     * @brief Constructs an open surface from an existing triangle list.
+     * @param triangles        Collection of triangles defining the surface patches.
+     * @param surfaceThickness Thickness of the material slab at each triangle in cm.
+     * @param max_tree_dept    Maximum depth of the KD-tree used for intersection acceleration.
+     */
     TriangulatedOpenSurface(const std::vector<Triangle>& triangles, double surfaceThickness = 0.035, const std::size_t max_tree_dept = 8)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -53,6 +77,12 @@ public:
         setData(triangles, surfaceThickness, max_tree_dept);
     }
 
+    /**
+     * @brief Constructs an open surface by reading triangles from an STL file.
+     * @param path             Path to the STL file.
+     * @param surfaceThickness Thickness of the material slab at each triangle in cm.
+     * @param max_tree_dept    Maximum depth of the KD-tree used for intersection acceleration.
+     */
     TriangulatedOpenSurface(const std::string& path, double surfaceThickness = 0.035, const std::size_t max_tree_dept = 8)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -62,31 +92,55 @@ public:
         setData(triangles, surfaceThickness, max_tree_dept);
     }
 
+    /// @brief Returns the surface slab thickness in cm.
     double surfaceThickness() const
     {
         return m_thickness;
     }
+
+    /**
+     * @brief Sets the surface slab thickness.
+     * @param cm New thickness in cm; absolute value is used.
+     */
     void setSurfaceThickness(double cm)
     {
         m_thickness = std::abs(cm);
     }
 
+    /**
+     * @brief Sets the material used for attenuation and interaction sampling.
+     * @param mat Material cross-section data.
+     */
     void setMaterial(const Material<NMaterialShells>& mat)
     {
         m_material = mat;
     }
 
+    /**
+     * @brief Sets the material mass density.
+     * @param dens Density in g/cm³; absolute value is used.
+     */
     void setMaterialDensity(double dens)
     {
         m_materialDensity = std::abs(dens);
     }
 
+    /**
+     * @brief Sets both the material and its mass density in one call.
+     * @param mat  Material cross-section data.
+     * @param dens Density in g/cm³; absolute value is used.
+     */
     void setMaterial(const Material<NMaterialShells>& mat, double dens)
     {
         m_material = mat;
         setMaterialDensity(dens);
     }
 
+    /**
+     * @brief Sets the material and density from the NIST material database by name.
+     * @param nist_name Name of the NIST material (e.g., "Water, Liquid").
+     * @return true if the name was found and the material was set; false otherwise.
+     */
     bool setNistMaterial(const std::string& nist_name)
     {
         const auto mat = Material<NMaterialShells>::byNistName(nist_name);
@@ -98,16 +152,22 @@ public:
         return false;
     }
 
+    /// @brief Returns the flat KD-tree used to accelerate ray–triangle intersection tests.
     const MeshKDTreeFlat<Triangle>& kdtree() const
     {
         return m_kdtree;
     }
 
+    /// @brief Returns the list of triangles defining the open surface.
     const std::vector<Triangle>& getTriangles() const
     {
         return m_triangles;
     }
 
+    /**
+     * @brief Translates all triangles, the KD-tree, and the AABB by @p dist.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
@@ -121,6 +181,10 @@ public:
         }
     }
 
+    /**
+     * @brief Uniformly scales all triangle vertices, the KD-tree, and the AABB by factor @p s.
+     * @param s Scale factor applied to all vertex coordinates.
+     */
     void scale(double s)
     {
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
@@ -133,6 +197,13 @@ public:
         }
     }
 
+    /**
+     * @brief Rotates all triangles about @p point by @p angle radians around @p axis,
+     *        then rebuilds the KD-tree and AABB.
+     * @param angle Rotation angle in radians.
+     * @param axis  Rotation axis (need not be normalized).
+     * @param point World-space pivot point for the rotation.
+     */
     void rotate(const double angle, const std::array<double, 3>& axis, const std::array<double, 3>& point)
     {
         const auto depth = m_kdtree.maxDepth();
@@ -148,6 +219,13 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Replaces the current triangle data, sets the surface thickness, rebuilds the
+     *        KD-tree, and recalculates the AABB.
+     * @param triangles        New collection of triangles defining the surface.
+     * @param surfaceThickness Thickness of the material slab at each triangle in cm.
+     * @param max_tree_dept    Maximum depth of the KD-tree.
+     */
     void setData(const std::vector<Triangle>& triangles, double surfaceThickness = 0.035, const std::size_t max_tree_dept = 8)
     {
 
@@ -157,6 +235,10 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Returns the centroid of the surface, computed as the mean of all triangle centers.
+     * @return World-space centroid in cm.
+     */
     std::array<double, 3> center() const
     {
         std::array<double, 3> center { 0, 0, 0 };
@@ -172,6 +254,16 @@ public:
         return center;
     }
 
+    /**
+     * @brief Tests a particle ray against the surface using the KD-tree accelerator.
+     *
+     * The returned intersection distance is adjusted inward by half the slab thickness
+     * (projected along the ray) so the particle enters the material before reaching the
+     * triangle plane. Not intended for particles originating inside the surface.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result with the adjusted entry distance, always with
+     *         rayOriginIsInsideItem = false.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         // Not to be used for internal intersections
@@ -189,6 +281,12 @@ public:
         return wres;
     }
 
+    /**
+     * @brief Like intersect(), but also returns the triangle surface normal (oriented
+     *        toward the incoming ray) and the accumulated dose value for visualization.
+     * @tparam U Scalar type used for the value field (set to the current mean dose).
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const noexcept
     {
@@ -208,6 +306,17 @@ public:
         return res_int;
     }
 
+    /**
+     * @brief Transports a particle through the surface slab using analog Monte Carlo sampling.
+     *
+     * The particle travels through a slab of thickness m_thickness centered on the
+     * intersected triangle plane. Free-path sampling and photon interactions continue
+     * until the particle exits the slab or is absorbed. The exit boundary is determined
+     * by projecting the slab half-thickness along the particle direction. Imparted energy
+     * is recorded in the EnergyScore accumulator.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transport(ParticleType auto& p, RandomState& state)
     {
         const auto intersection = m_kdtree.intersect(p, m_triangles, m_aabb);
@@ -270,37 +379,54 @@ public:
         } while (inside);
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for the surface.
+     * @param index Unused; present for interface consistency.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScored;
     }
 
+    /// @brief Resets the energy-score accumulator to zero.
     void clearEnergyScored()
     {
         m_energyScored.clear();
     }
 
+    /**
+     * @brief Converts the accumulated energy score to a dose score using the surface
+     *        area times thickness as the effective volume.
+     * @param calibration_factor Optional scaling factor applied during the conversion; defaults to 1.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         const auto volume = calculateVolume(m_triangles, m_thickness);
         m_dose.addScoredEnergy(m_energyScored, volume, m_materialDensity, calibration_factor);
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for the surface.
+     * @param index Unused; present for interface consistency.
+     */
     const DoseScore& doseScored(std::size_t index = 0) const
     {
         return m_dose;
     }
 
+    /// @brief Resets the dose-score accumulator to zero.
     void clearDoseScored()
     {
         m_dose.clear();
     }
 
+    /// @brief Returns the axis-aligned bounding box of the surface as {xmin, ymin, zmin, xmax, ymax, zmax} in cm.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "TriOpenSurface1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
@@ -310,6 +436,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -318,6 +449,11 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the surface (triangle vertex data, material density, surface thickness,
+     *        material composition, and dose score) to a byte vector that can be restored via
+     *        deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -341,6 +477,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a surface from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed surface, or std::nullopt if the data is malformed (triangle count
+     *         not a multiple of 9, or material composition cannot be resolved).
+     */
     static std::optional<TriangulatedOpenSurface<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
     {
         std::vector<double> points;
@@ -383,6 +525,7 @@ public:
     }
 
 protected:
+    /// @brief Recomputes the AABB by iterating over all triangle AABBs and extending by GEOMETRIC_ERROR().
     void calculateAABB()
     {
         std::array<double, 6> aabb {
@@ -413,6 +556,12 @@ protected:
         m_aabb = aabb;
     }
 
+    /**
+     * @brief Estimates the effective volume as total surface area times @p thickness.
+     * @param triangles Collection of triangles whose areas are summed.
+     * @param thickness Surface slab thickness in cm.
+     * @return Effective volume in cm³ used for dose normalization.
+     */
     static double calculateVolume(const std::vector<Triangle>& triangles, double thickness)
     {
         const auto area = std::transform_reduce(std::execution::par_unseq, triangles.cbegin(), triangles.cend(), 0.0, std::plus<>(), [](const auto& tri) {

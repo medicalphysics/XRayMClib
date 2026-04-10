@@ -37,15 +37,37 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief A triangulated surface mesh geometry for Monte Carlo particle transport.
+ *
+ * The mesh is defined by a set of triangles (typically loaded from an STL file) that
+ * enclose a homogeneous volume with a single material and density. Ray–triangle
+ * intersections are accelerated by a flat KD-tree (MeshKDTreeFlat). Particles are
+ * tracked inside the enclosed volume until they exit through a triangle face.
+ * Absorbed energy is accumulated in an EnergyScore and can be converted to dose
+ * via addEnergyScoredToDoseScore().
+ *
+ * @tparam NMaterialShells     Number of electron shells for material cross-sections.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode passed to interaction sampling.
+ */
 template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2>
 class TriangulatedMesh {
 public:
+    /**
+     * @brief Default constructor. Initializes the mesh with no triangles and
+     *        dry air material at standard sea-level density.
+     */
     TriangulatedMesh()
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
     {
     }
 
+    /**
+     * @brief Constructs a mesh from an existing triangle list.
+     * @param triangles     Collection of triangles defining the surface.
+     * @param max_tree_dept Maximum depth of the KD-tree used for intersection acceleration.
+     */
     TriangulatedMesh(const std::vector<Triangle>& triangles, const std::size_t max_tree_dept = 4)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -55,6 +77,11 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Constructs a mesh by reading triangles from an STL file.
+     * @param path          Path to the STL file.
+     * @param max_tree_dept Maximum depth of the KD-tree used for intersection acceleration.
+     */
     TriangulatedMesh(const std::string& path, const std::size_t max_tree_dept = 4)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -65,6 +92,12 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Constructs a mesh by reading triangles from an STL file and uniformly scaling them.
+     * @param path          Path to the STL file.
+     * @param scale         Uniform scale factor applied to all vertex coordinates.
+     * @param max_tree_dept Maximum depth of the KD-tree used for intersection acceleration.
+     */
     TriangulatedMesh(const std::string& path, double scale, const std::size_t max_tree_dept = 4)
         : m_materialDensity(NISTMaterials::density("Air, Dry (near sea level)"))
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -78,22 +111,40 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Sets the material used for attenuation and interaction sampling.
+     * @param mat Material cross-section data.
+     */
     void setMaterial(const Material<NMaterialShells>& mat)
     {
         m_material = mat;
     }
 
+    /**
+     * @brief Sets the material mass density.
+     * @param dens Density in g/cm³; absolute value is used, clamped to at least 1e-8 g/cm³.
+     */
     void setMaterialDensity(double dens)
     {
         m_materialDensity = std::max(std::abs(dens), 0.00000001);
     }
 
+    /**
+     * @brief Sets both the material and its mass density in one call.
+     * @param mat  Material cross-section data.
+     * @param dens Density in g/cm³; clamped to at least 1e-8 g/cm³.
+     */
     void setMaterial(const Material<NMaterialShells>& mat, double dens)
     {
         m_material = mat;
         setMaterialDensity(dens);
     }
 
+    /**
+     * @brief Sets the material and density from the NIST material database by name.
+     * @param nist_name Name of the NIST material (e.g., "Water, Liquid").
+     * @return true if the name was found and the material was set; false otherwise.
+     */
     bool setNistMaterial(const std::string& nist_name)
     {
         const auto mat = Material<NMaterialShells>::byNistName(nist_name);
@@ -105,16 +156,22 @@ public:
         return false;
     }
 
+    /// @brief Returns the flat KD-tree used to accelerate ray–triangle intersection tests.
     const MeshKDTreeFlat<Triangle>& kdtree() const
     {
         return m_kdtree;
     }
 
+    /// @brief Returns the list of triangles defining the mesh surface.
     const std::vector<Triangle>& triangles() const
     {
         return m_triangles;
     }
 
+    /**
+     * @brief Translates all triangles, the KD-tree, and the AABB by @p dist.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
@@ -128,6 +185,10 @@ public:
         }
     }
 
+    /**
+     * @brief Uniformly scales all triangle vertices, the KD-tree, and the AABB by factor @p s.
+     * @param s Scale factor applied to all vertex coordinates.
+     */
     void scale(double s)
     {
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
@@ -140,6 +201,10 @@ public:
         }
     }
 
+    /**
+     * @brief Mirrors the mesh through a given world-space point and rebuilds the KD-tree.
+     * @param point The point through which each triangle vertex is reflected.
+     */
     void mirror(const std::array<double, 3>& point)
     {
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
@@ -150,6 +215,12 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Mirrors the mesh about a plane perpendicular to axis @p dim at position @p value,
+     *        then rebuilds the KD-tree and AABB.
+     * @param value Coordinate of the mirror plane along @p dim.
+     * @param dim   Axis index: 0 = x, 1 = y, 2 = z.
+     */
     void mirror(const double value, const std::uint_fast32_t dim)
     {
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [&](auto& tri) {
@@ -160,18 +231,35 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Mirrors the mesh about the mid-plane of the AABB along axis @p dim.
+     * @param dim Axis index: 0 = x, 1 = y, 2 = z.
+     */
     void mirror(const std::uint_fast32_t dim)
     {
         const auto value = (m_aabb[dim] + m_aabb[dim + 3]) * 0.5;
         mirror(value, dim);
     }
 
+    /**
+     * @brief Rotates all triangles about the world origin by @p angle radians around @p axis,
+     *        then rebuilds the KD-tree and AABB.
+     * @param angle Rotation angle in radians.
+     * @param axis  Rotation axis (need not be normalized).
+     */
     void rotate(const double angle, const std::array<double, 3>& axis)
     {
         constexpr std::array<double, 3> offset = { 0, 0, 0 };
         rotate(angle, axis, offset);
     }
 
+    /**
+     * @brief Rotates all triangles about an arbitrary @p point by @p angle radians around @p axis,
+     *        then rebuilds the KD-tree and AABB.
+     * @param angle Rotation angle in radians.
+     * @param axis  Rotation axis (need not be normalized).
+     * @param point World-space pivot point for the rotation.
+     */
     void rotate(const double angle, const std::array<double, 3>& axis, const std::array<double, 3>& point)
     {
         const auto depth = m_kdtree.maxDepth();
@@ -187,6 +275,11 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Replaces the current triangle data, rebuilds the KD-tree, and recalculates the AABB.
+     * @param triangles     New collection of triangles defining the surface.
+     * @param max_tree_dept Maximum depth of the KD-tree.
+     */
     void setData(const std::vector<Triangle>& triangles, const std::size_t max_tree_dept = 8)
     {
         m_triangles = triangles;
@@ -194,6 +287,10 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Returns the centroid of the mesh, computed as the mean of all triangle centers.
+     * @return World-space centroid in cm.
+     */
     std::array<double, 3> center() const
     {
         std::array<double, 3> center { 0, 0, 0 };
@@ -209,12 +306,24 @@ public:
         return center;
     }
 
+    /**
+     * @brief Tests a particle ray against the mesh surface using the KD-tree accelerator.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result with distance to the nearest triangle face, including
+     *         whether the ray origin is inside the mesh.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         const auto res = m_kdtree.intersect(p, m_triangles, m_aabb);
         return WorldIntersectionResult { .intersection = res.intersection, .rayOriginIsInsideItem = res.rayOriginIsInsideItem, .intersectionValid = res.item != nullptr };
     }
 
+    /**
+     * @brief Like intersect(), but also returns the triangle surface normal and the
+     *        accumulated dose value for visualization.
+     * @tparam U Scalar type used for the value field (set to the current mean dose).
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const noexcept
     {
@@ -232,6 +341,15 @@ public:
         return res_int;
     }
 
+    /**
+     * @brief Transports a particle through the mesh using analog Monte Carlo sampling.
+     *
+     * The particle undergoes repeated free-path sampling and photon interactions until
+     * it exits the mesh surface or is absorbed. Imparted energy is recorded in the
+     * EnergyScore accumulator.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transport(ParticleType auto& p, RandomState& state)
     {
         bool cont = true;
@@ -263,16 +381,25 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for the mesh.
+     * @param index Unused; present for interface consistency.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScored;
     }
 
+    /// @brief Resets the energy-score accumulator to zero.
     void clearEnergyScored()
     {
         m_energyScored.clear();
     }
 
+    /**
+     * @brief Converts the accumulated energy score to a dose score using the mesh volume and density.
+     * @param calibration_factor Optional scaling factor applied during the conversion; defaults to 1.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         // not defined for fleunce counter
@@ -280,21 +407,32 @@ public:
         m_dose.addScoredEnergy(m_energyScored, vol, m_materialDensity, calibration_factor);
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for the mesh.
+     * @param index Unused; present for interface consistency.
+     */
     const DoseScore& doseScored(std::size_t index = 0) const
     {
         return m_dose;
     }
 
+    /// @brief Resets the dose-score accumulator to zero.
     void clearDoseScored()
     {
         m_dose.clear();
     }
 
+    /// @brief Returns the axis-aligned bounding box of the mesh as {xmin, ymin, zmin, xmax, ymax, zmax} in cm.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /**
+     * @brief Computes the enclosed volume of the mesh using the divergence theorem
+     *        (signed tetrahedron volumes summed over all triangles).
+     * @return Enclosed volume in cm³.
+     */
     [[nodiscard]] double volume() const
     {
         // using signed volume of a thetrahedron by a point and the three vertices (Gauss theorem of divergence)
@@ -318,6 +456,7 @@ public:
         return std::abs(vol) / 6;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "TriMesh1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells);
@@ -327,6 +466,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -335,6 +479,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the mesh (triangle vertex data, material density, material composition,
+     *        and dose score) to a byte vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -357,6 +505,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a mesh from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed mesh, or std::nullopt if the data is malformed (triangle count
+     *         not a multiple of 9, or material composition cannot be resolved).
+     */
     static std::optional<TriangulatedMesh<NMaterialShells, LOWENERGYCORRECTION>> deserialize(std::span<const char> buffer)
     {
         std::vector<double> points;
@@ -398,6 +552,7 @@ public:
     }
 
 protected:
+    /// @brief Recomputes the AABB by iterating over all triangle AABBs and extending by GEOMETRIC_ERROR().
     void calculateAABB()
     {
         std::array<double, 6> aabb {

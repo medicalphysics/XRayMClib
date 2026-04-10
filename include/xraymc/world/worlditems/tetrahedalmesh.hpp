@@ -36,6 +36,20 @@ Copyright 2025 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief An unstructured tetrahedral mesh geometry for Monte Carlo particle transport.
+ *
+ * The mesh is partitioned into named collections, each with its own material and
+ * density.  Particles are tracked cell-by-cell using a Siddon-style cumulative step
+ * algorithm for numerical stability.  The outer surface is accelerated by a KD-tree
+ * built from boundary triangles.  Per-tetrahedron energy and dose accumulators are
+ * provided along with volume-weighted collection summaries.
+ *
+ * @tparam NMaterialShells     Number of electron shells for material cross-sections.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode passed to interaction sampling.
+ * @tparam FORCEDINTERACTION   When true, forces photoelectric interactions at each
+ *                             tetrahedron boundary for variance-reduction.
+ */
 template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTION = false>
 class TetrahedalMesh {
     // static constexpr auto EPSILON = std::numeric_limits<double>::epsilon() * 1000;
@@ -43,12 +57,25 @@ class TetrahedalMesh {
     // static constexpr double EPSILON = GEOMETRIC_ERROR();
 
 public:
+    /// @brief Default constructor. Creates an empty, invalid mesh.
     TetrahedalMesh() { };
+
+    /**
+     * @brief Constructs a mesh and immediately loads geometry and material data.
+     * @param data Validated mesh data; see setData() for details.
+     */
     TetrahedalMesh(const TetrahedalMeshData& data)
     {
         setData(data);
     }
 
+    /**
+     * @brief Loads mesh geometry and collection data, building all internal structures.
+     * @param data Mesh data containing nodes, elements, collection indices, densities,
+     *             material compositions, and collection names.
+     * @return true on success; false if @p data is invalid or any material cannot be
+     *         constructed from its elemental weight map.
+     */
     bool setData(const TetrahedalMeshData& data)
     {
         if (!data.valid())
@@ -80,6 +107,10 @@ public:
         return true;
     }
 
+    /**
+     * @brief Translates all vertices, the AABB, and the contour KD-tree by @p vec.
+     * @param vec Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& vec)
     {
         std::transform(std::execution::par_unseq, m_vertices.begin(), m_vertices.end(), m_vertices.begin(), [=](const auto& v) {
@@ -92,6 +123,12 @@ public:
         m_kdtree.translate(vec);
     }
 
+    /**
+     * @brief Rotates all vertices about @p axis (through the mesh center) by @p angle,
+     *        then rebuilds the AABB and contour KD-tree.
+     * @param axis  Rotation axis (need not be normalized).
+     * @param angle Rotation angle in radians.
+     */
     void rotate(const std::array<double, 3>& axis, double angle)
     {
         const std::array center = { (m_aabb[3] + m_aabb[0]) / 2, (m_aabb[4] + m_aabb[1]) / 2, (m_aabb[5] + m_aabb[2]) / 2 };
@@ -102,6 +139,11 @@ public:
         m_kdtree.setData(m_vertices, m_outer_triangles, 8);
     }
 
+    /**
+     * @brief Restricts visualization to tetrahedrons belonging to the named collection.
+     * @param collectionName Name to match against the collection list.
+     * @return true if the name was found and the filter was set; false otherwise.
+     */
     bool setDisplayCollectionIndexFilter(const std::string& collectionName)
     {
         std::uint32_t teller = 0;
@@ -112,6 +154,12 @@ public:
         return setDisplayCollectionIndexFilter(teller);
     }
 
+    /**
+     * @brief Restricts visualization to tetrahedrons belonging to collection @p idx.
+     *        Pass max uint32 (or an out-of-range index) to show all collections.
+     * @param idx Zero-based collection index.
+     * @return true if @p idx is valid; false otherwise (filter is cleared).
+     */
     bool setDisplayCollectionIndexFilter(std::uint32_t idx)
     {
         if (idx < m_collectionMaterials.size()) {
@@ -122,11 +170,13 @@ public:
         return false;
     }
 
+    /// @brief Returns the axis-aligned bounding box of the mesh as {xmin, ymin, zmin, xmax, ymax, zmax}.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /// @brief Returns the geometric center of the AABB in world coordinates.
     std::array<double, 3> center() const
     {
         std::array<double, 3> res = {
@@ -137,6 +187,10 @@ public:
         return res;
     }
 
+    /**
+     * @brief Returns the volume of a single tetrahedron in cm³.
+     * @param index Zero-based tetrahedron index.
+     */
     double tetrahedalVolume(std::uint32_t index) const
     {
         const auto& tet = m_tetrahedrons.at(index).verticeIdx;
@@ -147,16 +201,23 @@ public:
         return basicshape::tetrahedron::volume(v0, v1, v2, v3);
     }
 
+    /// @brief Returns the total number of tetrahedrons in the mesh.
     std::uint32_t numberOfThetrahedrons() const
     {
         return static_cast<std::uint32_t>(m_tetrahedrons.size());
     }
 
+    /// @brief Returns the names of all material collections in the mesh.
     const std::vector<std::string> collectionNames() const
     {
         return m_collectionNames;
     }
 
+    /**
+     * @brief Looks up the collection index for a given collection name.
+     * @param name Collection name to search for.
+     * @return The zero-based index on success, or std::nullopt if not found.
+     */
     std::optional<std::uint32_t> tetrahedronCollectionIndex(const std::string& name) const
     {
         std::uint32_t teller = 0;
@@ -168,11 +229,20 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Returns the collection index for a given tetrahedron.
+     * @param idx Zero-based tetrahedron index.
+     */
     std::uint32_t tetrahedronCollectionIndex(std::uint32_t idx) const
     {
         return m_collectionIdx.at(idx);
     }
 
+    /**
+     * @brief Returns the four vertex positions of a tetrahedron.
+     * @param ind Zero-based tetrahedron index.
+     * @return Array of four {x, y, z} vertex positions in cm.
+     */
     std::array<std::array<double, 3>, 4> tetrahedron(std::uint32_t ind) const
     {
         const auto& t = m_tetrahedrons.at(ind);
@@ -183,21 +253,29 @@ public:
         return tet;
     }
 
+    /// @brief Returns the tetrahedron index for each outer-contour triangle (parallel to the triangle list).
     const std::vector<std::uint32_t>& outerContourTetrahedronIndices() const
     {
         return m_outerTriangleTetMembership;
     }
 
+    /// @brief Returns a read-only reference to the particle tracker.
     const ParticleTracker& particleTracker() const
     {
         return m_tracker;
     }
 
+    /// @brief Returns a mutable reference to the particle tracker.
     ParticleTracker& particleTracker()
     {
         return m_tracker;
     }
 
+    /**
+     * @brief Aggregates per-tetrahedron dose scores into volume-weighted collection summaries.
+     * @return One TetrahedalMeshCollection entry per collection, containing total volume,
+     *         volume-weighted mean dose, dose variance, event count, density, and name.
+     */
     std::vector<TetrahedalMeshCollection> collectionData() const
     {
         std::vector<TetrahedalMeshCollection> data(m_collectionDensities.size());
@@ -223,6 +301,11 @@ public:
         return data;
     }
 
+    /**
+     * @brief Tests a particle ray against the mesh outer surface (AABB pre-filter + KD-tree).
+     * @param particle Particle whose position and direction define the ray.
+     * @return Intersection result with the distance to the outer surface, or invalid if missed.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& particle) const
     {
         WorldIntersectionResult res { };
@@ -237,6 +320,13 @@ public:
         return res;
     }
 
+    /**
+     * @brief Like intersect(), but also returns the surface normal and per-tetrahedron dose
+     *        for rendering.  When a display collection filter is active, the ray walks
+     *        forward through the mesh until a tetrahedron of the selected collection is hit.
+     * @tparam U Scalar type used for the dose value in the visualization result.
+     * @param particle Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& particle) const
     {
@@ -301,16 +391,25 @@ public:
         return res;
     }
 
+    /**
+     * @brief Returns a copy of the energy-score accumulator for a single tetrahedron.
+     * @param index Zero-based tetrahedron index; defaults to the first tetrahedron.
+     */
     EnergyScore energyScored(std::size_t index = 0) const
     {
         return m_energyScore.at(index);
     }
 
+    /**
+     * @brief Returns a copy of the dose-score accumulator for a single tetrahedron.
+     * @param index Zero-based tetrahedron index; defaults to the first tetrahedron.
+     */
     DoseScore doseScored(std::size_t index = 0) const
     {
         return m_doseScore.at(index);
     }
 
+    /// @brief Resets all per-tetrahedron dose-score accumulators to zero.
     void clearDoseScored()
     {
         std::for_each(std::execution::par_unseq, m_doseScore.begin(), m_doseScore.end(), [](auto& d) {
@@ -318,6 +417,7 @@ public:
         });
     }
 
+    /// @brief Resets all per-tetrahedron energy-score accumulators to zero.
     void clearEnergyScored()
     {
         std::for_each(std::execution::par_unseq, m_energyScore.begin(), m_energyScore.end(), [](auto& d) {
@@ -325,6 +425,11 @@ public:
         });
     }
 
+    /**
+     * @brief Accumulates per-tetrahedron energy scores into dose scores using each
+     *        tetrahedron's volume, its collection's density, and a calibration factor.
+     * @param factor Optional scaling factor applied to each scored energy value.
+     */
     void addEnergyScoredToDoseScore(double factor = 1)
     {
         std::vector<double> volumes(m_tetrahedrons.size());
@@ -346,6 +451,13 @@ public:
         }
     }
 
+    /**
+     * @brief Transports a particle through the mesh until it exits or is absorbed,
+     *        scoring deposited energy per tetrahedron.  Registers the track when
+     *        @p P is ParticleTrack.
+     * @param particle Particle to transport; modified in place.
+     * @param state    Random number generator state.
+     */
     template <ParticleType P>
     void transport(P& particle, RandomState& state)
     {
@@ -356,6 +468,11 @@ public:
         siddonTransportStep(particle, state);
     }
 
+    /**
+     * @brief Reconstructs a TetrahedalMeshData snapshot from the current internal state
+     *        (vertices, elements, collections, materials, and names).
+     * @return A fully populated TetrahedalMeshData that can be passed to setData().
+     */
     TetrahedalMeshData copyData() const
     {
         TetrahedalMeshData data;
@@ -373,6 +490,7 @@ public:
         return data;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "TetMesh1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(NMaterialShells) + std::to_string(FORCEDINTERACTION);
@@ -382,6 +500,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -390,6 +513,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the mesh (geometry, collections, materials, and dose scores)
+     *        to a byte vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
 
@@ -426,6 +553,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a mesh from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed mesh on success, or std::nullopt if setData() fails or
+     *         the dose score vector size does not match the tetrahedron count.
+     */
     static std::optional<TetrahedalMesh<NMaterialShells, LOWENERGYCORRECTION, FORCEDINTERACTION>> deserialize(std::span<const char> buffer)
     {
 
@@ -466,6 +599,7 @@ public:
     }
 
 protected:
+    /// @brief Returns the index (0–2) of the component with the largest absolute value.
     static auto absargmax3(const std::array<double, 3>& arr)
     {
         const auto a = std::abs(arr[0]);
@@ -474,6 +608,11 @@ protected:
         return (b > a && b > c) ? 1 : ((c > a) ? 2 : 0);
     }
 
+    /**
+     * @brief Nudges the particle position by one ULP along its dominant direction to
+     *        escape a face boundary.  Currently unused but kept for reference.
+     * @tparam FORWARD When true, nudges forward along the direction; false nudges backward.
+     */
     template <bool FORWARD = true>
     static void nudgeParticle(ParticleType auto& particle)
     {
@@ -490,6 +629,13 @@ protected:
         }
     }
 
+    /**
+     * @brief Finds the tetrahedron that contains the particle's current position by
+     *        shooting a reverse ray to the outer surface, then walking forward.
+     *        May advance the particle slightly to escape a face if needed.
+     * @param particle Particle whose position is to be located; may be translated.
+     * @return Index of the tetrahedron containing the particle.
+     */
     std::uint32_t intersectedTetrahedron(ParticleType auto& particle) const
     {
         // copy particle
@@ -508,6 +654,14 @@ protected:
         return tet;
     }
 
+    /**
+     * @brief Walks the tetrahedral connectivity along the particle direction until the
+     *        tetrahedron that straddles the current position is found.
+     *        The particle may be translated by a small epsilon to resolve boundary cases.
+     * @param currentIdx Starting tetrahedron index.
+     * @param particle   Particle whose position defines the search point; may be translated.
+     * @return Index of the tetrahedron that contains the particle.
+     */
     std::uint32_t walkTetrahedronLine(std::uint32_t currentIdx, ParticleType auto& particle) const
     {
         std::array<double, 2> t = { std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest() };
@@ -570,6 +724,14 @@ protected:
         return currentIdx;
     }
 
+    /**
+     * @brief Finds the exit face of the current tetrahedron and returns the path length
+     *        to it and the index of the neighboring tetrahedron on the other side.
+     *        Returns (length, currentIdx) when no neighbor exists (outer boundary).
+     * @param currentIdx Index of the tetrahedron the particle is currently inside.
+     * @param particle   Particle defining the ray direction.
+     * @return {distance to exit face, index of next tetrahedron}.
+     */
     std::tuple<double, std::uint32_t> nextTetrahedron(std::uint32_t currentIdx, const ParticleType auto& particle) const
     {
         const auto& tet = m_tetrahedrons[currentIdx];
@@ -607,6 +769,14 @@ protected:
         return std::make_pair(lenght, nextIdx);
     }
 
+    /**
+     * @brief Per-tetrahedron analog transport: samples a free path in each tetrahedron
+     *        and either interacts or crosses to the next cell.
+     *        Uses cumulative probability steps for numerical stability on small tetrahedrons.
+     *        Unused but kept for reference
+     * @param particle Particle to transport; modified in place.
+     * @param state    Random number generator state.
+     */
     void siddonTransport(ParticleType auto& particle, RandomState& state)
     {
         // we do cummulative steps instead of stepping on each tet due to numerical stability of tet intersections
@@ -663,6 +833,14 @@ protected:
         } while (still_inside);
     }
 
+    /**
+     * @brief Cumulative-probability Siddon transport: accumulates survival probability
+     *        across tetrahedron boundaries and resolves an interaction only when the
+     *        threshold is crossed, improving stability for very small cells.
+     *        This is the method called by transport().
+     * @param particle Particle to transport; modified in place.
+     * @param state    Random number generator state.
+     */
     void siddonTransportStep(ParticleType auto& particle, RandomState& state)
     {
         // we do cummulative steps instead of stepping on each tet due to numerical stability of tet intersections
@@ -738,13 +916,14 @@ protected:
                 //} else {
                 //    particle.border_translate(steplenght);
                 //}
-                // per now simply kill particle, once per 1E7 photons
+                // per now simply kill particle, happens once per 1E7 photons
                 particle.energy = 0;
                 still_inside = false;
             }
         } while (still_inside);
     }
 
+    /// @brief Recomputes the AABB by scanning all vertices.
     void calculateAABB()
     {
         for (std::size_t i = 0; i < 3; ++i) {
@@ -760,6 +939,11 @@ protected:
         }
     }
 
+    /**
+     * @brief Builds the internal tetrahedron list and computes neighbor connectivity
+     *        by matching shared faces between adjacent tetrahedrons.
+     * @param data Source mesh data; nodes and elements are consumed directly.
+     */
     void makeStructure(const TetrahedalMeshData& data)
     {
         m_vertices = data.nodes;
@@ -835,6 +1019,10 @@ protected:
         } while (second != faces.end());
     }
 
+    /**
+     * @brief Identifies all boundary (outer) triangular faces — those whose neighbor
+     *        index equals their own tetrahedron — and builds the contour KD-tree from them.
+     */
     void buildContourKDTree()
     {
         m_outer_triangles.clear();

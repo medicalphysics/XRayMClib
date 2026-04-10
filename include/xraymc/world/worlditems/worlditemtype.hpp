@@ -31,6 +31,24 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Concept that constrains a type to be a valid world geometry item.
+ *
+ * A type satisfies WorldItemType if it provides the complete interface required for
+ * Monte Carlo particle transport and dose scoring:
+ * - `translate(vec)`               — moves the item by a displacement vector in cm.
+ * - `center()`                     — returns the world-space center as `array<double,3>`.
+ * - `AABB()`                       — returns the axis-aligned bounding box as `array<double,6>`.
+ * - `intersect(p)`                 — returns a WorldIntersectionResult for a ray defined by particle @p p.
+ * - `energyScored(index)`          — returns the EnergyScore accumulator at @p index.
+ * - `doseScored(index)`            — returns the DoseScore accumulator at @p index.
+ * - `clearDoseScored()`            — resets all dose-score accumulators.
+ * - `clearEnergyScored()`          — resets all energy-score accumulators.
+ * - `addEnergyScoredToDoseScore(f)` — converts energy scores to dose scores with calibration factor @p f.
+ * - `transport(p, state)`          — transports particle @p p through the item, updating its state.
+ *
+ * @tparam U The type to check against this concept.
+ */
 template <typename U>
 concept WorldItemType = requires(U u, Particle p, std::array<double, 3> vec, std::size_t index, double factor, RandomState state) {
     u.translate(vec);

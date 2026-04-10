@@ -36,8 +36,23 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief A circular disc scorer that tallies photon fluence and energy spectra.
+ *
+ * Particles crossing the disc plane within its radius are counted into an
+ * energy-binned histogram (spectrum) and an EnergyScore accumulator.
+ * Fluence (photons/cm²) and its variance can be derived from the raw counts
+ * by normalising against the number of primary particles and the disc area.
+ * Dose is not defined for this scorer; the corresponding methods are no-ops.
+ */
 class FluenceScore {
 public:
+    /**
+     * @brief Constructs a fluence-scoring disc.
+     * @param radius  Disc radius in cm.
+     * @param center  World-space center of the disc.
+     * @param normal  Surface normal of the disc plane (normalized internally).
+     */
     FluenceScore(double radius = 16, const std::array<double, 3>& center = { 0, 0, 0 }, const std::array<double, 3>& normal = { 0, 0, 1 })
         : m_center(center)
         , m_radius(radius)
@@ -47,6 +62,10 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Sets the energy bin width for the spectrum histogram and resets all counts.
+     * @param step Bin width in keV; clamped to at least 0.1 keV.
+     */
     void setEnergyStep(double step)
     {
         m_energy_step = std::max(step, 0.1);
@@ -55,23 +74,36 @@ public:
         std::fill(m_intensity.begin(), m_intensity.end(), 0);
     }
 
+    /**
+     * @brief Sets the world-space center of the disc and updates the AABB.
+     * @param c New center position in cm.
+     */
     void setCenter(const std::array<double, 3>& c)
     {
         m_center = c;
         calculateAABB();
     }
 
+    /**
+     * @brief Sets the disc radius and updates the AABB.
+     * @param r Radius in cm; absolute value is used, clamped to at least 0.00001 cm.
+     */
     void setRadius(double r)
     {
         m_radius = std::max(std::abs(r), 0.00001);
         calculateAABB();
     }
 
+    /// @brief Returns the disc area in cm².
     double area() const
     {
         return std::numbers::pi_v<double> * m_radius * m_radius;
     }
 
+    /**
+     * @brief Translates the disc center and AABB by @p dist.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         for (std::size_t i = 0; i < 3; ++i) {
@@ -81,16 +113,22 @@ public:
         }
     }
 
+    /// @brief Returns the world-space center of the disc.
     const std::array<double, 3>& center() const
     {
         return m_center;
     }
 
+    /// @brief Returns the axis-aligned bounding box of the disc as {xmin, ymin, zmin, xmax, ymax, zmax}.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /**
+     * @brief Sets the disc plane normal and updates the AABB.
+     * @param normal Desired normal vector; normalized internally.
+     */
     void setPlaneNormal(const std::array<double, 3>& normal)
     {
         m_normal = normal;
@@ -98,6 +136,10 @@ public:
         calculateAABB();
     }
 
+    /**
+     * @brief Returns the raw photon count spectrum as (bin-center energy in keV, count) pairs.
+     * @return Vector of (energy keV, photon count), one entry per energy bin.
+     */
     std::vector<std::pair<double, std::uint64_t>> getSpecter() const
     {
         std::vector<std::pair<double, std::uint64_t>> spec(m_intensity.size());
@@ -107,6 +149,11 @@ public:
         return spec;
     }
 
+    /**
+     * @brief Returns the differential fluence spectrum: photons per primary per cm² per bin.
+     * @param N_primaries Number of primary particles used for normalization; defaults to 1.
+     * @return Vector of (energy keV, fluence photons/cm²/primary), one entry per energy bin.
+     */
     std::vector<std::pair<double, double>> getFluenceSpecter(std::uint64_t N_primaries = 1) const
     {
         const auto specter = getSpecter();
@@ -120,6 +167,11 @@ public:
         return fluence;
     }
 
+    /**
+     * @brief Returns the per-bin variance of the fluence estimate using Bernoulli statistics.
+     * @param N_primaries Number of primary particles; defaults to 1.
+     * @return Vector of (energy keV, variance (photons/cm²/primary)²), one entry per energy bin.
+     */
     std::vector<std::pair<double, double>> getFluenceVariance(std::uint64_t N_primaries = 1) const
     {
         const auto specter = getSpecter();
@@ -134,12 +186,23 @@ public:
         return fluence;
     }
 
+    /**
+     * @brief Tests a particle ray against the disc (AABB pre-filter then exact disc test).
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result with the distance to the disc plane, or invalid if missed.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         const auto aabb_inter = basicshape::AABB::intersectForwardInterval(p, m_aabb);
         return aabb_inter ? intersectDisc(p) : WorldIntersectionResult { };
     }
 
+    /**
+     * @brief Like intersect(), but also returns the correctly-oriented disc normal
+     *        for shading during visualization.
+     * @tparam U Scalar type used for the value field (unused; set to zero).
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
@@ -154,27 +217,38 @@ public:
         return w;
     }
 
+    /**
+     * @brief Returns the total energy-score accumulator for the disc.
+     * @param index Unused; present for interface consistency.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScored;
     }
 
+    /// @brief No-op. Energy scoring is reset via clearDoseScored() for this scorer.
     void clearEnergyScored()
     {
         return;
     }
 
+    /// @brief No-op. Dose is not defined for a fluence scorer.
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         // not defined for fluence counter
         return;
     }
 
+    /**
+     * @brief Returns an empty DoseScore. Dose is not defined for a fluence scorer.
+     * @param index Unused; present for interface consistency.
+     */
     const DoseScore doseScored(std::size_t index = 0) const
     {
         return DoseScore { };
     }
 
+    /// @brief Resets the energy-score accumulator and all spectrum bin counts to zero.
     void clearDoseScored()
     {
         m_energyScored.clear();
@@ -182,6 +256,13 @@ public:
         return;
     }
 
+    /**
+     * @brief Records a particle crossing: increments the energy-bin counter and the
+     *        total energy-score accumulator, then advances the particle past the disc.
+     *        Thread-safe for the bin counter via std::atomic_ref.
+     * @param particle Particle arriving at the disc surface; border-translated in place.
+     * @param state    Random number generator state (unused).
+     */
     void transport(ParticleType auto& particle, RandomState& state)
     {
         // Assuming particle is on the disc
@@ -192,6 +273,7 @@ public:
         particle.border_translate(0);
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "FluenceScore1";
@@ -201,6 +283,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -209,6 +296,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the scorer (geometry, spectrum histogram, and energy accumulator)
+     *        to a byte vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -223,6 +314,11 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a scorer from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed scorer (always valid for well-formed input).
+     */
     static std::optional<FluenceScore> deserialize(std::span<const char> buffer)
     {
         FluenceScore item;
@@ -232,14 +328,14 @@ public:
         buffer = Serializer::deserialize(item.m_radius, buffer);
         buffer = Serializer::deserialize(item.m_energy_step, buffer);
         buffer = Serializer::deserialize(item.m_intensity, buffer);
-        
+
         double energy, energySq;
         buffer = Serializer::deserialize(energy, buffer);
         buffer = Serializer::deserialize(energySq, buffer);
-        
+
         std::uint64_t nevents;
         buffer = Serializer::deserialize(nevents, buffer);
-        
+
         item.m_energyScored.set(energy, energySq, nevents);
 
         item.calculateAABB();
@@ -248,12 +344,16 @@ public:
     }
 
 protected:
+    /// @brief Returns {min, max} of two values as a pair.
+    ///        Uses a hand-rolled comparison instead of std::minmax to avoid an MSVC /O2 bug or weird feature.
     static inline std::pair<double, double> minmax(double v1, double v2)
     {
-        // use own minmax instead of std::minamx due to bug or weird feature of MSVC compiler with /O2
+        // use own minmax instead of std::minmax due to bug or weird feature of MSVC compiler with /O2
         return v1 <= v2 ? std::make_pair(v1, v2) : std::make_pair(v2, v1);
     }
 
+    /// @brief Recomputes the AABB to tightly bound the disc, ensuring a minimum thickness
+    ///        along any axis-aligned direction by adding a margin.
     void calculateAABB()
     {
         const std::array<std::array<double, 3>, 3> span = {
@@ -285,6 +385,12 @@ protected:
         }
     }
 
+    /**
+     * @brief Exact ray–disc intersection test against the plane and radius.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result with the distance to the disc plane, or invalid if
+     *         the ray is nearly parallel to the plane or the hit point is outside the radius.
+     */
     WorldIntersectionResult intersectDisc(const ParticleType auto& p) const
     {
         WorldIntersectionResult res;

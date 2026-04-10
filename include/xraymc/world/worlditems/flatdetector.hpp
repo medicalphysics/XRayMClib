@@ -36,8 +36,22 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief A zero-thickness, infinitely thin ideal flat-panel detector.
+ *
+ * The detector is an oriented rectangle in 3-D space, parameterised by a center
+ * position, two direction-cosine vectors (row and column), pixel spacing, and
+ * pixel grid dimensions.  Arriving particles are absorbed immediately and their
+ * energy (weighted by particle weight) is scored in the corresponding pixel.
+ * Per-pixel energy and dose accumulators are provided, along with optional
+ * particle-track recording for ParticleTrack particles.
+ */
 class FlatDetector {
 public:
+    /**
+     * @brief Default constructor. Creates a 128×128 detector centered at the origin
+     *        with 0.1 cm pixel spacing, lying in the XY plane.
+     */
     FlatDetector()
     {
         const auto nPix = m_detector_dimensions[0] * m_detector_dimensions[1];
@@ -46,27 +60,45 @@ public:
         m_aabb = calculateAABB();
     }
 
+    /// @brief Returns the axis-aligned bounding box of the detector panel as {xmin, ymin, zmin, xmax, ymax, zmax}.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /**
+     * @brief Translates the detector center by @p dist and updates the AABB.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         m_center = vectormath::add(m_center, dist);
         m_aabb = calculateAABB();
     }
 
+    /// @brief Returns the world-space center of the detector panel.
     const std::array<double, 3>& center() const
     {
         return m_center;
     }
+
+    /**
+     * @brief Sets the world-space center of the detector panel and updates the AABB.
+     * @param c New center position in cm.
+     */
     void setCenter(const std::array<double, 3>& c)
     {
         m_center = c;
         m_aabb = calculateAABB();
     }
 
+    /**
+     * @brief Sets the row and column direction cosines that orient the detector panel.
+     *        The vectors must be orthogonal; if not, the call is silently ignored.
+     *        Both vectors are normalized internally.
+     * @param dir_cosX Row direction (column-index increases along this vector).
+     * @param dir_cosY Column direction (row-index increases along this vector).
+     */
     void setDirectionCosines(const std::array<double, 3>& dir_cosX, const std::array<double, 3>& dir_cosY)
     {
         if (vectormath::dot(dir_cosX, dir_cosY) < 2 * GEOMETRIC_ERROR<>()) {
@@ -76,30 +108,54 @@ public:
         m_aabb = calculateAABB();
     }
 
+    /// @brief Returns the two direction-cosine vectors {row direction, column direction}.
     const std::array<std::array<double, 3>, 2>& directionCosines() const
     {
         return m_direction_cosines;
     }
 
+    /**
+     * @brief Sets pixel spacing from an array and updates the AABB.
+     * @param spacing {spacingX, spacingY} in cm; values below 0.00001 are clamped.
+     */
     void setPixelSpacing(const std::array<double, 2>& spacing)
     {
         setPixelSpacing(spacing[0], spacing[1]);
     }
+
+    /**
+     * @brief Sets per-axis pixel spacing and updates the AABB.
+     * @param spacingX Column pixel size in cm; clamped to at least 0.00001 cm.
+     * @param spacingY Row pixel size in cm; clamped to at least 0.00001 cm.
+     */
     void setPixelSpacing(double spacingX, double spacingY)
     {
         m_pixel_spacing[0] = std::max(spacingX, 0.00001);
         m_pixel_spacing[1] = std::max(spacingY, 0.00001);
         m_aabb = calculateAABB();
     }
+
+    /// @brief Returns the pixel spacing as {spacingX, spacingY} in cm.
     std::array<double, 2> pixelSpacing() const
     {
         return m_pixel_spacing;
     }
 
+    /**
+     * @brief Sets the pixel grid dimensions from an array and updates the AABB.
+     * @param dimensions {columns, rows}; each clamped to at least 1.
+     */
     void setDetectorDimensions(const std::array<std::size_t, 2>& dimensions)
     {
         setDetectorDimensions(dimensions[0], dimensions[1]);
     }
+
+    /**
+     * @brief Sets the pixel grid dimensions and updates the AABB.
+     *        Resizes the energy and dose score vectors accordingly.
+     * @param dimX Number of columns; clamped to at least 1.
+     * @param dimY Number of rows; clamped to at least 1.
+     */
     void setDetectorDimensions(std::size_t dimX, std::size_t dimY)
     {
         constexpr std::size_t min = 1;
@@ -110,16 +166,24 @@ public:
         m_aabb = calculateAABB();
     }
 
+    /// @brief Returns the pixel grid dimensions as {columns, rows}.
     const std::array<std::size_t, 2>& detectorDimensions() const
     {
         return m_detector_dimensions;
     }
 
+    /// @brief Returns the detector surface normal (cross product of the two direction cosines).
     std::array<double, 3> normal() const
     {
         return vectormath::cross(m_direction_cosines[0], m_direction_cosines[1]);
     }
 
+    /**
+     * @brief Tests a particle ray against the detector plane and pixel grid.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result with the distance to the detector plane, or invalid
+     *         if the ray misses the pixel grid or travels away from it.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         WorldIntersectionResult res;
@@ -141,6 +205,12 @@ public:
         return res;
     }
 
+    /**
+     * @brief Like intersect(), but also returns the surface normal and the dose value
+     *        of the hit pixel for visualization purposes.
+     * @tparam U Scalar type used for the dose value in the visualization result.
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
@@ -168,6 +238,13 @@ public:
         return res;
     }
 
+    /**
+     * @brief Absorbs the particle into the detector pixel at its current position,
+     *        scoring the weighted energy (energy × weight) and setting particle energy
+     *        to zero.  Registers the track when @p P is ParticleTrack.
+     * @param p     Particle to absorb; energy is zeroed after scoring.
+     * @param state Random number generator state (unused, present for interface consistency).
+     */
     template <ParticleType P>
     void transport(P& p, RandomState& state) noexcept
     {
@@ -185,11 +262,16 @@ public:
         p.energy = 0;
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for a single pixel.
+     * @param index Flat pixel index (row-major: row * columns + col); defaults to pixel 0.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScore[index];
     }
 
+    /// @brief Resets all per-pixel energy-score accumulators to zero.
     void clearEnergyScored()
     {
         for (auto& d : m_energyScore) {
@@ -197,6 +279,11 @@ public:
         }
     }
 
+    /**
+     * @brief Accumulates per-pixel energy scores into dose scores using pixel area
+     *        as the volume proxy (density = 1 g/cm²) and a calibration factor.
+     * @param calibration_factor Optional scaling factor applied to each scored energy value.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         const auto volume = m_pixel_spacing[0] * m_pixel_spacing[1];
@@ -206,27 +293,37 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for a single pixel.
+     * @param index Flat pixel index (row-major); defaults to pixel 0.
+     */
     const DoseScore& doseScored(std::size_t index = 0) const
     {
         return m_doseScore[index];
     }
 
+    /// @brief Resets all per-pixel dose-score accumulators to zero.
     void clearDoseScored()
     {
         for (auto& d : m_doseScore) {
             d.clear();
         }
     }
+
+    /// @brief Returns a read-only reference to the particle tracker (populated when
+    ///        transporting ParticleTrack particles).
     const ParticleTracker& particleTracker() const
     {
         return m_tracker;
     }
 
+    /// @brief Returns a mutable reference to the particle tracker.
     ParticleTracker& particleTracker()
     {
         return m_tracker;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "FlatDetector1";
@@ -236,6 +333,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -244,6 +346,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the detector (geometry, orientation, and dose scores) to a byte
+     *        vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -257,6 +363,11 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a detector from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed detector (always valid for well-formed input).
+     */
     static std::optional<FlatDetector> deserialize(std::span<const char> buffer)
     {
         FlatDetector item;
@@ -274,11 +385,17 @@ public:
     }
 
 protected:
+    /// @brief Returns {min, max} of two values as a pair.
     static std::pair<double, double> minmax(const double a, const double b)
     {
         return a < b ? std::pair { a, b } : std::pair { b, a };
     }
 
+    /**
+     * @brief Computes the AABB of the detector panel from the current center, direction
+     *        cosines, pixel spacing, and grid dimensions. A thin normal-direction
+     *        epsilon is added to give the panel non-zero volume.
+     */
     std::array<double, 6> calculateAABB() const
     {
         const auto normal_vec = normal();

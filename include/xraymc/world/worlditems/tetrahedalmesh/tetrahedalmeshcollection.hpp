@@ -23,12 +23,20 @@ Copyright 2025 Erlend Andersen
 #include <string>
 
 namespace xraymc {
+/**
+ * @brief Aggregate dose and geometry data for a named collection of tetrahedra.
+ *
+ * A TetrahedalMesh partitions its tetrahedra into named collections, each representing
+ * a distinct tissue or material region. This struct holds the per-collection summary
+ * produced after dose conversion: the material density, total volume, mean dose,
+ * dose variance, interaction event count, and the collection name.
+ */
 struct TetrahedalMeshCollection {
-    double density = 0;
-    double volume = 0;
-    double dose = 0;
-    double doseVariance = 0;
-    std::uint64_t numberOfEvents = 0;
-    std::string name;
+    double density = 0;          ///< Material mass density of the collection in g/cm³.
+    double volume = 0;           ///< Total volume of all tetrahedra in the collection in cm³.
+    double dose = 0;             ///< Mean absorbed dose in the collection in Gy (or simulation units).
+    double doseVariance = 0;     ///< Variance of the absorbed dose estimate.
+    std::uint64_t numberOfEvents = 0; ///< Total number of energy-deposition events scored in this collection.
+    std::string name;            ///< Human-readable name identifying the collection.
 };
 }

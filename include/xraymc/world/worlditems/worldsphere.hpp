@@ -35,9 +35,31 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief A solid sphere geometry for Monte Carlo particle transport.
+ *
+ * The sphere is parameterised by a center and a radius and filled with a single
+ * homogeneous material. Particles are tracked inside the volume using analog or forced
+ * Monte Carlo sampling until they exit through the spherical surface. Absorbed energy
+ * is accumulated in an EnergyScore and can be converted to dose via
+ * addEnergyScoredToDoseScore(). When FORCEINTERACTIONS is true, deterministic forced
+ * photoelectric interactions are applied at each step for variance reduction.
+ * An optional ParticleTracker records particle histories when ParticleTrack particles
+ * are transported.
+ *
+ * @tparam NMaterialShells     Number of electron shells for material cross-sections.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode passed to interaction sampling.
+ * @tparam FORCEINTERACTIONS   When true, forces photoelectric interactions at each step
+ *                             for variance reduction; when false, uses analog sampling.
+ */
 template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCEINTERACTIONS = false>
 class WorldSphere {
 public:
+    /**
+     * @brief Constructs a sphere, initialized with dry air at standard sea-level density.
+     * @param radius Sphere radius in cm; absolute value is used.
+     * @param pos    World-space center of the sphere in cm.
+     */
     WorldSphere(double radius = 16, const std::array<double, 3>& pos = { 0, 0, 0 })
         : m_radius(std::abs(radius))
         , m_center(pos)
@@ -46,28 +68,52 @@ public:
         m_materialDensity = NISTMaterials::density("Air, Dry (near sea level)");
     }
 
+    /// @brief Defaulted equality comparison (compares all data members).
     bool operator==(const WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>& other) const = default;
 
+    /**
+     * @brief Sets the sphere radius.
+     * @param r Radius in cm; absolute value is used.
+     */
     void setRadius(double r)
     {
         m_radius = std::abs(r);
     }
 
+    /// @brief Returns the sphere radius in cm.
     auto radius() const { return m_radius; }
 
+    /**
+     * @brief Sets the material used for attenuation and interaction sampling.
+     * @param material Material cross-section data.
+     */
     void setMaterial(const Material<NMaterialShells>& material)
     {
         m_material = material;
     }
 
+    /**
+     * @brief Sets both the material and its mass density in one call.
+     * @param material Material cross-section data.
+     * @param density  Density in g/cm³; absolute value is used.
+     */
     void setMaterial(const Material<NMaterialShells>& material, double density)
     {
         m_material = material;
         setMaterialDensity(density);
     }
 
+    /**
+     * @brief Sets the material mass density.
+     * @param density Density in g/cm³; absolute value is used.
+     */
     void setMaterialDensity(double density) { m_materialDensity = std::abs(density); }
 
+    /**
+     * @brief Sets the material and density from the NIST material database by name.
+     * @param nist_name Name of the NIST material (e.g., "Water, Liquid").
+     * @return true if the name was found and the material was set; false otherwise.
+     */
     bool setNistMaterial(const std::string& nist_name)
     {
         const auto mat = Material<NMaterialShells>::byNistName(nist_name);
@@ -79,21 +125,31 @@ public:
         return false;
     }
 
+    /**
+     * @brief Translates the sphere center by @p dist.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         m_center = vectormath::add(m_center, dist);
     }
 
+    /**
+     * @brief Sets the world-space center of the sphere.
+     * @param c New center position in cm.
+     */
     void setCenter(const std::array<double, 3>& c)
     {
         m_center = c;
     }
 
+    /// @brief Returns the world-space center of the sphere in cm.
     std::array<double, 3> center() const
     {
         return m_center;
     }
 
+    /// @brief Returns the axis-aligned bounding box of the sphere as {xmin, ymin, zmin, xmax, ymax, zmax} in cm.
     std::array<double, 6> AABB() const
     {
         std::array<double, 6> aabb {
@@ -107,11 +163,23 @@ public:
         return aabb;
     }
 
+    /**
+     * @brief Tests a particle ray against the sphere.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result with the distance to the sphere surface, including
+     *         whether the ray origin is inside the sphere.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const noexcept
     {
         return basicshape::sphere::intersect(p, m_center, m_radius);
     }
 
+    /**
+     * @brief Like intersect(), but also returns the surface normal and the accumulated
+     *        dose value for visualization.
+     * @tparam U Scalar type used for the value field (set to the current mean dose).
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const noexcept
     {
@@ -121,6 +189,14 @@ public:
         return inter;
     }
 
+    /**
+     * @brief Transports a particle through the sphere, dispatching to forced or analog
+     *        sampling based on the FORCEINTERACTIONS template parameter.
+     *        If @p p is a ParticleTrack, it is registered with the particle tracker before transport.
+     * @tparam P Particle type; if ParticleTrack, tracking is enabled.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     template <ParticleType P>
     void transport(P& p, RandomState& state) noexcept
     {
@@ -133,42 +209,59 @@ public:
             transportRandom(p, state);
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for the sphere.
+     * @param index Unused; present for interface consistency.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScored;
     }
 
+    /// @brief Resets the energy-score accumulator to zero.
     void clearEnergyScored()
     {
         m_energyScored.clear();
     }
 
+    /**
+     * @brief Converts the accumulated energy score to a dose score using the sphere volume (4πr³/3).
+     * @param calibration_factor Optional scaling factor applied during the conversion; defaults to 1.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         const auto volume = (4 * std::numbers::pi_v<double> * m_radius * m_radius * m_radius) / 3;
         m_dose.addScoredEnergy(m_energyScored, volume, m_materialDensity, calibration_factor);
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for the sphere.
+     * @param index Unused; present for interface consistency.
+     */
     const DoseScore& doseScored(std::size_t index = 0) const
     {
         return m_dose;
     }
 
+    /// @brief Resets the dose-score accumulator to zero.
     void clearDoseScored()
     {
         m_dose.clear();
     }
 
+    /// @brief Returns the particle tracker (const overload).
     const ParticleTracker& particleTracker() const
     {
         return m_tracker;
     }
 
+    /// @brief Returns the particle tracker (mutable overload).
     ParticleTracker& particleTracker()
     {
         return m_tracker;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "Sphere1" + std::to_string(LOWENERGYCORRECTION) + std::to_string(FORCEINTERACTIONS) + std::to_string(NMaterialShells);
@@ -178,6 +271,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -186,6 +284,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the sphere (radius, center, material density, material composition,
+     *        and dose score) to a byte vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -199,6 +301,11 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a sphere from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed sphere, or std::nullopt if the material composition cannot be resolved.
+     */
     static std::optional<WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>> deserialize(std::span<const char> buffer)
     {
         WorldSphere<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS> item;
@@ -220,6 +327,15 @@ public:
     }
 
 protected:
+    /**
+     * @brief Transports a particle through the sphere using analog Monte Carlo sampling.
+     *
+     * Free-path lengths are sampled exponentially; if the sampled path is shorter than
+     * the distance to the exit surface an interaction occurs, otherwise the particle is
+     * advanced to the border. Continues until the particle exits or is absorbed.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transportRandom(ParticleType auto& p, RandomState& state) noexcept
     {
         bool cont = basicshape::sphere::pointInside(p.pos, m_center, m_radius);
@@ -250,6 +366,15 @@ protected:
         }
     }
 
+    /**
+     * @brief Transports a particle through the sphere using forced (deterministic) interactions.
+     *
+     * At each step the distance to the exit surface is computed and a forced photoelectric
+     * interaction is applied over that path length with the appropriate survival weight.
+     * Continues until the particle exits or is absorbed.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transportForced(ParticleType auto& p, RandomState& state) noexcept
     {
         bool cont = basicshape::sphere::pointInside(p.pos, m_center, m_radius);

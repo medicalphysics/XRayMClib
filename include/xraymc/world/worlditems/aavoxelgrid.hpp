@@ -37,6 +37,22 @@ namespace xraymc {
 
 
     
+/**
+ * @brief An axis-aligned rectilinear voxel grid for Monte Carlo particle transport.
+ *
+ * The grid stores a per-voxel material index and density, mapping up to 255 distinct
+ * material types (index 0–254) plus one transparent (void) type (index TRANSPARENTVOXELS).
+ * Particles travel through the grid using Woodcock (delta) tracking: a uniform
+ * majorant attenuation is precomputed and fictitious interactions are used to skip
+ * transparent and low-attenuating voxels efficiently. Absorbed energy is scored
+ * per-voxel and can be converted to dose via addEnergyScoredToDoseScore().
+ * CT images can be converted to material grids via the static Schneider-conversion
+ * helper methods.
+ *
+ * @tparam NMaterialShells   Number of electron shells for material cross-sections.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode passed to interaction sampling.
+ * @tparam TRANSPARENTVOXELS Material index treated as void (no interaction); default 255.
+ */
 template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, std::uint8_t TRANSPARENTVOXELS = 255>
 class AAVoxelGrid {
 public:

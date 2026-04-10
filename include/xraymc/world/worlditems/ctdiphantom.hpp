@@ -37,9 +37,34 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief A CTDI (Computed Tomography Dose Index) phantom for CT dosimetry simulations.
+ *
+ * The phantom models the standard PMMA cylindrical body used in CT dose measurements:
+ * a solid PMMA cylinder with five cylindrical air holes — one at the center and four
+ * at the periphery (0°, 90°, 180°, 270°). Each air hole acts as an independent dose
+ * scorer. Particles entering the PMMA body undergo forced photoelectric interactions
+ * by default (FORCEDINTERACTIONS = true) for variance reduction; particles entering
+ * an air hole are transported through it without interaction. Dose to each hole
+ * can be retrieved individually via doseScored().
+ *
+ * @tparam NMaterialShells     Number of electron shells for material cross-sections.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode passed to interaction sampling.
+ * @tparam FORCEDINTERACTIONS  When true (default), forces photoelectric interactions in
+ *                             the PMMA body for variance reduction.
+ */
 template <int NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCEDINTERACTIONS = true>
 class CTDIPhantom {
 public:
+    /**
+     * @brief Constructs a CTDI phantom: a PMMA cylinder with five air holes (one
+     *        central, four peripheral at 0°/90°/180°/270°) for dose measurement.
+     * @param radius    Outer radius of the PMMA cylinder in cm; clamped to at least
+     *                  six times the hole radius.
+     * @param height    Full height of the cylinder in cm; clamped to at least holeHeight().
+     * @param pos       World-space center of the cylinder.
+     * @param direction Axis direction of the cylinder (unit vector).
+     */
     CTDIPhantom(double radius = 16, double height = 15, const std::array<double, 3>& pos = { 0, 0, 0 }, const std::array<double, 3>& direction = { 0, 0, 1 })
         : m_pmma(Material<NMaterialShells>::byNistName("Polymethyl Methacralate (Lucite, Perspex)").value())
         , m_air(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
@@ -75,17 +100,27 @@ public:
         return;
     }
 
+    /**
+     * @brief Translates the phantom (cylinder and all air holes) by @p dist.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         m_cylinder.center = vectormath::add(m_cylinder.center, dist);
         m_kdtree.translate(dist);
     }
 
+    /// @brief Returns the world-space center of the phantom cylinder.
     const std::array<double, 3>& center() const
     {
         return m_cylinder.center;
     }
 
+    /**
+     * @brief Overrides the material filling the measurement holes (default: dry air).
+     * @param nistName NIST material name; silently ignored if not found in the database.
+     * @param density  Mass density to use for the hole material in g/cm³.
+     */
     void setHoleMaterial(const std::string& nistName, double density)
     {
         auto m = Material<NMaterialShells>::byNistName(nistName);
@@ -95,11 +130,16 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for one measurement hole.
+     * @param index Hole index: 0 = center, 1–4 = peripheral holes; defaults to center.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScore.at(index);
     }
 
+    /// @brief Resets all five hole energy-score accumulators to zero.
     void clearEnergyScored()
     {
         for (auto& d : m_energyScore) {
@@ -107,6 +147,12 @@ public:
         }
     }
 
+    /**
+     * @brief Accumulates the current per-hole energy scores into the dose scores,
+     *        converting energy to dose using the hole volume, hole material density,
+     *        and a calibration factor.
+     * @param calibration_factor Optional scaling factor applied to each scored energy value.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         const auto holeVolume = holeHeight() * std::numbers::pi_v<double> * holeRadii() * holeRadii();
@@ -116,21 +162,28 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for one measurement hole.
+     * @param index Hole index: 0 = center, 1–4 = peripheral holes; defaults to center.
+     */
     const DoseScore& doseScored(std::size_t index = 0) const
     {
         return m_dose.at(index);
     }
 
+    /// @brief Returns the absorbed dose (Gy) scored in the central hole.
     const double centerDoseScored() const
     {
         return m_dose[0].dose();
     }
 
+    /// @brief Returns the mean absorbed dose (Gy) averaged over the four peripheral holes.
     const double pheriferyDoseScored() const
     {
         return (m_dose[1].dose() + m_dose[2].dose() + m_dose[3].dose() + m_dose[4].dose()) / 4;
     }
 
+    /// @brief Resets all five hole dose-score accumulators to zero.
     void clearDoseScored()
     {
         for (auto& d : m_dose) {
@@ -138,16 +191,28 @@ public:
         }
     }
 
+    /// @brief Returns the axis-aligned bounding box of the phantom as {xmin, ymin, zmin, xmax, ymax, zmax}.
     std::array<double, 6> AABB() const
     {
         return basicshape::cylinder::cylinderAABB(m_cylinder);
     }
 
+    /**
+     * @brief Tests a particle ray against the outer PMMA cylinder.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result containing the distance to the cylinder surface.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         return basicshape::cylinder::intersect(p, m_cylinder);
     }
 
+    /**
+     * @brief Like intersect(), but returns a visualization result that includes the
+     *        dose at the nearest hole (peripheral or central) and the surface normal.
+     * @tparam U Scalar type used for the dose value in the visualization result.
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const noexcept
     {
@@ -164,6 +229,13 @@ public:
         return res;
     }
 
+    /**
+     * @brief Transports a particle through the phantom until it exits or is absorbed.
+     *        Uses forced interactions inside air holes when FORCEDINTERACTIONS is true,
+     *        otherwise samples analog interactions.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transport(ParticleType auto& p, RandomState& state)
     {
         bool updateAtt = true;
@@ -239,20 +311,24 @@ public:
         }
     }
 
+    /// @brief Returns the radius of each measurement hole in cm (0.5 cm).
     static constexpr double holeRadii() noexcept
     {
         return 0.5;
     }
+    /// @brief Returns the full height of each measurement hole in cm (10 cm).
     static constexpr double holeHeight() noexcept
     {
         return 10.0;
     }
 
+    /// @brief Returns the full height of the phantom cylinder in cm.
     double height() const
     {
         return m_cylinder.half_height * 2;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "CTDIPhantom1" + std::to_string(NMaterialShells) + std::to_string(LOWENERGYCORRECTION) + std::to_string(FORCEDINTERACTIONS);
@@ -262,6 +338,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -270,6 +351,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the phantom (geometry, hole material, and dose scores) to a
+     *        byte vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -287,6 +372,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a phantom from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed phantom on success, or std::nullopt if the hole material
+     *         weight set cannot be parsed.
+     */
     static std::optional<CTDIPhantom<NMaterialShells, LOWENERGYCORRECTION, FORCEDINTERACTIONS>> deserialize(std::span<const char> buffer)
     {
         std::array<double, 3> center;
@@ -318,22 +409,30 @@ protected:
         basicshape::cylinder::Cylinder cylinder;
         std::uint8_t index = 0;
 
+        /// @brief Translates the hole cylinder center by @p d.
         void translate(const std::array<double, 3>& d) noexcept
         {
             for (std::size_t i = 0; i < 3; ++i)
                 cylinder.center[i] += d[i];
         }
+
+        /// @brief Returns the world-space center of the hole cylinder.
         const std::array<double, 3>& center() const noexcept { return cylinder.center; }
+
+        /// @brief Returns the axis-aligned bounding box of the hole cylinder.
         std::array<double, 6> AABB() const noexcept
         {
             return basicshape::cylinder::cylinderAABB(cylinder);
         }
+
+        /// @brief Tests a particle ray against the hole cylinder and returns the intersection result.
         auto intersect(const ParticleType auto& p) const noexcept
         {
             return basicshape::cylinder::intersect(p, cylinder);
         }
     };
 
+    /// @brief Returns the distance from a peripheral hole center to the outer cylinder edge in cm (1 cm).
     static constexpr double holeEdgeDistance() noexcept
     {
         return 1.0;

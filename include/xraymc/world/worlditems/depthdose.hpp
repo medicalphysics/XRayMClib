@@ -38,6 +38,15 @@ namespace xraymc {
 template <std::size_t NMaterialShells = 16, int LOWENERGYCORRECTION = 2, bool FORCEINTERACTIONS = false>
 class DepthDose {
 public:
+    /**
+     * @brief Constructs a depth-dose scorer: a uniformly filled cylinder divided
+     *        into @p resolution axial slabs, defaulting to dry air at sea level.
+     * @param radius     Cylinder radius in cm.
+     * @param height     Full cylinder height in cm.
+     * @param resolution Number of axial scoring bins along the cylinder axis.
+     * @param pos        World-space center of the cylinder.
+     * @param dir        Cylinder axis direction (unit vector).
+     */
     DepthDose(double radius = 16, double height = 10, std::size_t resolution = 100, const std::array<double, 3>& pos = { 0, 0, 0 }, const std::array<double, 3>& dir = { 0, 0, 1 })
         : m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
     {
@@ -52,30 +61,50 @@ public:
         m_dose.resize(resolution);
     }
 
+    /**
+     * @brief Sets the cylinder radius in cm and updates the bounding box.
+     * @param radius Absolute value is used; negative values are treated as positive.
+     */
     void setRadius(double radius)
     {
         m_cylinder.radius = std::abs(radius);
         updateAABB();
     }
 
+    /**
+     * @brief Sets the cylinder axis direction and updates the bounding box.
+     * @param direction Desired axis vector; normalized internally.
+     */
     void setDirection(const std::array<double, 3>& direction)
     {
         m_cylinder.direction = vectormath::normalized(direction);
         updateAABB();
     }
 
+    /**
+     * @brief Sets the full cylinder height in cm and updates the bounding box.
+     * @param lenght Absolute value is used; negative values are treated as positive.
+     */
     void setLenght(double lenght)
     {
         m_cylinder.half_height = std::abs(lenght * 0.5);
         updateAABB();
     }
 
+    /**
+     * @brief Sets the world-space center of the cylinder and updates the bounding box.
+     * @param position New center position in cm.
+     */
     void setCenter(const std::array<double, 3>& position)
     {
         m_cylinder.center = position;
         updateAABB();
     }
 
+    /**
+     * @brief Changes the number of axial scoring bins, clearing all accumulated scores.
+     * @param resolution New number of depth bins.
+     */
     void setResolution(std::size_t resolution)
     {
         clearEnergyScored();
@@ -84,39 +113,63 @@ public:
         m_dose.resize(resolution);
     }
 
+    /// @brief Returns the full cylinder height in cm.
     double length() const { return m_cylinder.half_height * 2; }
+
+    /// @brief Returns the cylinder radius in cm.
     double radius() const { return m_cylinder.radius; }
 
+    /// @brief Returns the cylinder axis direction (unit vector).
     const std::array<double, 3>& direction() const
     {
         return m_cylinder.direction;
     }
+    /// @brief Returns the world-space center of the cylinder.
     const std::array<double, 3>& center() const
     {
         return m_cylinder.center;
     }
 
+    /// @brief Returns the number of axial scoring bins.
     std::size_t resolution() const
     {
         return m_energyScored.size();
     }
 
+    /**
+     * @brief Sets the fill material without changing the density.
+     * @param material Material definition to use for attenuation and interaction.
+     */
     void setMaterial(const Material<NMaterialShells>& material)
     {
         m_material = material;
     }
 
+    /**
+     * @brief Sets the fill material mass density in g/cm³.
+     * @param density Absolute value is used.
+     */
     void setMaterialDensity(double density)
     {
         m_materialDensity = std::abs(density);
     }
 
+    /**
+     * @brief Sets the fill material and its mass density together.
+     * @param material Material definition.
+     * @param density  Mass density in g/cm³.
+     */
     void setMaterial(const Material<NMaterialShells>& material, double density)
     {
         setMaterial(material);
         setMaterialDensity(density);
     }
 
+    /**
+     * @brief Sets the fill material and its NIST-tabulated density by name.
+     * @param nist_name NIST material name (e.g. "Water, Liquid").
+     * @return true on success; false if the name is not found in the database.
+     */
     bool setNistMaterial(const std::string& nist_name)
     {
         const auto mat = Material<NMaterialShells>::byNistName(nist_name);
@@ -128,29 +181,47 @@ public:
         return false;
     }
 
+    /// @brief Returns the current fill material.
     const Material<NMaterialShells>& material() const
     {
         return m_material;
     }
 
+    /// @brief Returns the fill material mass density in g/cm³.
     double density() const { return m_materialDensity; }
 
+    /**
+     * @brief Translates the cylinder center by @p dist and updates the bounding box.
+     * @param dist Displacement vector in cm along {x, y, z}.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         m_cylinder.center = vectormath::add(m_cylinder.center, dist);
         updateAABB();
     }
 
+    /// @brief Returns the axis-aligned bounding box of the cylinder as {xmin, ymin, zmin, xmax, ymax, zmax}.
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /**
+     * @brief Tests a particle ray against the cylinder.
+     * @param p Particle whose position and direction define the ray.
+     * @return Intersection result containing the distance to the cylinder surface.
+     */
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
         return basicshape::cylinder::intersect(p, m_cylinder);
     }
 
+    /**
+     * @brief Like intersect(), but returns a visualization result that includes the
+     *        dose of the depth bin at the hit point and the cylinder surface normal.
+     * @tparam U Scalar type used for the dose value in the visualization result.
+     * @param p  Particle whose position and direction define the ray.
+     */
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
@@ -164,6 +235,14 @@ public:
         return inter;
     }
 
+    /**
+     * @brief Transports a particle through the cylinder until it exits or is absorbed,
+     *        scoring deposited energy in the corresponding depth bin.
+     *        Registers the particle track when @p P is ParticleTrack.
+     *        Uses forced interactions when FORCEINTERACTIONS is true.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     template <ParticleType P>
     void transport(P& p, RandomState& state) noexcept
     {
@@ -176,6 +255,11 @@ public:
             transportRandom(p, state);
     }
 
+    /**
+     * @brief Returns per-bin energy scores paired with the axial position of each bin center.
+     * @return Vector of (depth in cm, EnergyScore) for each scoring bin, ordered from
+     *         the bottom to the top of the cylinder.
+     */
     const std::vector<std::pair<double, EnergyScore>> depthEnergyScored() const
     {
         std::vector<std::pair<double, EnergyScore>> depth;
@@ -189,6 +273,11 @@ public:
         return depth;
     }
 
+    /**
+     * @brief Returns per-bin dose scores paired with the axial position of each bin center.
+     * @return Vector of (depth in cm, DoseScore) for each scoring bin, ordered from
+     *         the bottom to the top of the cylinder.
+     */
     const std::vector<std::pair<double, DoseScore>> depthDoseScored() const
     {
         std::vector<std::pair<double, DoseScore>> depth;
@@ -202,11 +291,16 @@ public:
         return depth;
     }
 
+    /**
+     * @brief Returns the energy-score accumulator for a single depth bin.
+     * @param index Bin index (0 = bottom bin); defaults to the first bin.
+     */
     const EnergyScore& energyScored(std::size_t index = 0) const
     {
         return m_energyScored[index];
     }
 
+    /// @brief Resets all depth-bin energy-score accumulators to zero.
     void clearEnergyScored()
     {
         for (auto& d : m_energyScored) {
@@ -214,6 +308,12 @@ public:
         }
     }
 
+    /**
+     * @brief Accumulates the current per-bin energy scores into the dose scores,
+     *        converting energy to dose using the bin volume, material density, and a
+     *        calibration factor.
+     * @param calibration_factor Optional scaling factor applied to each scored energy value.
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         const auto totalVolume = m_cylinder.volume();
@@ -223,11 +323,16 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the dose-score accumulator for a single depth bin.
+     * @param index Bin index (0 = bottom bin); defaults to the first bin.
+     */
     const DoseScore& doseScored(std::size_t index = 0) const
     {
         return m_dose[index];
     }
 
+    /// @brief Resets all depth-bin dose-score accumulators to zero.
     void clearDoseScored()
     {
         for (auto& d : m_dose) {
@@ -235,16 +340,20 @@ public:
         }
     }
 
+    /// @brief Returns a read-only reference to the particle tracker (populated when
+    ///        transporting ParticleTrack particles).
     const ParticleTracker& particleTracker() const
     {
         return m_tracker;
     }
 
+    /// @brief Returns a mutable reference to the particle tracker.
     ParticleTracker& particleTracker()
     {
         return m_tracker;
     }
 
+    /// @brief Returns the 32-byte magic identifier used to tag serialized buffers.
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "DepthDose1" + std::to_string(NMaterialShells) + std::to_string(LOWENERGYCORRECTION) + std::to_string(FORCEINTERACTIONS);
@@ -254,6 +363,11 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a raw data buffer begins with the expected magic identifier.
+     * @param data Buffer to inspect; must be at least 32 bytes for a positive result.
+     * @return true if the first 32 bytes match magicID().
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -262,6 +376,10 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the scorer (geometry, material, density, and dose scores) to
+     *        a byte vector that can be restored via deserialize().
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -276,6 +394,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Reconstructs a scorer from a byte buffer produced by serialize().
+     * @param buffer Serialized data; the magic ID is expected to have been validated beforehand.
+     * @return The reconstructed scorer on success, or std::nullopt if the material
+     *         weight set cannot be parsed.
+     */
     static std::optional<DepthDose<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS>> deserialize(std::span<const char> buffer)
     {
         DepthDose<NMaterialShells, LOWENERGYCORRECTION, FORCEINTERACTIONS> item;
@@ -301,11 +425,19 @@ public:
     }
 
 protected:
+    /// @brief Recomputes the AABB from the current cylinder geometry.
     void updateAABB()
     {
         m_aabb = basicshape::cylinder::cylinderAABB(m_cylinder);
     }
 
+    /**
+     * @brief Maps a world-space position to the corresponding depth-bin index.
+     * @tparam BOUNDS_CHECK When true, clamps the result to [0, resolution-1];
+     *                      when false, no clamping is performed.
+     * @param pos World-space position; typically a point inside the cylinder.
+     * @return Zero-based bin index along the cylinder axis.
+     */
     template <bool BOUNDS_CHECK = true>
     std::size_t cylinderIndex(const std::array<double, 3>& pos) const
     {
@@ -321,6 +453,12 @@ protected:
         }
     }
 
+    /**
+     * @brief Analog (random) transport: samples a free path and either interacts
+     *        inside the current bin or exits the cylinder.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transportRandom(ParticleType auto& p, RandomState& state)
     {
         bool cont = basicshape::cylinder::pointInside(p.pos, m_cylinder);
@@ -353,6 +491,13 @@ protected:
         }
     }
 
+    /**
+     * @brief Forced-interaction transport: guarantees an interaction within each depth
+     *        bin (or at the cylinder boundary), improving scoring efficiency for thin
+     *        or low-density geometries.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transportForced(ParticleType auto& p, RandomState& state) noexcept
     {
         bool cont = basicshape::cylinder::pointInside(p.pos, m_cylinder);
