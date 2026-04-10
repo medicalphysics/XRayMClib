@@ -123,14 +123,14 @@ bool dose_test()
     materials.push_back(xraymc::Material<N>::byNistName("Air, Dry (near sea level)").value());
     materials.push_back(xraymc::Material<N>::byNistName("Water, Liquid").value());
     std::transform(mat.cbegin(), mat.cend(), dens.begin(), [](const auto v) { return v == 0 ? 0.001 : 1.0; });
-    auto& donut = world.addItem<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>>({ { 64, 64, 64 }, { 1.0, 1.0, 1.0 }, dens, mat, materials }, "Target");
+    auto& donut = world.template addItem<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>>({ { 64, 64, 64 }, { 1.0, 1.0, 1.0 }, dens, mat, materials }, "Target");
 
-    auto& sphere = world.addItem<xraymc::WorldSphere<N, 2, true>>("Sphere");
+    auto& sphere = world.template addItem<xraymc::WorldSphere<N, 2, true>>("Sphere");
     sphere.setCenter({ 0, 0, 40 });
     sphere.setRadius(7.5);
     sphere.setMaterial(materials[1], 1.0);
 
-    auto& detector = world.addItem<xraymc::FlatDetector>("Detector");
+    auto& detector = world.template addItem<xraymc::FlatDetector>("Detector");
     detector.setCenter({ 0, 0, 64.5 });
     detector.setDirectionCosines({ 1, 0, 0 }, { 0, 1, 0 });
     detector.setDetectorDimensions({ 512, 512 });
@@ -232,14 +232,14 @@ bool pencil_test()
     materials.push_back(xraymc::Material<N>::byNistName("Air, Dry (near sea level)").value());
     materials.push_back(xraymc::Material<N>::byNistName("Water, Liquid").value());
     std::transform(mat.cbegin(), mat.cend(), dens.begin(), [](const auto v) { return v == 0 ? 0.001 : 1.0; });
-    auto& donut = world.addItem<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>>({ { 64, 64, 64 }, { 1.0, 1.0, 1.0 }, dens, mat, materials });
+    auto& donut = world.template addItem<xraymc::AAVoxelGrid<N, 2, TRANSPARENTVOXELS>>({ { 64, 64, 64 }, { 1.0, 1.0, 1.0 }, dens, mat, materials });
 
-    auto& sphere = world.addItem<xraymc::WorldSphere<N, 2, true>>("Sphere");
+    auto& sphere = world.template addItem<xraymc::WorldSphere<N, 2, true>>("Sphere");
     sphere.setCenter({ 0, 40, 0 });
     sphere.setRadius(2);
     sphere.setMaterial(materials[0], 0.001);
 
-    auto& detector = world.addItem<xraymc::FlatDetector>("Detector");
+    auto& detector = world.template addItem<xraymc::FlatDetector>("Detector");
     detector.setCenter({ 0, 64.5, 0 });
     detector.setDirectionCosines({ 1, 0, 0 }, { 0, 0, 1 });
     detector.setDetectorDimensions({ 512, 512 });
