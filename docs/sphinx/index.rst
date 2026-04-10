@@ -25,18 +25,13 @@ The example can be built by CMake with the following CMakeLists.txt file.
 Check also out
 --------------
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    
    about
    physicsmodel
    api/api_root
    license
    
-Docs
-====
-.. doxygenclass:: CTDualSource
-   :project: xraymclib
-   :members:
 
 Indices and tables
 ==================

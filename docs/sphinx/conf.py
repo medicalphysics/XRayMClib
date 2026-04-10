@@ -28,8 +28,7 @@ author = "Erlend Andersen"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-# extensions = ["breathe", "exhale"
-# ]
+extensions = ["breathe", "exhale"]
 
 # Breathe Configuration
 breathe_default_project = "xraymclib"

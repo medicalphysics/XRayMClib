@@ -7,7 +7,7 @@ It is possible to simulate dose from conventional x-ray and CT examinations in a
 
 
 Compilation
-_________
+=====
 xraymclib uses CMake as build generator, to include xraymclib in a CMake project it is recommended to use CMakes 'FetchContent' module. Example to include xraymclib in your CMakeLists.txt:
 
     include(FetchContent)
