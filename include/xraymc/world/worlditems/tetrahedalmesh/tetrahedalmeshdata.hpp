@@ -31,21 +31,43 @@ Copyright 2025 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Raw geometry and per-collection material data for a tetrahedral mesh.
+ *
+ * This plain data struct holds all the inputs needed to construct a TetrahedalMesh:
+ * the vertex node positions, the four-vertex element connectivity, a per-element
+ * collection index, and three parallel arrays that describe each named collection
+ * (density, material composition by elemental weight fractions, and display name).
+ * Helper methods validate consistency, fill missing names, and filter the mesh down
+ * to a named subset of collections.
+ */
 struct TetrahedalMeshData {
-    std::vector<std::array<double, 3>> nodes;
-    std::vector<std::array<std::uint32_t, 4>> elements;
-    std::vector<std::uint32_t> collectionIndices; // same size as elements
+    std::vector<std::array<double, 3>> nodes;                            ///< Vertex positions in cm.
+    std::vector<std::array<std::uint32_t, 4>> elements;                  ///< Tetrahedron vertex index quads.
+    std::vector<std::uint32_t> collectionIndices;                        ///< Per-element collection index; same size as elements.
 
-    // specify collection/organ properties
-    std::vector<double> collectionDensities;
-    std::vector<std::map<std::uint8_t, double>> collectionMaterialComposition;
-    std::vector<std::string> collectionNames;
+    std::vector<double> collectionDensities;                             ///< Mass density in g/cm³ for each collection.
+    std::vector<std::map<std::uint8_t, double>> collectionMaterialComposition; ///< Elemental weight fractions for each collection.
+    std::vector<std::string> collectionNames;                            ///< Human-readable name for each collection.
 
+    /**
+     * @brief Returns the largest collection index present in collectionIndices.
+     * @return Maximum collection index value.
+     */
     auto maxCollectionNumber() const
     {
         auto iter = std::max_element(std::execution::par_unseq, collectionIndices.cbegin(), collectionIndices.cend());
         return *iter;
     }
+
+    /**
+     * @brief Checks whether the mesh data is internally consistent.
+     *
+     * Verifies that all element vertex indices are within the bounds of the nodes
+     * array, and that collectionDensities, collectionMaterialComposition, and
+     * collectionNames each have exactly maxCollectionNumber() + 1 entries.
+     * @return true if the data is valid and ready to use; false otherwise.
+     */
     bool valid() const
     {
         // test if element indices can index nodes
@@ -67,6 +89,12 @@ struct TetrahedalMeshData {
         return val;
     }
 
+    /**
+     * @brief Replaces the elemental weight-fraction composition of a collection.
+     * @param collectionIndex Index of the collection to modify.
+     * @param newComposition  New elemental weight fractions keyed by atomic number.
+     * @throws std::out_of_range if @p collectionIndex is out of bounds.
+     */
     void changeMaterialComposition(std::uint32_t collectionIndex, const std::map<std::uint8_t, double>& newComposition)
     {
         auto& comp = collectionMaterialComposition.at(collectionIndex);
@@ -75,6 +103,14 @@ struct TetrahedalMeshData {
             comp[key] = value;
     }
 
+    /**
+     * @brief Tests whether all tetrahedra have outward-pointing face normals.
+     *
+     * Uses the geometric normal-orientation test from basicshape::tetrahedron for
+     * every element. A mesh that passes this test can be used for inside/outside
+     * determination without further preprocessing.
+     * @return true if every tetrahedron has consistently outward normals; false otherwise.
+     */
     bool testTetrahedronNormals() const
     {
         return std::all_of(std::execution::par_unseq, elements.cbegin(), elements.cend(), [this](const auto& el) {
@@ -86,6 +122,12 @@ struct TetrahedalMeshData {
         });
     }
 
+    /**
+     * @brief Fills any empty collection names with the placeholder "Generic name N".
+     *
+     * Resizes collectionNames to maxCollectionNumber() + 1 if needed, then assigns
+     * a numbered placeholder to every entry that is currently empty.
+     */
     void makeGenericCollectionNames()
     {
         const auto N = maxCollectionNumber() + 1;
@@ -98,6 +140,17 @@ struct TetrahedalMeshData {
         }
     }
 
+    /**
+     * @brief Filters the mesh to retain only collections whose name contains @p filter.
+     *
+     * Elements belonging to collections that do not match are removed. The surviving
+     * collections are remapped to a contiguous index range starting at 0, and the node
+     * array is pruned to remove vertices no longer referenced by any remaining element.
+     * If no collection matches, the mesh is left unchanged.
+     * @param filter        Substring that a collection name must contain to be kept.
+     * @param caseSensitive When false, both the names and the filter are lowercased
+     *                      before comparison.
+     */
     void collectionNameMustContainFilter(const std::string& filter, bool caseSensitive = true)
     {
         std::vector<std::uint32_t> indicesToKeep;

@@ -34,13 +34,38 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Recursive pointer-based KD-tree accelerator for ray–mesh intersection queries.
+ *
+ * @deprecated Prefer the flat-array TetrahedalMeshContourKDTree for new code.
+ *
+ * Organises a set of triangles (or any type satisfying MeshKDTreeType) into a binary
+ * spatial tree. Each internal node stores a splitting plane along the widest axis of its
+ * bounding box; leaf nodes store index lists into the caller-owned triangle vector.
+ * The tree is built with a median-cut strategy and a figure-of-merit guard that stops
+ * splitting when further subdivision would not reduce the work.
+ *
+ * Copy construction is disabled; the tree must be moved or rebuilt.
+ *
+ * @tparam U Triangle-like type that satisfies the MeshKDTreeType concept
+ *           (must expose AABB(), center(), intersect(), and planeVector()).
+ */
 template <MeshKDTreeType U>
 class MeshKDTree {
 public:
+    /// @brief Constructs an empty tree with no triangles.
     MeshKDTree() { };
+
+    /// @brief Copy construction is disabled; use the move constructor instead.
     MeshKDTree(MeshKDTree<U>& other) = delete;
+
+    /// @brief Copy construction is disabled; use the move constructor instead.
     MeshKDTree(const MeshKDTree<U>& other) = delete;
 
+    /**
+     * @brief Move-constructs a tree by transferring ownership of all nodes from @p other.
+     * @param other Source tree; left in a valid but empty state after the move.
+     */
     MeshKDTree(MeshKDTree<U>&& other) noexcept
     {
         m_D = other.m_D;
@@ -54,6 +79,11 @@ public:
         }
     }
 
+    /**
+     * @brief Constructs a tree over all triangles in @p triangles.
+     * @param triangles Triangle collection; must remain valid for the lifetime of the tree.
+     * @param max_depth Maximum recursion depth; deeper trees reduce leaf size at the cost of memory.
+     */
     MeshKDTree(const std::vector<U>& triangles, const std::size_t max_depth = 8)
     {
         std::vector<std::uint32_t> idx(triangles.size());
@@ -61,11 +91,22 @@ public:
         setData(triangles, idx, max_depth);
     }
 
+    /**
+     * @brief Constructs a tree over a subset of triangles specified by @p idx.
+     * @param triangles Triangle collection; must remain valid for the lifetime of the tree.
+     * @param idx       Indices into @p triangles to include in this tree.
+     * @param max_depth Maximum recursion depth.
+     */
     MeshKDTree(const std::vector<U>& triangles, const std::vector<std::uint32_t>& idx, const std::size_t max_depth = 8)
     {
         setData(triangles, idx, max_depth);
     }
 
+    /**
+     * @brief Rebuilds the tree over all triangles in @p triangles.
+     * @param triangles Triangle collection.
+     * @param max_depth Maximum recursion depth.
+     */
     void setData(const std::vector<U>& triangles, const std::size_t max_depth = 8)
     {
         std::vector<std::uint32_t> idx(triangles.size());
@@ -73,6 +114,17 @@ public:
         setData(triangles, idx, max_depth);
     }
 
+    /**
+     * @brief Rebuilds the tree over the subset of triangles specified by @p idx.
+     *
+     * Computes the AABB of the subset, selects the widest axis as the split dimension,
+     * and recursively partitions using a median-cut plane. Recursion stops when
+     * @p max_depth reaches 1, the subset has a single triangle, or further splitting
+     * would not reduce the figure of merit.
+     * @param triangles Triangle collection.
+     * @param idx       Indices of triangles to include.
+     * @param max_depth Maximum remaining recursion depth.
+     */
     void setData(const std::vector<U>& triangles, const std::vector<std::uint32_t>& idx, const std::size_t max_depth = 8)
     {
         if (idx.size() == 0)
@@ -129,6 +181,7 @@ public:
         }
     }
 
+    /// @brief Returns the current depth of the tree (number of levels from root to deepest leaf).
     std::size_t depth() const
     {
         std::size_t teller = 0;
@@ -136,6 +189,12 @@ public:
         return teller;
     }
 
+    /**
+     * @brief Translates the splitting planes of all nodes by @p dist.
+     *
+     * Only the component along each node's split axis is applied.
+     * @param dist Displacement vector in cm.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         m_plane += dist[m_D];
@@ -145,6 +204,10 @@ public:
         }
     }
 
+    /**
+     * @brief Uniformly scales the splitting planes of all nodes by @p s.
+     * @param s Scale factor applied to every split-plane coordinate.
+     */
     void scale(double s)
     {
         m_plane *= s;
@@ -154,6 +217,12 @@ public:
         }
     }
 
+    /**
+     * @brief Mirrors the splitting planes of all nodes through a world-space point.
+     *
+     * Each plane coordinate p along dimension D is mapped to p + 2·(point[D] - p).
+     * @param point The point of reflection in cm.
+     */
     void mirror(const std::array<double, 3>& point)
     {
         m_plane += -2 * (m_plane - point[m_D]);
@@ -163,6 +232,11 @@ public:
         }
     }
 
+    /**
+     * @brief Mirrors the splitting planes of all nodes about a plane at @p value along @p dim.
+     * @param value Coordinate of the mirror plane along @p dim.
+     * @param dim   Axis index: 0 = x, 1 = y, 2 = z.
+     */
     void mirror(const double value, const std::uint_fast32_t dim)
     {
         if (m_D == dim)
@@ -173,6 +247,18 @@ public:
         }
     }
 
+    /**
+     * @brief Tests a particle ray against the mesh, guarded by an AABB pre-test.
+     *
+     * If the ray does not intersect @p aabb the query returns an invalid result
+     * immediately; otherwise the ray interval from the AABB hit is forwarded to the
+     * recursive tree traversal.
+     * @param particle  Particle whose position and direction define the ray.
+     * @param triangles Triangle collection indexed by the tree's leaf nodes.
+     * @param aabb      Axis-aligned bounding box of the full mesh as
+     *                  {xmin, ymin, zmin, xmax, ymax, zmax} in cm.
+     * @return The closest intersection found within the AABB, or an invalid result.
+     */
     KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::vector<U>& triangles, const std::array<double, 6>& aabb) const
     {
         const auto inter = basicshape::AABB::intersectForwardInterval(particle, aabb);
@@ -180,6 +266,19 @@ public:
     }
 
 protected:
+    /**
+     * @brief Recursive ray–tree traversal within the ray interval @p tbox.
+     *
+     * At leaf nodes, each stored triangle is tested with its own intersect() and the
+     * closest hit within [tbox[0], tbox[1]] is returned. At internal nodes the split
+     * plane determines which child (front/back) to visit first; the back child is only
+     * visited when the front child produces no hit closer than the split plane.
+     * Rays parallel to the split axis visit both children and return the closer hit.
+     * @param particle  Particle whose position and direction define the ray.
+     * @param triangles Triangle collection indexed by this node's leaf lists.
+     * @param tbox      Active ray interval {t_near, t_far}.
+     * @return Closest intersection within the interval, or an invalid result.
+     */
     KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::vector<U>& triangles, const std::array<double, 2>& tbox) const
     {
         if (!m_left) { // this is a leaf
@@ -240,6 +339,15 @@ protected:
         return back->intersect(particle, triangles, t_back);
     }
 
+    /**
+     * @brief Computes the median-cut split plane position along the current split axis.
+     *
+     * Collects the centroid coordinate along m_D for every triangle in @p idx, sorts
+     * them, and returns the median value (average of the two middle values for even N).
+     * @param triangles Triangle collection.
+     * @param idx       Indices of triangles in the current partition.
+     * @return Split plane coordinate along m_D in cm.
+     */
     double planeSplit(const std::vector<U>& triangles, const std::vector<std::uint32_t>& idx) const
     {
         const auto N = idx.size();
@@ -260,6 +368,17 @@ protected:
         }
     }
 
+    /**
+     * @brief Evaluates the quality of a candidate split plane.
+     *
+     * Sums the signed side values (+1 right, -1 left, 0 straddle) over all triangles
+     * and adds the count of straddling triangles. A lower value indicates a more balanced
+     * split. If the returned value equals idx.size(), the split is not useful.
+     * @param triangles Triangle collection.
+     * @param idx       Indices of triangles in the current partition.
+     * @param planesep  Candidate split plane coordinate along m_D.
+     * @return Figure-of-merit score (lower is better).
+     */
     int figureOfMerit(const std::vector<U>& triangles, const std::vector<std::uint32_t>& idx, const double planesep) const
     {
         int fom = 0;
@@ -275,6 +394,14 @@ protected:
         return std::abs(fom) + shared;
     }
 
+    /**
+     * @brief Determines which side of a split plane a triangle lies on, using its AABB.
+     * @param triangle Triangle to test.
+     * @param plane    Split plane coordinate along axis @p D.
+     * @param D        Split axis index: 0 = x, 1 = y, 2 = z.
+     * @return -1 if the triangle is entirely on the left (≤ plane), +1 if entirely on
+     *         the right (≥ plane), or 0 if it straddles the plane.
+     */
     static std::int_fast8_t planeSide(const U& triangle, const double plane, const std::uint_fast32_t D)
     {
         auto max = std::numeric_limits<double>::lowest();
@@ -293,6 +420,7 @@ protected:
         return 0;
     }
 
+    /// @brief Increments @p teller once per level by recursing into the left child.
     void depth_iterator(std::size_t& teller) const
     {
         teller++;
@@ -300,16 +428,20 @@ protected:
             m_left->depth_iterator(teller);
     }
 
+    /// @brief Returns the heuristic epsilon used for floating-point comparisons (11 × machine epsilon).
     constexpr static double epsilon()
     {
         // Huristic epsilon for triangle intersections
         return 11 * std::numeric_limits<double>::epsilon();
     }
 
+    /// @brief Returns true if @p a ≤ @p b within the heuristic epsilon tolerance.
     constexpr static bool lessOrEqual(double a, double b)
     {
         return a - b <= epsilon() * a;
     }
+
+    /// @brief Returns true if @p a ≥ @p b within the heuristic epsilon tolerance.
     constexpr static bool greaterOrEqual(double a, double b)
     {
         return b - a <= epsilon() * a;

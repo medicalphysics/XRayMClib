@@ -22,11 +22,36 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Accumulates absorbed dose and its statistical uncertainty from EnergyScore data.
+ *
+ * Converts energy imparted (from an EnergyScore) to absorbed dose by dividing by the
+ * mass of the scoring volume (volume × density). Variance is propagated correctly so
+ * that relativeUncertainty() returns the 95 % confidence interval half-width as a
+ * fraction of the mean dose.
+ *
+ * Units:
+ * - Dose:     eV/g  (energy in eV divided by mass in g)
+ * - Variance: (eV/g)²
+ */
 class DoseScore {
 public:
+    /// @brief Default constructor; initialises all accumulators to zero.
     DoseScore() { }
+
+    /// @brief Defaulted equality comparison (compares all data members).
     bool operator==(const DoseScore&) const = default;
 
+    /**
+     * @brief Converts an EnergyScore to dose and accumulates it.
+     *
+     * Dose increment = energyImparted × calibrationfactor / (volume × density).
+     * Variance is scaled by the square of the same factor.
+     * @param energy            EnergyScore holding the accumulated energy and its variance.
+     * @param volume            Scoring volume in cm³.
+     * @param density           Material density in g/cm³.
+     * @param calibrationfactor Optional multiplicative calibration factor (default 1).
+     */
     void addScoredEnergy(const EnergyScore& energy, double volume, double density, double calibrationfactor = 1)
     {
         const auto mass = volume * density; // grams
@@ -36,31 +61,41 @@ public:
         m_nEvents += energy.numberOfEvents();
     }
 
+    /// @brief Returns the accumulated mean dose in eV/g.
     auto dose() const
     {
         return m_dose;
     }
 
+    /// @brief Returns the accumulated dose variance in (eV/g)².
     auto variance() const
     {
         return m_doseVariance;
     }
 
+    /// @brief Returns the standard deviation of the dose in eV/g.
     auto standardDeviation() const
     {
         return std::sqrt(variance());
     }
 
+    /**
+     * @brief Returns the 95 % confidence interval half-width as a fraction of the mean dose.
+     *
+     * Computed as 1.96 × standardDeviation / dose. Returns 0 when no events have been scored.
+     */
     auto relativeUncertainty() const
     {
         return m_nEvents > 0 ? 1.96 * standardDeviation() / dose() : 0.0;
     }
 
+    /// @brief Returns the total number of interaction events contributing to the score.
     std::uint64_t numberOfEvents() const
     {
         return m_nEvents;
     }
 
+    /// @brief Resets all accumulators to zero.
     void clear()
     {
         m_nEvents = 0;
@@ -68,6 +103,12 @@ public:
         m_doseVariance = 0;
     }
 
+    /**
+     * @brief Directly sets the dose, variance, and event count (used during deserialization).
+     * @param dose      Mean dose in eV/g.
+     * @param variance  Dose variance in (eV/g)².
+     * @param n_events  Number of scored events.
+     */
     void set(double dose, double variance, std::uint64_t n_events)
     {
         m_dose = dose;

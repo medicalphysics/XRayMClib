@@ -20,10 +20,19 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Result of a ray–world-item intersection test used during particle transport.
+ *
+ * Returned by each world item's `intersect()` method. A result is considered valid
+ * when `intersectionValid` is true. The `rayOriginIsInsideItem` flag is used by the
+ * transport loop to determine whether the particle is entering or exiting the item.
+ */
 struct WorldIntersectionResult {
-    double intersection = 0;
-    bool rayOriginIsInsideItem = false;
-    bool intersectionValid = false;
+    double intersection = 0;          ///< Ray parameter t at the intersection point in cm.
+    bool rayOriginIsInsideItem = false; ///< True if the ray origin is inside the item at the time of the query.
+    bool intersectionValid = false;   ///< True when a valid intersection was found.
+
+    /// @brief Returns true if a valid intersection was found.
     inline bool valid() const
     {
         return intersectionValid;

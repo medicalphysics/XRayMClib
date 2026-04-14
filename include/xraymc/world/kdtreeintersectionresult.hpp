@@ -20,12 +20,21 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Result of a KD-tree ray intersection query for transport simulation.
+ *
+ * Returned by KDTree, KDTreeFlat, and the mesh KD-tree variants after a ray–world
+ * intersection test. A result is considered valid when `item` is non-null.
+ *
+ * @tparam U The world item type pointed to (e.g. `std::variant<Us...>` or a triangle type).
+ */
 template <typename U>
 struct KDTreeIntersectionResult {
-    U* item = nullptr;
-    double intersection = 0;
-    bool rayOriginIsInsideItem = false;
+    U* item = nullptr;             ///< Pointer to the closest intersected item, or nullptr on miss.
+    double intersection = 0;       ///< Ray parameter t at the intersection point in cm.
+    bool rayOriginIsInsideItem = false; ///< True if the ray origin is inside the intersected item.
 
+    /// @brief Returns true if an intersection was found (item is non-null).
     bool valid() const
     {
         return item != nullptr;

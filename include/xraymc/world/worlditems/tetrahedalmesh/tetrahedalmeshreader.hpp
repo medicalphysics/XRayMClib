@@ -35,14 +35,37 @@ Copyright 2025 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Reader for tetrahedral mesh files used with ICRP and IETR computational phantoms.
+ *
+ * Parses TetGen-style node and element files and one of several supported material/organ
+ * file formats (ICRP 145 separate material + organ files, ICRP pregnant-woman combined
+ * format, or IETR combined CSV format) into a TetrahedalMeshData struct. The resulting
+ * data can be passed directly to TetrahedalMesh::setData(). After reading, call valid()
+ * to confirm that all collections were matched with density and material data.
+ */
 class TetrahedalMeshReader {
 public:
+    /// @brief Default constructor. Creates an empty reader; call readData() before use.
     TetrahedalMeshReader() { }
 
+    /**
+     * @brief Reads node and element files, assigning default water material to all collections.
+     * @param nodeFile    Path to the TetGen .node file (vertex positions).
+     * @param elementFile Path to the TetGen .ele file (tetrahedron connectivity).
+     */
     TetrahedalMeshReader(const std::string& nodeFile, const std::string& elementFile)
     {
         readData(nodeFile, elementFile);
     }
+
+    /**
+     * @brief Reads node and element files with separate ICRP 145 material and organ files.
+     * @param nodeFile      Path to the TetGen .node file.
+     * @param elementFile   Path to the TetGen .ele file.
+     * @param matfilePath   Path to the ICRP 145 material definition file.
+     * @param organFilePath Path to the ICRP 145 organ index file.
+     */
     TetrahedalMeshReader(
         const std::string& nodeFile,
         const std::string& elementFile,
@@ -52,6 +75,15 @@ public:
         readData(nodeFile, elementFile, matfilePath, organFilePath);
     }
 
+    /**
+     * @brief Reads node and element files with a combined material+organ file.
+     *
+     * Uses ICRP pregnant-woman format by default; pass the three-argument readData()
+     * overload with @p ietr_format = true for IETR CSV format.
+     * @param nodeFile         Path to the TetGen .node file.
+     * @param elementFile      Path to the TetGen .ele file.
+     * @param matorganfilePath Path to the combined material/organ file.
+     */
     TetrahedalMeshReader(
         const std::string& nodeFile,
         const std::string& elementFile,
@@ -60,6 +92,14 @@ public:
         readData(nodeFile, elementFile, matorganfilePath);
     }
 
+    /**
+     * @brief Reads node and element files, assigning default water material to all collections.
+     *
+     * Each unique collection index found in the element file is assigned a water material
+     * (H 11.2%, O 88.8%) at 1 g/cm³.
+     * @param nodeFile    Path to the TetGen .node file.
+     * @param elementFile Path to the TetGen .ele file.
+     */
     void readData(const std::string& nodeFile, const std::string& elementFile)
     {
         readNodes(nodeFile);
@@ -82,6 +122,14 @@ public:
         m_valid = mergeTetAndCollData(collection);
     }
 
+    /**
+     * @brief Reads node and element files with a combined material+organ file.
+     * @param nodeFile         Path to the TetGen .node file.
+     * @param elementFile      Path to the TetGen .ele file.
+     * @param matorganfilePath Path to the combined material/organ file.
+     * @param ietr_format      When true, parses the file as an IETR CSV format;
+     *                         when false (default), uses ICRP pregnant-woman format.
+     */
     void readData(
         const std::string& nodeFile,
         const std::string& elementFile,
@@ -100,6 +148,13 @@ public:
         }
     }
 
+    /**
+     * @brief Reads node and element files with separate ICRP 145 material and organ files.
+     * @param nodeFile      Path to the TetGen .node file.
+     * @param elementFile   Path to the TetGen .ele file.
+     * @param matfilePath   Path to the ICRP 145 material definition file.
+     * @param organFilePath Path to the ICRP 145 organ index file.
+     */
     void readData(
         const std::string& nodeFile,
         const std::string& elementFile,
@@ -112,21 +167,34 @@ public:
         m_valid = mergeTetAndCollData(coll);
     }
 
+    /// @brief Returns a mutable reference to the parsed mesh data.
     TetrahedalMeshData& data()
     {
         return m_data;
     }
 
+    /**
+     * @brief Returns true if the last readData() call succeeded and the mesh has nodes and elements.
+     *
+     * A false result indicates that one or more collections could not be matched with
+     * density or material data, or that the node/element files were empty or malformed.
+     */
     bool valid() const
     {
         return m_valid && m_data.nodes.size() > 0 && m_data.elements.size() > 0;
     }
 
+    /// @brief Resets all parsed data, leaving the reader in the same state as after default construction.
     void clear()
     {
         m_data = TetrahedalMeshData { };
     }
 
+    /**
+     * @brief Rotates all vertex node positions around @p axis by @p angle radians about the origin.
+     * @param axis  Rotation axis (need not be normalized).
+     * @param angle Rotation angle in radians.
+     */
     void rotate(const std::array<double, 3>& axis, double angle)
     {
         std::transform(std::execution::par_unseq, m_data.nodes.cbegin(), m_data.nodes.cend(), m_data.nodes.begin(), [angle, &axis](const auto& v) {
@@ -134,6 +202,10 @@ public:
         });
     }
 
+    /**
+     * @brief Uniformly scales all vertex node positions by factor @p s.
+     * @param s Scale factor applied to every coordinate of every node.
+     */
     void scale(double s)
     {
         std::transform(std::execution::par_unseq, m_data.nodes.cbegin(), m_data.nodes.cend(), m_data.nodes.begin(), [s](const auto& v) {
@@ -142,14 +214,28 @@ public:
     }
 
 protected:
+    /**
+     * @brief Intermediate representation of one organ/material collection during parsing.
+     *
+     * Holds all the per-collection data extracted from the various file formats before
+     * it is merged into TetrahedalMeshData. The @p index field matches the collection
+     * index stored in the element file; @p material_index is used internally to cross-
+     * reference ICRP 145 material entries with organ entries.
+     */
     struct ICRPCollection {
-        std::uint32_t index = 1; // default value from tetgen
-        std::uint32_t material_index = 0; // internal use
-        double density = -1;
-        std::map<std::uint8_t, double> material_weights;
-        std::string name;
+        std::uint32_t index = 1;                         ///< Collection index as read from the element file.
+        std::uint32_t material_index = 0;                ///< Internal material cross-reference index (ICRP 145).
+        double density = -1;                             ///< Mass density in g/cm³; -1 means not yet assigned.
+        std::map<std::uint8_t, double> material_weights; ///< Elemental weight fractions keyed by atomic number.
+        std::string name;                                ///< Human-readable collection name.
     };
 
+    /**
+     * @brief Reads ICRP 145 material and organ files and merges them into a collection list.
+     * @param matfilePath   Path to the ICRP 145 material file.
+     * @param organFilePath Path to the ICRP 145 organ file.
+     * @return Merged collection list with density, composition, and name per organ.
+     */
     std::vector<ICRPCollection> readICRP145PhantomMaterialAndOrgans(
         const std::string& matfilePath,
         const std::string& organFilePath)
@@ -158,6 +244,15 @@ protected:
         auto mats = readICRP145PhantomMaterials(matfilePath);
         return mergeOrganMaterialData(orgs, mats);
     }
+    /**
+     * @brief Combines organ index entries with material property entries.
+     *
+     * For each organ, finds the matching material by material_index and fills in any
+     * missing density, weight fractions, or name from the material entry.
+     * @param organs    Organ list (from the organ index file).
+     * @param materials Material list (from the material definition file).
+     * @return Merged collection list ready for mergeTetAndCollData().
+     */
     static std::vector<ICRPCollection> mergeOrganMaterialData(const std::vector<ICRPCollection>& organs, const std::vector<ICRPCollection>& materials)
     {
         std::vector<ICRPCollection> res;
@@ -181,6 +276,16 @@ protected:
         return res;
     }
 
+    /**
+     * @brief Matches the collection list against element collection indices and populates
+     *        the density, material composition, and name arrays in m_data.
+     *
+     * Remaps the raw collection indices from the element file to a contiguous range
+     * starting at 0, then copies density, weight fractions, and names from @p collection.
+     * @param collection Parsed collection list from one of the readXxx() helpers.
+     * @return true if every remapped collection index was matched; false if any density
+     *         remains at the sentinel value -1 (unmatched collection).
+     */
     bool mergeTetAndCollData(const std::vector<ICRPCollection>& collection)
     {
         // matching collection with collection indices;
@@ -217,6 +322,18 @@ protected:
         return loc == m_data.collectionDensities.cend();
     }
 
+    /**
+     * @brief Parses a single field from a character buffer, advancing past @p sep delimiters.
+     *
+     * Handles arithmetic types via std::from_chars and std::string by scanning to the
+     * next separator (trimming trailing whitespace for strings).
+     * @tparam U     Field type; must be arithmetic or std::string.
+     * @param start  Pointer to the start of the remaining input.
+     * @param end    Pointer one past the end of the input.
+     * @param sep    Delimiter character separating fields.
+     * @param val    Output variable that receives the parsed value.
+     * @return Pointer to the position immediately after the parsed field.
+     */
     template <typename U>
     static const char* parseLine(const char* start, const char* end, char sep, U& val)
     {
@@ -250,6 +367,17 @@ protected:
         }
     }
 
+    /**
+     * @brief Variadic overload of parseLine() that parses multiple fields in sequence.
+     * @tparam U    Type of the first field.
+     * @tparam Args Types of the remaining fields.
+     * @param start Pointer to the start of the remaining input.
+     * @param end   Pointer one past the end of the input.
+     * @param sep   Delimiter character separating fields.
+     * @param val   Output variable for the first field.
+     * @param args  Output variables for the remaining fields.
+     * @return Pointer to the position after all fields have been parsed.
+     */
     template <typename U, typename... Args>
     static const char* parseLine(const char* start, const char* end, char sep, U& val, Args&... args)
     {
@@ -262,6 +390,15 @@ protected:
         return end;
     }
 
+    /**
+     * @brief Parses an IETR combined organ+material CSV file.
+     *
+     * Expects a header line followed by one row per collection. Each row contains
+     * collection index, name, density, and weight fractions for H, C, N, O, Na, Mg,
+     * P, S, Cl, K, Ca, Fe, I (in that order). Zero-weight elements are discarded.
+     * @param matfilePath Path to the IETR CSV file.
+     * @return Collection list; empty if the file could not be read or has fewer than 2 lines.
+     */
     static std::vector<ICRPCollection> readIETROrganAndMaterial(const std::string& matfilePath)
     {
         std::vector<ICRPCollection> res;
@@ -318,6 +455,15 @@ protected:
 
         return res;
     }
+    /**
+     * @brief Parses an ICRP 145 phantom material definition file.
+     *
+     * Data begins at line 3 (0-indexed). Each line contains a material index, a
+     * name, weight fractions for Z = {1,6,7,8,11,12,15,16,17,19,20,26,53}, and a
+     * density value. Returns one ICRPCollection per material entry.
+     * @param matfilePath Path to the ICRP 145 material file.
+     * @return Material list; empty if the file could not be read.
+     */
     static std::vector<ICRPCollection> readICRP145PhantomMaterials(const std::string& matfilePath)
     {
         std::vector<ICRPCollection> res;
@@ -414,6 +560,14 @@ protected:
         return res;
     }
 
+    /**
+     * @brief Parses an ICRP 145 phantom organ index file.
+     *
+     * The first line is treated as a header and skipped. Each subsequent CSV line
+     * contains organ index, name, material_index, and density.
+     * @param organfilePath Path to the ICRP 145 organ file.
+     * @return Organ list; empty if the file could not be read.
+     */
     static std::vector<ICRPCollection> readICRP145PhantomOrgans(const std::string& organfilePath)
     {
         std::vector<ICRPCollection> res;
@@ -444,6 +598,16 @@ protected:
         return res;
     }
 
+    /**
+     * @brief Parses an ICRP pregnant-woman phantom combined material+organ file.
+     *
+     * The file is segmented by 'C' marker lines. Each segment encodes one collection:
+     * the first line (after 'C') gives name and density; subsequent lines give the
+     * collection index (prefixed 'm') and elemental weight fractions as Z*1000 + w
+     * pairs.
+     * @param matfile Path to the combined ICRP pregnant-woman file.
+     * @return Collection list parsed from all segments in the file.
+     */
     static std::vector<ICRPCollection> readICRPPregnantOrganAndMaterial(const std::string& matfile)
     {
         std::vector<ICRPCollection> organs;
@@ -495,6 +659,16 @@ protected:
         return organs;
     }
 
+    /**
+     * @brief Reads a TetGen .ele element file into m_data.elements and m_data.collectionIndices.
+     *
+     * Expected line format: `<index> <n0> <n1> <n2> <n3> [collection_index]`.
+     * Lines are parsed in parallel; results are sorted by index and any sentinel-valued
+     * (invalid) entries are removed. Indexing must start at 0.
+     * @param path         Path to the .ele file.
+     * @param nHeaderLines Number of header lines to skip; default 1.
+     * @param collength    Estimated average line length used for pre-allocating the line index.
+     */
     void readElements(const std::string& path, int nHeaderLines = 1, std::size_t collength = 80)
     {
         // reads a file formatted as <index n0 n1 n2 n3 matIdx000>, i.e "512 51 80 90 101"
@@ -567,6 +741,16 @@ protected:
         });
     }
 
+    /**
+     * @brief Reads a TetGen .node vertex file into m_data.nodes.
+     *
+     * Expected line format: `<index> <x> <y> <z>`. Lines starting with '#' are treated
+     * as comments. Lines are parsed in parallel; results are sorted by index and any
+     * NaN-valued entries are removed. Indexing must start at 0.
+     * @param path         Path to the .node file.
+     * @param nHeaderLines Number of header lines to skip; default 1.
+     * @param collength    Estimated average line length used for pre-allocating the line index.
+     */
     void readNodes(const std::string& path, int nHeaderLines = 1, std::size_t collength = 80)
     {
         // reads a file formatted as <index v0 v1 v2>, i.e "512 0.2 0.4523 -0.974"
@@ -632,6 +816,11 @@ protected:
         });
     }
 
+    /**
+     * @brief Reads the entire contents of a file into a string.
+     * @param path Path to the file to read.
+     * @return File contents as a string, or an empty string if the file could not be opened.
+     */
     static std::string readBufferFromFile(const std::string& path)
     {
         std::string buffer_str;

@@ -22,11 +22,33 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Thread-safe accumulator for energy imparted and its statistical variance.
+ *
+ * Records the sum of deposited energies and the sum of their squares using
+ * `std::atomic_ref` so that multiple transport threads can score concurrently
+ * without external synchronisation. The stored sums are used to estimate the
+ * variance of the total energy via the law of total variance, assuming that the
+ * number of interaction events follows a Poisson distribution.
+ *
+ * Units: all energies in eV.
+ */
 class EnergyScore {
 public:
+    /// @brief Default constructor; initialises all accumulators to zero.
     EnergyScore() { }
+
+    /// @brief Defaulted equality comparison (compares all data members).
     bool operator==(const EnergyScore&) const = default;
 
+    /**
+     * @brief Records a single energy-deposition event in a thread-safe manner.
+     *
+     * Adds @p energy to the running sum and @p energy² to the sum-of-squares,
+     * and increments the event counter. Values ≤ 0 are silently ignored.
+     * All three updates are performed with relaxed memory order via `std::atomic_ref`.
+     * @param energy Energy deposited in this event in eV; must be > 0 to be recorded.
+     */
     void scoreEnergy(double energy)
     {
         if (energy <= 0.0)
@@ -45,16 +67,33 @@ public:
             ++aref;
         }
     }
+
+    /// @brief Returns the total energy imparted (sum of all scored energies) in eV.
     double energyImparted() const
     {
         return m_energyImparted;
     }
 
+    /// @brief Returns the sum of squared scored energies in eV².
     double energyImpartedSquared() const
     {
         return m_energyImpartedSquared;
     }
 
+    /**
+     * @brief Estimates the variance of the total energy imparted in eV².
+     *
+     * Applies the law of total variance for a random sum Sₙ = X₁ + … + Xₙ where
+     * the number of events N is Poisson-distributed with mean and variance equal to
+     * the observed event count Z:
+     *
+     *   Var(Sₙ) = Z · Var(X) + E[X]² · Z
+     *
+     * where E[X] = energyImparted / Z and
+     * Var(X) = (E[X²] − E[X]²) / (Z − 1).
+     *
+     * Returns 0 when fewer than two events have been scored.
+     */
     double variance() const
     {
         // We will calculate the the variance of a random sum Sn = X1+X2+...+Xn
@@ -91,21 +130,34 @@ public:
         return 0;
     }
 
+    /// @brief Returns the standard deviation of the total energy imparted in eV.
     double standardDeviation() const
     {
         return std::sqrt(variance());
     }
 
+    /**
+     * @brief Returns the 95 % confidence interval half-width as a fraction of the mean energy.
+     *
+     * Computed as 1.96 × standardDeviation / energyImparted.
+     */
     double relativeUncertainty() const
     {
         return 1.96 * standardDeviation() / energyImparted();
     }
 
+    /// @brief Returns the total number of scored interaction events.
     std::uint64_t numberOfEvents() const
     {
         return m_nEvents;
     }
 
+    /**
+     * @brief Directly sets all accumulators (used during deserialization).
+     * @param energy        Total energy imparted in eV.
+     * @param energySquared Sum of squared energies in eV².
+     * @param n_events      Number of scored events.
+     */
     void set(double energy, double energySquared, std::uint64_t n_events)
     {
         m_nEvents = n_events;
@@ -113,6 +165,7 @@ public:
         m_energyImpartedSquared = energySquared;
     }
 
+    /// @brief Resets all accumulators to zero.
     void clear()
     {
         m_nEvents = 0;

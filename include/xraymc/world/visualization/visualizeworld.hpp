@@ -43,38 +43,71 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief RGBA pixel buffer used as the render target for VisualizeWorld.
+ *
+ * Stores width × height pixels in RGBA order as either normalized `double` values
+ * in [0, 1] or 8-bit `uint8_t` values in [0, 255]. The `clear()` method fills
+ * the buffer with white (255 / 1.0) and alpha 255/1.0. The render time of the last
+ * generate() call is stored in `renderTime`.
+ *
+ * @tparam T Pixel component type: `double` or `std::uint8_t`.
+ */
 template <typename T>
     requires(std::same_as<T, double> || std::same_as<T, std::uint8_t>)
 struct VisualizationBuffer {
-    std::vector<T> buffer;
-    std::size_t width = 512;
-    std::size_t height = 512;
-    std::chrono::duration<double, std::milli> renderTime;
+    std::vector<T> buffer;                                   ///< Flat RGBA pixel data; size = width × height × 4.
+    std::size_t width = 512;                                 ///< Image width in pixels.
+    std::size_t height = 512;                                ///< Image height in pixels.
+    std::chrono::duration<double, std::milli> renderTime;    ///< Wall-clock time of the last generate() call.
 
+    /**
+     * @brief Constructs a square buffer of @p size × @p size pixels.
+     * @param size Width and height in pixels.
+     */
     VisualizationBuffer(std::size_t size)
     {
         width = size;
         height = size;
         buffer.resize(width * height * 4);
     }
+
+    /**
+     * @brief Constructs a buffer of @p w × @p h pixels.
+     * @param w Width in pixels.
+     * @param h Height in pixels.
+     */
     VisualizationBuffer(std::size_t w, std::size_t h)
     {
         width = w;
         height = h;
         buffer.resize(width * height * 4);
     }
+
+    /**
+     * @brief Resizes the buffer to @p size × @p size pixels.
+     * @param size New width and height in pixels.
+     */
     void resize(std::size_t size)
     {
         width = size;
         height = size;
         buffer.resize(width * height * 4);
     }
+
+    /**
+     * @brief Resizes the buffer to @p w × @p h pixels.
+     * @param w New width in pixels.
+     * @param h New height in pixels.
+     */
     void resize(std::size_t w, std::size_t h)
     {
         width = w;
         height = h;
         buffer.resize(width * height * 4);
     }
+
+    /// @brief Fills the buffer with white (255 for uint8_t, 1.0 for double).
     void clear()
     {
         if constexpr (std::is_same<T, std::uint8_t>::value)
@@ -83,25 +116,61 @@ struct VisualizationBuffer {
             std::fill(begin(), end(), T { 1 });
     }
 
+    /// @brief Returns an iterator to the first element of the pixel data.
     auto begin() { return buffer.begin(); }
+
+    /// @brief Returns a past-the-end iterator for the pixel data.
     auto end() { return buffer.end(); }
 };
 
+/**
+ * @brief Concept constraining the world type accepted by VisualizeWorld.
+ *
+ * A type @p U satisfies WorldType if it exposes:
+ * - `getItemPointers()` — returns pointers to all contained world items.
+ * - `intersectVisualization(p)` — returns a VisualizationIntersectionResult for a particle ray.
+ */
 template <typename U>
 concept WorldType = requires(const U world, Particle p) {
     world.getItemPointers();
     world.intersectVisualization(p);
 };
 
+/**
+ * @brief Ray-cast renderer that produces RGBA images of a World from an arbitrary camera position.
+ *
+ * Each pixel is computed by casting a ray from a spherical-coordinate camera through
+ * a perspective projection and testing it against all world items via their
+ * `intersectVisualization()` interfaces. Items are shaded with diffuse Lambertian
+ * lighting using automatically assigned HSV colors, or with the Turbo color map when
+ * a per-item value (e.g. dose) is mapped to color. Line props and beam-field outlines
+ * can be overlaid. The render is parallelised over all hardware threads.
+ *
+ * Camera placement uses spherical coordinates centered on the world: distance (cm),
+ * polar angle (rad from +z), and azimuthal angle (rad from +x in xy-plane).
+ *
+ * @tparam Us... World item types forwarded to World<Us...>.
+ */
 template <WorldItemType... Us>
 class VisualizeWorld {
 public:
-    // template <WorldType W>
+    /**
+     * @brief Constructs a renderer from an existing world, assigning colors and
+     *        computing an initial field-of-view from the world's bounding box.
+     * @param world World to visualise.
+     */
     VisualizeWorld(const World<Us...>& world)
     {
         updateFromWorld(world);
     }
 
+    /**
+     * @brief Re-synchronises camera center, AABB, and item colors from @p world.
+     *
+     * Call this after adding or removing items from the world to keep the renderer
+     * consistent. The field-of-view is recalculated via suggestFOV().
+     * @param world Source world.
+     */
     void updateFromWorld(const World<Us...>& world)
     {
         m_center = world.center();
@@ -110,6 +179,14 @@ public:
         updateColorsFromWorld(world);
     }
 
+    /**
+     * @brief Overrides the render color of a specific world item.
+     *
+     * Both the uint8_t and double color tables are updated consistently.
+     * @tparam U Color component type: `double` (normalized [0,1]) or `std::uint8_t` ([0,255]).
+     * @param item  Pointer to the world item variant whose color should change.
+     * @param color New RGB color.
+     */
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     void setColorOfItem(const std::variant<Us...>* item, const std::array<U, 3>& color)
@@ -133,6 +210,17 @@ public:
         }
     }
 
+    /**
+     * @brief Saves a flat RGBA pixel buffer to a PNG file.
+     *
+     * Only available when the library is built with `XRAYMCLIB_USE_LOADPNG`.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param filename Destination file path.
+     * @param buffer   Flat RGBA pixel data (width × height × 4 elements).
+     * @param width    Image width in pixels.
+     * @param height   Image height in pixels.
+     * @return true if the file was written; false if PNG support is not compiled in.
+     */
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     static bool savePNG(const std::string& filename, const std::vector<U>& buffer, std::size_t width, std::size_t height)
@@ -145,6 +233,13 @@ public:
 #endif
     }
 
+    /**
+     * @brief Saves a VisualizationBuffer to a PNG file.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param filename Destination file path.
+     * @param buffer   Buffer to save.
+     * @return true if the file was written; false if PNG support is not compiled in.
+     */
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     static bool savePNG(const std::string& filename, const VisualizationBuffer<U>& buffer)
@@ -152,32 +247,65 @@ public:
         return savePNG(filename, buffer.buffer, buffer.width, buffer.height);
     }
 
+    /**
+     * @brief Sets the camera distance from the world center.
+     * @param dist Distance in cm; absolute value is used.
+     */
     void setDistance(double dist)
     {
         m_camera_pos[0] = std::abs(dist);
     }
+
+    /**
+     * @brief Sets the camera polar angle (elevation from +z axis).
+     * @param polar Polar angle in radians.
+     */
     void setPolarAngle(double polar)
     {
         m_camera_pos[1] = polar;
     }
+
+    /**
+     * @brief Sets the camera azimuthal angle (rotation around the z axis).
+     * @param azimuthal Azimuthal angle in radians; stored negated internally.
+     */
     void setAzimuthalAngle(double azimuthal)
     {
         m_camera_pos[2] = -azimuthal;
     }
+
+    /**
+     * @brief Sets the camera polar angle in degrees.
+     * @param polar Polar angle in degrees.
+     */
     void setPolarAngleDeg(double polar)
     {
         setPolarAngle(polar * DEG_TO_RAD());
     }
+
+    /**
+     * @brief Sets the camera azimuthal angle in degrees.
+     * @param azimuthal Azimuthal angle in degrees.
+     */
     void setAzimuthalAngleDeg(double azimuthal)
     {
         setAzimuthalAngle(azimuthal * DEG_TO_RAD());
     }
 
+    /**
+     * @brief Sets the world-space point the camera looks at.
+     * @param pos Center position in cm.
+     */
     void setCenter(const std::array<double, 3>& pos)
     {
         m_center = pos;
     }
 
+    /**
+     * @brief Sets the camera position in world space, computing spherical coordinates
+     *        relative to the current center.
+     * @param pos Camera position in cm.
+     */
     void setCameraPosition(const std::array<double, 3>& pos)
     {
         const auto c = vectormath::subtract(m_center, pos);
@@ -197,6 +325,13 @@ public:
             m_camera_pos[2] = std::numbers::pi_v<double> / 2;
     }
 
+    /**
+     * @brief Computes and sets the field-of-view angle to frame the world's bounding box.
+     *
+     * The half-angle is chosen so that the diagonal of the world AABB fits within the
+     * view at the current camera distance, divided by @p zoom.
+     * @param zoom Zoom factor; values > 1 narrow the field of view (zoom in).
+     */
     void suggestFOV(double zoom = 1)
     {
         const auto [p1, p2] = vectormath::splice(m_world_aabb);
@@ -205,11 +340,24 @@ public:
         m_fov = std::atan(0.5 * plen / clen) / zoom;
     }
 
+    /**
+     * @brief Adds a line prop defined by a start point, direction, length, and radius.
+     * @param start  Start position in cm.
+     * @param dir    Unit direction vector.
+     * @param length Length of the line in cm.
+     * @param radii  Visual radius of the line in cm (default 1).
+     */
     void addLineProp(const std::array<double, 3>& start, const std::array<double, 3>& dir, double length, double radii = 1)
     {
         m_lines.push_back({ start, dir, length, radii });
     }
 
+    /**
+     * @brief Adds a line segment between two world-space points.
+     * @param start Start position in cm.
+     * @param stop  End position in cm.
+     * @param radii Visual radius of the line in cm (default 1).
+     */
     void addLineSegment(const std::array<double, 3>& start, const std::array<double, 3>& stop, double radii = 1)
     {
         const auto dir = vectormath::subtract(stop, start);
@@ -218,6 +366,14 @@ public:
         addLineProp(start, ndir, length, radii);
     }
 
+    /**
+     * @brief Adds all particle tracks from @p tracker as line segment props.
+     *
+     * Each consecutive pair of recorded positions in every track is added as one
+     * line segment via addLineSegment().
+     * @param tracker Source of particle track data.
+     * @param radii   Visual radius for all added segments in cm (default 1).
+     */
     void addParticleTracks(const ParticleTracker& tracker, double radii = 1)
     {
         for (std::size_t i = 0; i < tracker.numberOfParticles(); ++i) {
@@ -234,25 +390,50 @@ public:
         }
     }
 
+    /// @brief Removes all previously added line props and beam-field outlines.
     void clearLineProps()
     {
         m_lines.clear();
     }
 
+    /**
+     * @brief Marks a world item to be rendered using the Turbo value-color map
+     *        instead of its assigned flat color.
+     *
+     * The value used for color mapping is taken from the item's
+     * `intersectVisualization()` result. Use setColorByValueMinMax() to set the
+     * data range and setColorByValueLogScale() to choose linear or log mapping.
+     * @param item Pointer to the world item variant to mark.
+     */
     void addColorByValueItem(const std::variant<Us...>* item)
     {
         m_colorByValue.insert(item);
     }
 
+    /**
+     * @brief When true, pixels with the minimum value index (0) are rendered white
+     *        instead of the Turbo color-map entry for that index.
+     * @param v true to use white for zero-valued pixels.
+     */
     void setLowestDoseColorToWhite(bool v)
     {
         m_setlowest_dose_color_to_white = v;
     }
+
+    /// @brief Returns true if the lowest-dose color is overridden to white.
     bool isLowestDoseColorWhite() const
     {
         return m_setlowest_dose_color_to_white;
     }
 
+    /**
+     * @brief Sets the data range mapped to the Turbo color scale for value-colored items.
+     *
+     * Values are clamped to [@p min, @p max] before mapping. Both values must be
+     * non-negative; the effective minimum is clamped to 0.
+     * @param min Lower bound of the data range.
+     * @param max Upper bound of the data range.
+     */
     void setColorByValueMinMax(double min, double max)
     {
         m_colorByValueClamp[0] = std::max(std::min(min, max), 0.0);
@@ -261,15 +442,32 @@ public:
         m_colorByValueClampLog[1] = m_colorByValueClamp[1] <= 0 ? -6 : std::log10(m_colorByValueClamp[1]);
     }
 
+    /// @brief Returns true if the value-to-color mapping uses a base-10 logarithmic scale.
     bool colorByValueLogScale() const
     {
         return m_colorByValueLogScale;
     }
+
+    /**
+     * @brief Enables or disables logarithmic (base-10) scaling for value-colored items.
+     * @param value true for log scale, false for linear scale.
+     */
     void setColorByValueLogScale(bool value)
     {
         m_colorByValueLogScale = value;
     }
 
+    /**
+     * @brief Adds four beam-boundary line props visualising the collimation field of a beam.
+     *
+     * Constructs lines along the four corner directions of the beam's collimation
+     * half-angles. Supports both simple collimation (`collimationHalfAngles()` returning
+     * `std::array<double,2>`) and advanced collimation (returning `std::array<double,4>`).
+     * @tparam B Beam type exposing `position()`, `directionCosines()`, and `collimationHalfAngles()`.
+     * @param obj    Beam object whose field boundaries are visualised.
+     * @param length Length of each boundary line in cm; use -1 to let the renderer decide.
+     * @param radii  Visual radius of each line in cm (default 1).
+     */
     template <typename B>
         requires requires(B obj, std::array<double, 3> pos, std::array<std::array<double, 3>, 2> cos, std::array<double, 2> ang) {
             {
@@ -325,6 +523,13 @@ public:
         addLineProp(start, f(cos, dir, angs[0], angs[1]), length, radii);
     }
 
+    /**
+     * @brief Creates an empty VisualizationBuffer of the specified dimensions.
+     * @tparam U Pixel component type: `double` (default) or `std::uint8_t`.
+     * @param width  Image width in pixels (default 512).
+     * @param height Image height in pixels (default 512).
+     * @return A default-initialized VisualizationBuffer<U>.
+     */
     template <typename U = double>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     static auto createBuffer(std::size_t width = 512, std::size_t height = 512)
@@ -333,6 +538,12 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Renders the world into a VisualizationBuffer, recording the wall-clock render time.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param world  World to render.
+     * @param buffer Render target; dimensions are taken from the buffer's width and height fields.
+     */
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     void generate(const World<Us...>& world, VisualizationBuffer<U>& buffer) const
@@ -343,6 +554,18 @@ public:
         buffer.renderTime = t_end - t_start;
     }
 
+    /**
+     * @brief Renders the world into a flat RGBA pixel vector using all hardware threads.
+     *
+     * The buffer is cleared to white before rendering. Pixels are distributed across
+     * threads via an atomic pixel index. After all threads complete, a color bar is
+     * appended in the bottom-right corner if any value-colored items are registered.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param world  World to render.
+     * @param buffer Flat RGBA pixel buffer to write into (must be pre-sized to width × height × 4).
+     * @param width  Image width in pixels (default 512).
+     * @param height Image height in pixels (default 512).
+     */
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     void generate(const World<Us...>& world, std::vector<U>& buffer, std::size_t width = 512, std::size_t height = 512) const
@@ -367,16 +590,41 @@ public:
             addColorBar(buffer, width, height);
     }
 
+    /**
+     * @brief Sets the RGB color used to render all line props.
+     * @param color RGB color with components in [0, 255].
+     */
     void setPropColor(const std::array<std::uint8_t, 3>& color)
     {
         m_propColor = color;
     }
+
+    /**
+     * @brief Sets the background RGB color for pixels that do not hit any item or line prop.
+     * @param color RGB color with components in [0, 255].
+     */
     void setBackgroundColor(const std::array<std::uint8_t, 3>& color)
     {
         m_backgroundColor = color;
     }
 
 protected:
+    /**
+     * @brief Per-thread render kernel called by generate().
+     *
+     * Fetches pixel indices atomically from @p idx. For each pixel a ray is constructed
+     * from the spherical camera parameters and cast against the world. If a world item
+     * is hit before any line prop it is shaded: value-colored items use the Turbo map
+     * (linear or log), others use Lambertian diffuse shading with their assigned color.
+     * Line props take precedence over the background color. The alpha channel is always
+     * set to 255 / 1.0.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param world  World to ray-cast.
+     * @param buffer Flat RGBA pixel buffer to write into.
+     * @param width  Image width in pixels.
+     * @param height Image height in pixels.
+     * @param idx    Shared atomic pixel counter; incremented by each thread as it claims pixels.
+     */
     template <typename U>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     void generateWorker(const World<Us...>& world, std::vector<U>& buffer, std::size_t width, std::size_t height, std::atomic<std::size_t>& idx) const
@@ -467,6 +715,15 @@ protected:
         }
     }
 
+    /**
+     * @brief Converts HSV color values (8-bit) to an RGB triplet.
+     *
+     * Uses the standard six-sector HSV formula with all inputs in [0, 255].
+     * @param H Hue in [0, 255] (maps to [0°, 360°]).
+     * @param S Saturation in [0, 255].
+     * @param V Value (brightness) in [0, 255]; defaults to 255.
+     * @return RGB triplet with components in [0, 255].
+     */
     static std::array<std::uint8_t, 3>
     HSVtoRGB(const std::uint8_t H, const std::uint8_t S, const std::uint8_t V = 255)
     {
@@ -494,6 +751,14 @@ protected:
         return rgb;
     }
 
+    /**
+     * @brief Converts HSV color values (floating-point) to an RGB triplet.
+     *
+     * @param h Hue in [0, 2π].
+     * @param s Saturation in [0, 1]; defaults to 1.
+     * @param v Value (brightness) in [0, 1]; defaults to 1.
+     * @return RGB triplet with components in [0, 1].
+     */
     static std::array<double, 3> HSVtoRGB(double h, double s = 1, double v = 1)
     {
         const auto c = v * s;
@@ -517,6 +782,14 @@ protected:
         return rgb;
     }
 
+    /**
+     * @brief Assigns evenly-spaced HSV colors to all world items and rebuilds the color index.
+     *
+     * Colors are distributed around the HSV hue wheel. Both the uint8_t and double
+     * color tables are populated, and the pointer-to-index map is rebuilt from the
+     * current item list.
+     * @param world Source world whose item pointers are enumerated.
+     */
     void updateColorsFromWorld(const World<Us...>& world)
     {
         const auto items = world.getItemPointers();
@@ -530,6 +803,18 @@ protected:
         }
     }
 
+    /**
+     * @brief Returns the shaded color of a world item, applying Lambertian diffuse scaling.
+     *
+     * The brightness is scaled by |dot(ray_dir, normal)|, clamped to
+     * [@p normal_scaling, 1.0], to give simple directional shading.
+     * @tparam U Output color component type: `double` or `std::uint8_t`.
+     * @param p              Incident ray particle (direction used for shading).
+     * @param normal         Surface normal at the intersection point.
+     * @param item           Pointer to the hit world item variant.
+     * @param normal_scaling Minimum brightness factor (default 0.4).
+     * @return Shaded RGB color, or black if the item is not in the color index.
+     */
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     std::array<U, 3> colorOfItem(const Particle& p, const std::array<double, 3>& normal, const auto* item, double normal_scaling = 0.4) const
@@ -557,6 +842,11 @@ protected:
         }
     }
 
+    /**
+     * @brief Returns the current line-prop color converted to the requested component type.
+     * @tparam U Output component type: `double` (normalized [0,1]) or `std::uint8_t` ([0,255]).
+     * @return Line-prop RGB color.
+     */
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     std::array<U, 3> colorOfLineProp() const
@@ -573,6 +863,11 @@ protected:
         }
     }
 
+    /**
+     * @brief Returns the background color converted to the requested component type.
+     * @tparam U Output component type: `double` (normalized [0,1]) or `std::uint8_t` ([0,255]).
+     * @return Background RGB color.
+     */
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     std::array<U, 3> colorOfBackgroundProp() const
@@ -589,6 +884,16 @@ protected:
         }
     }
 
+    /**
+     * @brief Returns the 256-entry Turbo perceptual color map as a compile-time array.
+     *
+     * The map runs from dark blue (index 0) through cyan, green, yellow, and orange
+     * to dark red (index 255). Two static constexpr tables are embedded: one in
+     * normalized `double` and one in `uint8_t`; the appropriate table is selected
+     * at compile time based on @p U.
+     * @tparam U Output component type: `double` (normalized [0,1]) or `std::uint8_t` ([0,255]).
+     * @return Array of 256 RGB entries.
+     */
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     static constexpr std::array<std::array<U, 3>, 256> turboColorMap()
@@ -601,6 +906,17 @@ protected:
             return b;
     }
 
+    /**
+     * @brief Overlays a vertical Turbo color bar in the lower-right corner of a pixel buffer.
+     *
+     * The bar is 1/40 of the image width wide and 1/4 of the image height tall,
+     * positioned at x = width − 1.5 × barWidth, y = height/2 − barHeight/2.
+     * Color indices decrease from 255 at the top to 0 at the bottom.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param buffer Flat RGBA pixel buffer to modify in place.
+     * @param width  Image width in pixels.
+     * @param height Image height in pixels.
+     */
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     static constexpr void addColorBar(std::vector<U>& buffer, int width, int height)
@@ -626,6 +942,11 @@ protected:
         }
     }
 
+    /**
+     * @brief Overlays a Turbo color bar onto a VisualizationBuffer.
+     * @tparam U Pixel component type: `double` or `std::uint8_t`.
+     * @param buffer Buffer to modify in place.
+     */
     template <typename U = std::uint8_t>
         requires(std::same_as<U, double> || std::same_as<U, std::uint8_t>)
     static void addColorBar(const VisualizationBuffer<U>& buffer)

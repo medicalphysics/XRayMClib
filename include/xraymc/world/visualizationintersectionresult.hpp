@@ -22,14 +22,25 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Result of a KD-tree ray intersection query for visualization rendering.
+ *
+ * Extends the information returned by a transport intersection with a surface normal
+ * and a scalar value (e.g. absorbed dose) used for shading in VisualizeWorld. A
+ * result is considered valid when `intersectionValid` is true.
+ *
+ * @tparam U The world item type pointed to (e.g. `std::variant<Us...>`).
+ */
 template <typename U>
 struct VisualizationIntersectionResult {
-    std::array<double, 3> normal = { 0, 0, 0 };
-    double intersection = 0;
-    const U* item = nullptr;
-    bool rayOriginIsInsideItem = false;
-    bool intersectionValid = false;
-    double value = 0;
+    std::array<double, 3> normal = { 0, 0, 0 }; ///< Unit outward surface normal at the intersection point.
+    double intersection = 0;                      ///< Ray parameter t at the intersection point in cm.
+    const U* item = nullptr;                      ///< Pointer to the intersected item, or nullptr on miss.
+    bool rayOriginIsInsideItem = false;           ///< True if the ray origin is inside the intersected item.
+    bool intersectionValid = false;               ///< True when a valid intersection was found.
+    double value = 0;                             ///< Scalar item value (e.g. dose in eV/g) used for color mapping.
+
+    /// @brief Returns true if a valid intersection was found.
     inline bool valid() const
     {
         return intersectionValid;

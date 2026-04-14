@@ -26,26 +26,67 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Reads a triangulated surface mesh from an STL file (ASCII or binary).
+ *
+ * The format is detected automatically by inspecting the first line of the file:
+ * if it contains the keyword "solid" the file is treated as ASCII; otherwise it is
+ * read as binary. Both overloads of `operator()` return a flat vector of Triangle
+ * objects. Any error is recorded in an internal message string accessible via
+ * message().
+ *
+ * Typical use:
+ * @code
+ * STLReader reader("mesh.stl");
+ * auto triangles = reader();
+ * if (triangles.empty())
+ *     std::cerr << reader.message();
+ * @endcode
+ */
 class STLReader {
 public:
+    /**
+     * @brief Constructs a reader with a pre-set file path.
+     * @param path Path to the STL file to read.
+     */
     STLReader(const std::string& path)
         : m_filePath(path)
     {
     }
+
+    /// @brief Constructs a reader with no file path set.
     STLReader() { }
 
+    /**
+     * @brief Sets the file path to use when operator()() is called without an argument.
+     * @param path Path to the STL file.
+     */
     void setFilePath(const std::string& path)
     {
         m_filePath = path;
     }
 
+    /// @brief Returns the last error or status message produced by a read operation.
     const std::string& message() const { return m_error; }
 
+    /**
+     * @brief Reads the STL file set by the constructor or setFilePath().
+     * @return Vector of triangles parsed from the file, or an empty vector on failure.
+     */
     std::vector<Triangle> operator()()
     {
         return operator()(m_filePath);
     }
 
+    /**
+     * @brief Reads an STL file from @p path, auto-detecting ASCII vs binary format.
+     *
+     * Opens the file, checks whether the first line contains "solid" to select the
+     * parser, then delegates to readSTLfileASCII() or readSTLfileBinary(). Sets the
+     * internal file path to @p path.
+     * @param path Path to the STL file.
+     * @return Vector of triangles, or an empty vector if the file could not be opened.
+     */
     std::vector<Triangle> operator()(const std::string& path)
     {
         m_filePath = path;
@@ -70,6 +111,12 @@ public:
     }
 
 protected:
+    /**
+     * @brief Reads a value of type @p S from a byte buffer using memcpy.
+     * @tparam S Trivially copyable target type.
+     * @param bytes Pointer to at least sizeof(S) contiguous bytes.
+     * @return The value reconstructed from the raw bytes.
+     */
     template <typename S>
     static S readFromBytes(const std::uint8_t* bytes)
     {
@@ -78,6 +125,18 @@ protected:
         return value;
     }
 
+    /**
+     * @brief Extracts per-triangle float data from a binary STL byte buffer.
+     *
+     * Each triangle record in the binary STL format is 50 bytes: 12 bytes for the
+     * normal (3 floats) followed by 36 bytes for the three vertices (9 floats), plus
+     * a 2-byte attribute count. This method copies all 12 floats (normal + vertices)
+     * per triangle into a flat vector, skipping the attribute bytes.
+     * @param buffer Raw file bytes; must start with the 84-byte header.
+     * @param header Byte offset to the first triangle record (default 84).
+     * @param offset Byte stride per triangle record (default 50).
+     * @return Flat vector of floats: 12 values per triangle (3 normal + 9 vertex coords).
+     */
     std::vector<float> readTrianglesFromBytes(const std::vector<std::uint8_t>& buffer, const std::size_t header = 84, const std::size_t offset = 50) const
     {
         const auto n_elements = ((buffer.size() - 84) / 50);
@@ -92,6 +151,17 @@ protected:
         return vec;
     }
 
+    /**
+     * @brief Reads triangles from a binary STL file.
+     *
+     * Binary STL layout: 80-byte header, 4-byte triangle count, then N × 50-byte
+     * records (12-byte normal + 36-byte vertices + 2-byte attribute). The triangle
+     * count is validated against the file size before parsing. Vertex coordinates
+     * are stored as single-precision floats in the file and promoted to double on
+     * output.
+     * @param path Path to the binary STL file.
+     * @return Vector of triangles, or an empty vector on error (message() is set).
+     */
     std::vector<Triangle> readSTLfileBinary(const std::string& path)
     {
         constexpr auto MIN_STL_SIZE = 80 + 4 + 50;
@@ -151,6 +221,12 @@ protected:
         return data;
     }
 
+    /**
+     * @brief Splits @p text on the separator character @p sep, skipping empty tokens.
+     * @param text Input string to split.
+     * @param sep  Delimiter character.
+     * @return Vector of non-empty substrings between occurrences of @p sep.
+     */
     static std::vector<std::string> stringSplit(const std::string& text, char sep)
     {
         // this function splits a string into a vector based on a sep character
@@ -169,6 +245,15 @@ protected:
         return tokens;
     }
 
+    /**
+     * @brief Reads triangles from an ASCII STL file.
+     *
+     * Scans the file line by line. Lines whose first whitespace-delimited token is
+     * "vertex" (case-insensitive) contribute the next three tokens as x, y, z
+     * coordinates. Every nine collected coordinates are assembled into one Triangle.
+     * @param path Path to the ASCII STL file.
+     * @return Vector of triangles, or an empty vector on error (message() is set).
+     */
     std::vector<Triangle> readSTLfileASCII(const std::string& path)
     {
         auto processLine = [](const std::string& line) -> std::optional<std::array<double, 3>> {

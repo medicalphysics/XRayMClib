@@ -29,13 +29,43 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 namespace visualizationprops {
+    /**
+     * @brief Abstract base class for all visualization overlay primitives.
+     *
+     * Subclasses implement `intersect()` to report the ray parameter and surface
+     * normal at the closest intersection point so that VisualizeWorld can composite
+     * them on top of the world geometry.
+     */
     class VisualizationProp {
     public:
+        /**
+         * @brief Tests a particle ray against the primitive.
+         * @param p Particle whose position and direction define the ray.
+         * @return A pair of (t, normal) at the hit point, or std::nullopt on miss.
+         *         t is the non-negative ray parameter; normal is the unit outward normal.
+         */
         virtual std::optional<std::pair<double, std::array<double, 3>>> intersect(const Particle& p) const noexcept = 0;
     };
 
+    /**
+     * @brief A finite cylindrical line prop used to overlay beam paths or particle tracks.
+     *
+     * Represents a solid cylinder of radius @p radii centered on a ray from @p start
+     * along @p dir for at most @p length cm. A negative or zero length is treated as
+     * infinite. Intersection is computed analytically as the closest-approach distance
+     * between the particle ray and the cylinder axis; the hit is rejected if the
+     * closest point falls outside [0, length] along the axis, or if the transverse
+     * distance exceeds @p radii.
+     */
     class Line : public VisualizationProp {
     public:
+        /**
+         * @brief Constructs a line prop.
+         * @param start  Start position of the cylinder axis in cm.
+         * @param dir    Direction of the cylinder axis (normalized internally).
+         * @param length Length of the cylinder in cm; ≤ 0 means infinite (default -1).
+         * @param radii  Cylinder radius in cm; absolute value is used (default 1).
+         */
         Line(const std::array<double, 3> start, const std::array<double, 3> dir, double length = -1, double radii = 1)
             : VisualizationProp()
             , m_pos(start)
@@ -49,6 +79,18 @@ namespace visualizationprops {
                 m_length = length;
         }
 
+        /**
+         * @brief Tests a particle ray against the cylinder using closest-approach geometry.
+         *
+         * Finds the parameter t1 along the particle ray and t2 along the cylinder axis
+         * at which the two lines are closest. The hit is rejected when:
+         * - the lines are parallel (|dot(ray_dir, axis_dir) − 1| < GEOMETRIC_ERROR),
+         * - t1 < 0 (hit is behind the ray origin),
+         * - t2 is outside [0, length], or
+         * - the closest-approach distance exceeds the cylinder radius.
+         * @param p Particle whose position and direction define the ray.
+         * @return Pair of (t1, outward_normal) at the hit, or std::nullopt on miss.
+         */
         std::optional<std::pair<double, std::array<double, 3>>> intersect(const Particle& p) const noexcept override
         {
             const auto v1v2 = vectormath::dot(p.dir, m_dir);
@@ -80,6 +122,13 @@ namespace visualizationprops {
             return std::make_optional(std::make_pair(t1, vectormath::normalized(d)));
         }
 
+        /**
+         * @brief Returns the axis-aligned bounding box of the cylinder axis segment.
+         *
+         * The AABB is expanded by GEOMETRIC_ERROR() on each side to ensure the cylinder
+         * body is fully contained. For infinite-length lines the extent is unbounded.
+         * @return {xmin, ymin, zmin, xmax, ymax, zmax} in cm.
+         */
         std::array<double, 6> AABB() const
         {
             const auto end = vectormath::add(m_pos, vectormath::scale(m_dir, m_length));

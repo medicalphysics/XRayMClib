@@ -41,14 +41,48 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Recursive pointer-based KD-tree over heterogeneous world items.
+ *
+ * @deprecated Prefer the flat-array accelerators (MeshKDTreeFlat,
+ *             TetrahedalMeshContourKDTree) for new code.
+ *
+ * Organises a collection of world item variant pointers into a binary spatial tree
+ * using a median-cut strategy along the widest AABB axis. Each internal node stores
+ * a splitting plane; leaf nodes hold the item pointers directly. The tree supports
+ * both transport intersection queries (intersect()) and visualization queries
+ * (intersectVisualization()). Both use the same front-to-back recursive traversal.
+ *
+ * @tparam Us... World item types, each satisfying WorldItemType. Items are held as
+ *              pointers to `std::variant<Us...>` and must remain valid for the
+ *              lifetime of the tree.
+ */
 template <WorldItemType... Us>
 class KDTree {
 public:
+    /// @brief Constructs an empty tree with no items.
     KDTree() { }
+
+    /**
+     * @brief Constructs a tree from a vector of world item pointers.
+     * @param items     Pointers to world item variants to index.
+     * @param max_depth Maximum recursion depth (default 8).
+     */
     KDTree(std::vector<std::variant<Us...>*>& items, const std::size_t max_depth = 8)
     {
         setData(items, max_depth);
     }
+
+    /**
+     * @brief Rebuilds the tree from @p items using a median-cut strategy.
+     *
+     * Computes the AABB of all items, selects the widest axis, finds the median-cut
+     * plane, and partitions items into left and right children. Recursion stops when
+     * the figure of merit equals the item count, @p max_depth reaches 1, or there is
+     * only one item; those items become a leaf.
+     * @param items     Pointers to world item variants to index.
+     * @param max_depth Maximum remaining recursion depth.
+     */
     void setData(std::vector<std::variant<Us...>*>& items, const std::size_t max_depth = 8)
     {
         m_items.clear();
@@ -102,6 +136,7 @@ public:
             m_right = std::make_unique<KDTree>(right, max_depth - 1);
         }
     }
+    /// @brief Returns the axis-aligned bounding box of all items in the tree as {xmin,ymin,zmin,xmax,ymax,zmax} in cm.
     std::array<double, 6> AABB() const
     {
         std::array<double, 6> aabb {
@@ -115,6 +150,8 @@ public:
         AABB_iterator(aabb);
         return aabb;
     }
+
+    /// @brief Returns the current depth of the tree (levels from root to deepest leaf).
     std::size_t depth() const
     {
         std::size_t teller = 0;
@@ -122,6 +159,12 @@ public:
         return teller;
     }
 
+    /**
+     * @brief Translates the splitting planes of all nodes by @p dist.
+     *
+     * Only the component along each node's split axis is applied.
+     * @param dist Displacement vector in cm.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         m_plane += dist[m_D];
@@ -131,12 +174,32 @@ public:
         }
     }
 
+    /**
+     * @brief Tests a particle ray against the tree, guarded by an AABB pre-test.
+     *
+     * Returns an invalid result immediately if the ray misses @p aabb; otherwise
+     * the AABB hit interval is forwarded to the recursive traversal.
+     * @param particle Particle whose position and direction define the ray.
+     * @param aabb     Bounding box of the full set of items.
+     * @return Closest intersection result, or an invalid result on miss.
+     */
     KDTreeIntersectionResult<std::variant<Us...>> intersect(const ParticleType auto& particle, const std::array<double, 6>& aabb)
     {
         const auto& inter = basicshape::AABB::intersectForwardInterval(particle, aabb);
         return inter ? intersect(particle, *inter) : KDTreeIntersectionResult<std::variant<Us...>> {};
     }
 
+    /**
+     * @brief Recursive ray–tree traversal for transport intersection within @p tbox.
+     *
+     * At leaf nodes each stored item is tested via `std::visit` and the closest hit
+     * within [tbox[0], tbox[1]] is returned. At internal nodes the split plane
+     * determines front/back child order; the back child is only visited when the
+     * front child yields no hit closer than the split plane.
+     * @param particle Particle whose position and direction define the ray.
+     * @param tbox     Active ray interval {t_near, t_far}.
+     * @return Closest intersection result within the interval, or an invalid result.
+     */
     KDTreeIntersectionResult<std::variant<Us...>> intersect(const ParticleType auto& particle, const std::array<double, 2>& tbox)
     {
         if (!m_left) { // this is a leaf
@@ -196,12 +259,31 @@ public:
         return back->intersect(particle, t_back);
     }
 
+    /**
+     * @brief Tests a particle ray for visualization intersection, guarded by an AABB pre-test.
+     *
+     * Returns an invalid result immediately if the ray misses @p aabb; otherwise
+     * the AABB hit interval is forwarded to the recursive visualization traversal.
+     * @param particle Particle whose position and direction define the ray.
+     * @param aabb     Bounding box of the full set of items.
+     * @return Closest visualization intersection result, or an invalid result on miss.
+     */
     VisualizationIntersectionResult<std::variant<Us...>> intersectVisualization(const ParticleType auto& particle, const std::array<double, 6>& aabb) const
     {
         const auto& inter = basicshape::AABB::intersectForwardInterval(particle, aabb);
         return inter ? intersectVisualization(particle, *inter) : VisualizationIntersectionResult<std::variant<Us...>> {};
     }
 
+    /**
+     * @brief Recursive ray–tree traversal for visualization intersection within @p tbox.
+     *
+     * Identical in structure to the transport intersect() overload but calls each item's
+     * `intersectVisualization()` via `std::visit`, which additionally returns a surface
+     * normal and a scalar value (e.g. dose) for shading.
+     * @param particle Particle whose position and direction define the ray.
+     * @param tbox     Active ray interval {t_near, t_far}.
+     * @return Closest visualization intersection result, or an invalid result.
+     */
     VisualizationIntersectionResult<std::variant<Us...>> intersectVisualization(const ParticleType auto& particle, const std::array<double, 2>& tbox) const
     {
         if (!m_left) { // this is a leaf
@@ -260,6 +342,15 @@ public:
     }
 
 protected:
+    /**
+     * @brief Computes the median-cut split plane along the current split axis.
+     *
+     * Collects the centroid coordinate along m_D for every item (via std::visit),
+     * sorts them, and returns the median value (average of the two middle values
+     * for even N).
+     * @param items Items in the current partition.
+     * @return Split plane coordinate along m_D in cm.
+     */
     double planeSplit(const std::vector<std::variant<Us...>*>& items) const
     {
         const auto N = items.size();
@@ -280,6 +371,16 @@ protected:
         }
     }
 
+    /**
+     * @brief Evaluates the quality of a candidate split plane.
+     *
+     * Sums signed side values (+1 right, −1 left) over all items and adds the count
+     * of straddling items. A lower value indicates a more balanced partition.
+     * If the result equals items.size() the split offers no benefit.
+     * @param items    Items in the current partition.
+     * @param planesep Candidate split plane coordinate along m_D.
+     * @return Figure-of-merit score (lower is better).
+     */
     int figureOfMerit(const std::vector<std::variant<Us...>*>& items, const double planesep) const
     {
         int fom = 0;
@@ -294,6 +395,14 @@ protected:
         return std::abs(fom) + shared;
     }
 
+    /**
+     * @brief Determines which side of a split plane an item lies on, using its AABB.
+     * @param item  Pointer to the world item variant to test.
+     * @param plane Split plane coordinate along axis @p D.
+     * @param D     Split axis index: 0 = x, 1 = y, 2 = z.
+     * @return -1 if the item is entirely left of the plane, +1 if entirely right,
+     *         or 0 if it straddles the plane.
+     */
     static int planeSide(std::variant<Us...>* item, const double plane, const unsigned int D)
     {
         auto max = std::numeric_limits<double>::lowest();
@@ -313,6 +422,7 @@ protected:
         return 0;
     }
 
+    /// @brief Increments @p teller once per level by recursing into the left child.
     void depth_iterator(std::size_t& teller) const
     {
         teller++;
@@ -320,6 +430,10 @@ protected:
             m_left->depth_iterator(teller);
     }
 
+    /**
+     * @brief Collects all item pointers from leaf nodes into @p all (const overload).
+     * @param all Output vector; leaf item pointers are appended via back_inserter.
+     */
     void item_iterator(std::vector<const std::variant<Us...>*>& all) const
     {
         if (m_left) {
@@ -330,6 +444,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Collects all item pointers from leaf nodes into @p all (mutable overload).
+     * @param all Output vector; leaf item pointers are appended via back_inserter.
+     */
     void item_iterator(std::vector<std::variant<Us...>*>& all)
     {
         if (m_left) {
@@ -340,6 +458,11 @@ protected:
         }
     }
 
+    /**
+     * @brief Recursively expands @p aabb to encompass all leaf items in the subtree.
+     * @param aabb Running bounding box updated in place; must be pre-initialized to
+     *             {max, max, max, lowest, lowest, lowest}.
+     */
     void AABB_iterator(std::array<double, 6>& aabb) const
     {
         if (!m_left) {
@@ -357,16 +480,20 @@ protected:
             m_right->AABB_iterator(aabb);
         }
     }
+    /// @brief Returns the heuristic epsilon used for plane-side comparisons (11 × machine epsilon).
     constexpr static double epsilon()
     {
         // Huristic epsilon for triangle intersections
         return 11 * std::numeric_limits<double>::epsilon();
     }
 
+    /// @brief Returns true if @p a ≤ @p b within the heuristic epsilon tolerance.
     constexpr static bool lessOrEqual(double a, double b)
     {
         return a - b <= epsilon() * a;
     }
+
+    /// @brief Returns true if @p a ≥ @p b within the heuristic epsilon tolerance.
     constexpr static bool greaterOrEqual(double a, double b)
     {
         return b - a <= epsilon() * a;

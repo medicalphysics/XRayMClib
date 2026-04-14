@@ -25,6 +25,20 @@ Copyright 2024 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Concept constraining the element type used by MeshKDTree and MeshKDTreeFlat.
+ *
+ * A type @p U satisfies MeshKDTreeType if it provides:
+ * - Three-way comparison (`<=>`) for ordering.
+ * - `translate(vec)` — displaces the element by a 3-D vector in cm.
+ * - `scale(s)` — uniformly scales all coordinates by a scalar factor.
+ * - `intersect(p)` — returns `std::optional<double>` (the ray parameter t) for a
+ *   Möller–Trumbore or equivalent ray–element intersection test.
+ * - `center()` — returns the element centroid as `std::array<double,3>` in cm.
+ * - `AABB()` — returns the axis-aligned bounding box as `std::array<double,6>`
+ *   ({xmin,ymin,zmin,xmax,ymax,zmax}) in cm.
+ * - `planeVector()` — returns the unit surface normal as `std::array<double,3>`.
+ */
 template <typename U>
 concept MeshKDTreeType = requires(U u, Particle p, std::array<double, 3> vec, double scale) {
     u <=> u;

@@ -32,6 +32,16 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Concept constraining the element type stored by StaticKDTree.
+ *
+ * A type @p U satisfies StaticKDTreeType if it provides:
+ * - `translate(vec)` — displaces the item by a 3-D vector in cm.
+ * - `intersect(p)` — returns a `WorldIntersectionResult` for a particle ray.
+ * - `center()` — returns the item centroid as `std::array<double,3>` in cm.
+ * - `AABB()` — returns the axis-aligned bounding box as `std::array<double,6>`
+ *   ({xmin,ymin,zmin,xmax,ymax,zmax}) in cm.
+ */
 template <typename U>
 concept StaticKDTreeType = requires(U u, std::array<double, 3> vec, Particle p) {
     u.translate(vec);
@@ -46,20 +56,45 @@ concept StaticKDTreeType = requires(U u, std::array<double, 3> vec, Particle p) 
     } -> std::convertible_to<std::array<double, 6>>;
 };
 
+/**
+ * @brief Flat-array KD-tree that owns its items and supports transport intersection queries.
+ *
+ * Stores items by value (unlike KDTreeFlat which holds pointers) and builds a
+ * flat packed-node tree using the same AABB-boundary split-plane selection as
+ * KDTreeFlat. Iterative traversal with a fixed-size stack (depth ≤ 32) is used
+ * for intersection queries. The tree supports in-place translation of all items
+ * via `translate()`.
+ *
+ * @tparam U Item type satisfying StaticKDTreeType (must expose translate, intersect,
+ *           center, and AABB).
+ */
 template <StaticKDTreeType U>
 class StaticKDTree {
 public:
+    /// @brief Constructs an empty tree with no items.
     StaticKDTree() { }
+
+    /**
+     * @brief Constructs a tree by copying @p items and building the node array.
+     * @param items     Items to index; copied into the tree.
+     * @param max_depth Controls the maximum number of leaves (up to 2^(max_depth+1)).
+     */
     StaticKDTree(const std::vector<U>& items, std::uint32_t max_depth = 8)
     {
         setData(items, max_depth);
     }
 
+    /// @brief Returns the maximum depth used when the tree was last built.
     std::uint32_t maxDepth() const
     {
         return m_max_depth;
     }
 
+    /**
+     * @brief Copies @p items into the tree and rebuilds the node array.
+     * @param items     Items to index.
+     * @param max_depth Controls the maximum number of leaves (up to 2^(max_depth+1)).
+     */
     void setData(const std::vector<U>& items, std::uint32_t max_depth = 8)
     {
         m_items = items;
@@ -69,6 +104,10 @@ public:
         build(max_depth);
     }
 
+    /**
+     * @brief Translates all stored items and the split-plane coordinates of all branch nodes.
+     * @param dist Displacement vector in cm.
+     */
     void translate(const std::array<double, 3>& dist)
     {
         for (auto& item : m_items)
@@ -81,6 +120,7 @@ public:
         }
     }
 
+    /// @brief Returns the axis-aligned bounding box of all items as {xmin,ymin,zmin,xmax,ymax,zmax} in cm.
     std::array<double, 6> AABB() const
     {
         std::array<double, 6> aabb = { 0, 0, 0, 0, 0, 0 };
@@ -97,12 +137,32 @@ public:
         return aabb;
     }
 
+    /**
+     * @brief Tests a particle ray for intersection, guarded by an AABB pre-test.
+     *
+     * Returns an invalid result immediately if the ray misses @p aabb; otherwise
+     * the AABB hit interval is forwarded to the iterative tree traversal.
+     * @param particle Particle whose position and direction define the ray.
+     * @param aabb     Bounding box of all items as {xmin,ymin,zmin,xmax,ymax,zmax} in cm.
+     * @return Closest intersection result, or an invalid result on miss.
+     */
     KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::array<double, 6>& aabb) const
     {
         const auto tbox = basicshape::AABB::intersectForwardInterval(particle, aabb);
-        return tbox ? intersect(particle, *tbox) : KDTreeIntersectionResult<const U> {};
+        return tbox ? intersect(particle, *tbox) : KDTreeIntersectionResult<const U> { };
     }
 
+    /**
+     * @brief Iterative ray–tree traversal within the ray interval @p tboxAABB.
+     *
+     * Uses a fixed-size stack (depth ≤ 32). Internal nodes are traversed front-to-back;
+     * the back child is pushed onto the stack. Rays parallel to the split axis visit both
+     * children. At leaf nodes each item's `intersect()` is called and the closest hit within
+     * the current interval is recorded. Once a hit is found the stack is cleared.
+     * @param particle  Particle whose position and direction define the ray.
+     * @param tboxAABB  Initial ray interval {t_near, t_far} from the AABB intersection.
+     * @return Closest intersection result, or an invalid result.
+     */
     KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::array<double, 2>& tboxAABB) const
     {
         struct Stack {
@@ -197,6 +257,16 @@ public:
     }
 
 protected:
+    /**
+     * @brief Builds the flat node array from m_items using a breadth-first strategy.
+     *
+     * Generates an index array over all items, then iterates over a working list of
+     * NodeTemplate entries. For each entry `splitAxisPlane()` selects the best axis
+     * and plane; a leaf is created when the figure of merit equals the subset size,
+     * the subset has fewer than two items, or the leaf budget is exhausted. Otherwise
+     * a branch is created and two child NodeTemplates are appended.
+     * @param max_depth Controls the maximum number of leaves (up to 2^(max_depth+1)).
+     */
     void build(std::uint32_t max_depth = 8)
     {
         m_max_depth = max_depth;
@@ -262,6 +332,16 @@ protected:
             m_nodes.push_back(n.node);
     }
 
+    /**
+     * @brief Selects the best split axis and plane by evaluating AABB-boundary candidates.
+     *
+     * For each of the three axes, item AABBs are sorted by their minimum coordinate.
+     * Candidate planes are placed midway between adjacent AABB boundaries, and the
+     * midpoint of the overall extent is also tested. The candidate with the lowest
+     * figure-of-merit across all axes is returned.
+     * @param indices Indices into m_items for the current partition.
+     * @return Pair of {best_axis (0–2), best_split_plane} in cm.
+     */
     std::pair<std::uint32_t, float> splitAxisPlane(const std::vector<std::uint32_t>& indices)
     {
         if (indices.size() == 0)
@@ -332,6 +412,14 @@ protected:
         return std::make_pair(best_dim, best_plane);
     }
 
+    /**
+     * @brief Determines which side of a split plane an item lies on, using its AABB.
+     * @param item  Item to test.
+     * @param D     Split axis index: 0 = x, 1 = y, 2 = z.
+     * @param plane Split plane coordinate along @p D.
+     * @return -1 if the item is entirely left of the plane, +1 if entirely right,
+     *         or 0 if it straddles the plane (within epsilon).
+     */
     int planeSide(const U& item, const std::uint32_t D, const float plane)
     {
         auto max = std::numeric_limits<double>::lowest();
@@ -349,6 +437,17 @@ protected:
         return 0;
     }
 
+    /**
+     * @brief Evaluates the quality of a candidate split plane.
+     *
+     * Sums signed side values (+1 right, −1 left) and adds the count of straddling
+     * items. A lower value indicates a more balanced partition. If the result equals
+     * indices.size() the split offers no benefit.
+     * @param indices   Indices into m_items for the current partition.
+     * @param dim       Split axis index.
+     * @param planesep  Candidate split plane coordinate.
+     * @return Figure-of-merit score (lower is better).
+     */
     int figureOfMerit(const std::vector<std::uint32_t>& indices, const std::uint32_t dim, const float planesep)
     {
         int fom = 0;
@@ -364,6 +463,7 @@ protected:
         return std::abs(fom) + shared;
     }
 
+    /// @brief Returns the heuristic epsilon used for plane-side comparisons (11 × machine epsilon).
     constexpr static double epsilon()
     {
         // Huristic epsilon
@@ -371,18 +471,31 @@ protected:
     }
 
 private:
+    /**
+     * @brief Packed KD-tree node storing branch or leaf data in 64 bits.
+     *
+     * The first 32-bit word is a bitfield: dim (2 bits) holds the split axis for
+     * branch nodes, offset (29 bits) is the index of the first child node (branch)
+     * or the start of the element index range in m_indices (leaf), and flag (1 bit)
+     * distinguishes leaf (1) from branch (0).
+     *
+     * The second 32-bit word is a union: `split` (float) holds the split plane
+     * coordinate for branch nodes; `nelements` (uint32) holds the element count
+     * for leaf nodes.
+     */
     struct Node {
         struct {
-            std::uint32_t dim : 2; // dimensjon for branch
-            std::uint32_t offset : 29; // offset to first child (branch) or to first element (leaf)
-            std::uint32_t flag : 1; // Node is leaf (1) or branch (0)
+            std::uint32_t dim : 2; ///< Split axis index (0–2); valid for branch nodes only.
+            std::uint32_t offset : 29; ///< Index of first child (branch) or first index entry (leaf).
+            std::uint32_t flag : 1; ///< 1 = leaf node, 0 = branch node.
         } dim_offset_flag;
 
         union {
-            float split = 0; // Union split is for branches
-            std::uint32_t nelements; // Union nelements is for number of items
+            float split = 0; ///< Split plane coordinate along dim; used by branch nodes.
+            std::uint32_t nelements; ///< Number of item indices in this leaf.
         } split_nelements;
 
+        /// @brief Constructs a default branch node (dim=0, offset=0, flag=0).
         Node()
         {
             dim_offset_flag.dim = 0;
@@ -390,273 +503,47 @@ private:
             dim_offset_flag.flag = 0;
         }
 
+        /// @brief Returns the split axis index stored in this branch node.
         std::uint32_t dim()
         {
             return dim_offset_flag.dim;
         }
+
+        /// @brief Sets the split axis index for this branch node.
         void setDim(std::uint32_t dim)
         {
             dim_offset_flag.dim = dim;
         }
 
+        /// @brief Marks this node as a leaf.
         void setLeaf()
         {
             dim_offset_flag.flag = std::uint32_t { 1 };
         }
+
+        /// @brief Returns non-zero if this node is a leaf.
         std::uint32_t isLeaf()
         {
             return dim_offset_flag.flag;
         }
 
+        /// @brief Sets the child/element offset for this node.
         void setOffset(std::uint32_t offset)
         {
             dim_offset_flag.offset = offset;
         }
+
+        /// @brief Returns the child/element offset stored in this node.
         std::uint32_t offset()
         {
             return dim_offset_flag.offset;
         }
     };
 
-    std::uint32_t m_max_depth = 8;
-    std::vector<std::uint32_t> m_indices;
-    std::vector<U> m_items;
-    std::vector<Node> m_nodes;
+    std::uint32_t m_max_depth = 8; ///< Maximum depth used when the tree was built.
+    std::vector<std::uint32_t> m_indices; ///< Flat list of item indices referenced by leaf nodes.
+    std::vector<U> m_items; ///< Owned item storage; items are copied in on setData().
+    std::vector<Node> m_nodes; ///< Flat node array; node 0 is the root.
 };
 
-// Depricated
-
-/*
-template <int Depth, StaticKDTreeType U>
-class StaticKDTree {
-public:
-    StaticKDTree() { }
-    StaticKDTree(std::vector<U>& data)
-    {
-        if (data.size() == 0)
-            return;
-
-        const auto [D, plane] = planeSplit(data);
-
-        m_D = D;
-        m_plane = plane;
-
-        // moving object depending on plane splits
-        std::vector<U> left, right;
-        for (std::size_t i = 0; i < data.size(); ++i) {
-            const auto side = planeSide(data[i], m_D, m_plane);
-            if (side == -1) {
-                left.push_back(data[i]);
-            } else if (side == 1) {
-                right.push_back(data[i]);
-            } else {
-                left.push_back(data[i]);
-                right.push_back(data[i]);
-            }
-        }
-
-        m_left = StaticKDTree<Depth - 1, U>(left);
-        m_right = StaticKDTree<Depth - 1, U>(right);
-    }
-
-    void translate(const std::array<double, 3>& dir)
-    {
-        m_plane += dir[m_D];
-        m_left.translate(dir);
-        m_right.translate(dir);
-    }
-
-    std::array<double, 6> AABB() const
-    {
-        auto left = m_left.AABB();
-        const auto right = m_right.AABB();
-        for (std::size_t i = 0; i < 3; ++i) {
-            left[i] = std::min(left[i], right[i]);
-        }
-        for (std::size_t i = 3; i < 6; ++i) {
-            left[i] = std::max(left[i], right[i]);
-        }
-        return left;
-    }
-    KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::array<double, 6>& aabb) const
-    {
-        const auto tbox = basicshape::AABB::intersectForwardInterval(particle, aabb);
-        return tbox ? intersect(particle, *tbox) : KDTreeIntersectionResult<const U> {};
-    }
-    KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::array<double, 2>& tbox) const
-    {
-        // test for parallell beam, if parallell we must test both sides.
-        if (std::abs(particle.dir[m_D]) <= std::numeric_limits<double>::epsilon()) {
-            const auto hit_left = m_left.intersect(particle, tbox);
-            const auto hit_right = m_right.intersect(particle, tbox);
-            if (hit_left.valid() && hit_right.valid())
-                return hit_left.intersection < hit_right.intersection ? hit_left : hit_right;
-            return hit_left.valid() ? hit_left : hit_right;
-        }
-
-        const auto [front, back] = particle.dir[m_D] > 0 ? std::make_pair(&m_left, &m_right) : std::make_pair(&m_right, &m_left);
-
-        const auto t = (m_plane - particle.pos[m_D]) / particle.dir[m_D];
-
-        if (t <= tbox[0]) {
-            // back only
-            return back->intersect(particle, tbox);
-        } else if (t >= tbox[1]) {
-            // front only
-            return front->intersect(particle, tbox);
-        }
-
-        // both directions (start with front)
-        const std::array<double, 2> t_front { tbox[0], t };
-        const auto hit = front->intersect(particle, t_front);
-        if (hit.valid()) {
-            if (hit.intersection <= t) {
-                return hit;
-            }
-        }
-        const std::array<double, 2> t_back { t, tbox[1] };
-        return back->intersect(particle, t_back);
-    }
-
-protected:
-    static std::pair<std::uint_fast32_t, double> planeSplit(const std::vector<U>& data)
-    {
-        // split where we find best separation between objects
-
-        std::array<std::vector<std::pair<double, double>>, 3> segs;
-        for (const auto& u : data) {
-            const auto aabb = u.AABB();
-            for (std::size_t i = 0; i < 3; ++i) {
-                const auto seg = std::make_pair(aabb[i], aabb[i + 3]);
-                bool added = false;
-                std::size_t teller = 0;
-                while (!added && teller != segs[i].size()) {
-                    auto& r_seg = segs[i][teller];
-                    if (r_seg.second > seg.first || r_seg.first > seg.second) {
-                        r_seg.first = std::min(r_seg.first, seg.first);
-                        r_seg.second = std::min(r_seg.second, seg.second);
-                        added = true;
-                    }
-                    ++teller;
-                }
-                if (!added) {
-                    segs[i].push_back(seg);
-                }
-            }
-        }
-
-        const std::array<std::size_t, 3> n_splits = { segs[0].size(), segs[1].size(), segs[2].size() };
-        const auto n_splits_max = std::max(n_splits[0], std::max(n_splits[1], n_splits[2]));
-
-        if (n_splits_max == 1) {
-            const std::uint_fast32_t D = 0;
-            const auto plane = std::nextafter(segs[D][0].second, std::numeric_limits<double>::max());
-            return std::make_pair(D, plane);
-        } else {
-            // finding dim with min 2 splits and max extent
-            std::uint_fast32_t D = 0;
-            double extent = 0;
-            for (std::uint_fast32_t i = 0; i < 3; ++i) {
-                if (n_splits[i] == n_splits_max) {
-                    auto min = std::numeric_limits<double>::max();
-                    auto max = std::numeric_limits<double>::lowest();
-                    for (const auto& [fi, se] : segs[i]) {
-                        min = std::min(min, fi);
-                        max = std::max(max, se);
-                    }
-                    const auto ex_cand = max - min;
-                    if (ex_cand > extent) {
-                        D = i;
-                        extent = ex_cand;
-                    }
-                }
-            }
-
-            const auto ind_split = n_splits_max / 2;
-            const auto plane = (segs[D][ind_split - 1].second + segs[D][ind_split].first) * 0.5;
-            return std::make_pair(D, plane);
-        }
-    }
-
-    static int planeSide(const U& obj, std::uint_fast32_t D, const double planesep)
-    {
-        const auto& aabb = obj.AABB();
-        const auto min = aabb[D];
-        const auto max = aabb[D + 3];
-
-        if (max < planesep)
-            return -1;
-        if (min > planesep)
-            return 1;
-        return 0;
-    }
-
-private:
-    std::uint_fast32_t m_D = 0;
-    double m_plane = 0;
-    StaticKDTree<Depth - 1, U> m_left;
-    StaticKDTree<Depth - 1, U> m_right;
-};
-
-template <StaticKDTreeType U>
-class StaticKDTree<0, U> {
-public:
-    StaticKDTree() { }
-    StaticKDTree(std::vector<U>& data)
-        : m_data(data)
-    {
-    }
-    void translate(const std::array<double, 3>& dir)
-    {
-        for (auto& u : m_data)
-            u.translate(dir);
-    }
-    std::array<double, 6> AABB() const noexcept
-    {
-
-        std::array<double, 6> aabb {
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::lowest(),
-            std::numeric_limits<double>::lowest(),
-            std::numeric_limits<double>::lowest(),
-        };
-        for (const auto& u : m_data) {
-            const auto& aabb_obj = u.AABB();
-            for (std::size_t i = 0; i < 3; ++i) {
-                aabb[i] = std::min(aabb[i], aabb_obj[i]);
-            }
-            for (std::size_t i = 3; i < 6; ++i) {
-                aabb[i] = std::max(aabb[i], aabb_obj[i]);
-            }
-        }
-
-        return aabb;
-    }
-
-    static constexpr std::size_t depth()
-    {
-        return 0;
-    }
-
-    KDTreeIntersectionResult<const U> intersect(const ParticleType auto& particle, const std::array<double, 2>& tbox) const noexcept
-    {
-        KDTreeIntersectionResult<const U> res { .item = nullptr, .intersection = std::numeric_limits<double>::max() };
-
-        for (const auto& u : m_data) {
-            const auto t_cand = u.intersect(particle);
-            if (t_cand.valid())
-                if (t_cand.intersection < res.intersection) {
-                    res.intersection = t_cand.intersection;
-                    res.rayOriginIsInsideItem = t_cand.rayOriginIsInsideItem;
-                    res.item = &u;
-                }
-        }
-        return res;
-    }
-
-private:
-    std::vector<U> m_data;
-};*/
 }
