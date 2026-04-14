@@ -25,18 +25,57 @@ Copyright 2023 Erlend Andersen
 #include "xraymc/xraymcrandom.hpp"
 
 namespace xraymc {
+
+/// @brief Free functions implementing photon interaction physics for Monte Carlo transport.
 namespace interactions {
 
+    /**
+     * @brief Survival probability used in Russian roulette weight reduction.
+     *
+     * When a particle's weight falls below `russianRuletteWeightThreshold()`, a
+     * Russian roulette game is played: the particle survives with this probability
+     * and its weight is boosted by 1/(1 − probability), or it is killed otherwise.
+     *
+     * @return The survival probability (0.9).
+     */
     constexpr static double russianRuletteProbability()
     {
         return 0.9;
     }
 
+    /**
+     * @brief Weight threshold below which Russian roulette is applied.
+     *
+     * If a particle's statistical weight drops below this value after an interaction,
+     * Russian roulette is invoked to either terminate the particle or restore its
+     * weight to an unbiased level.
+     *
+     * @return The weight threshold (0.1).
+     */
     constexpr static double russianRuletteWeightThreshold()
     {
         return 0.1;
     }
 
+    /**
+     * @brief Samples a Rayleigh (coherent) scattering deflection and updates the particle direction.
+     *
+     * Two sampling modes are selected at compile time via `LOWENERGYCORRECTION`:
+     * - `0`: Classical dipole distribution — rejection samples θ from the (2 − sin²θ)sinθ
+     *   distribution without form-factor correction.
+     * - `1` or `2` (default): Form-factor–corrected sampling following the EGSnrc method
+     *   (SLAC-730). The squared momentum transfer q² is sampled from the squared atomic
+     *   form factor, and the scattering angle is accepted/rejected against the dipole term.
+     *
+     * If `P` is `ParticleTrack`, the current position is recorded before scattering.
+     *
+     * @tparam Nshells           Number of electron shells in the material model.
+     * @tparam LOWENERGYCORRECTION Compile-time flag selecting the sampling algorithm (default 2).
+     * @tparam P                 Particle type satisfying `ParticleType` (default `Particle`).
+     * @param particle  The photon to scatter; its direction is updated in place.
+     * @param material  The material providing form-factor and momentum-transfer data.
+     * @param state     The PRNG state used for random sampling.
+     */
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2, ParticleType P = Particle>
     void rayleightScatter(P& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
@@ -78,6 +117,18 @@ namespace interactions {
         }
     }
 
+    /**
+     * @brief Samples the electron shell index for an Impulse Approximation Compton scatter event.
+     *
+     * Selects a shell stochastically, weighted by each shell's fractional electron occupancy,
+     * skipping shells whose binding energy exceeds the photon energy (no interaction possible).
+     *
+     * @tparam Nshells Number of electron shells in the material model.
+     * @param particle  The photon; only its energy is read.
+     * @param material  The material providing shell binding energies and electron fractions.
+     * @param state     The PRNG state used for random sampling.
+     * @return Zero-based index of the sampled shell.
+     */
     template <std::size_t Nshells>
     int comptonScatterIA_NRC_sample_shell(const ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
@@ -97,6 +148,29 @@ namespace interactions {
         return shell - 1;
     }
 
+    /**
+     * @brief Samples an Impulse Approximation (IA) incoherent (Compton) scatter event.
+     *
+     * Implements the NRC/EGSnrc Compton IA model (see PIRS-701). For each candidate
+     * scatter angle:
+     *   1. A shell is selected via `comptonScatterIA_NRC_sample_shell`.
+     *   2. The Klein–Nishina scattered photon energy ratio `e` and cos(θ) are sampled.
+     *   3. The Compton profile S(p_z) for the selected shell is evaluated and used as
+     *      an acceptance probability (first-order approximation; second-order is
+     *      compiled out by default).
+     *   4. The longitudinal momentum component p_z is sampled from the shell's
+     *      Hartree–Fock orbital, and the corrected scattered energy k̄ is computed.
+     *
+     * The particle's energy and direction are updated in place.  For high-Z / low-energy
+     * photons where the non-relativistic p_z treatment breaks down, the scattered energy
+     * is clamped to [0, E_initial].
+     *
+     * @tparam Nshells Number of electron shells in the material model.
+     * @param particle  The photon to scatter; energy and direction are updated in place.
+     * @param material  The material providing shell data and Hartree–Fock orbitals.
+     * @param state     The PRNG state used for random sampling.
+     * @return Energy imparted to the medium in eV (weighted: (E_i − E_f) × weight).
+     */
     template <std::size_t Nshells>
     double comptonScatterIA(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
@@ -249,6 +323,25 @@ namespace interactions {
         return (E - particle.energy) * particle.weight;
     }
 
+    /**
+     * @brief Samples an incoherent (Compton) scatter event and updates the particle.
+     *
+     * Dispatches to one of three sampling algorithms based on `LOWENERGYCORRECTION`:
+     * - `2` (default): Full Impulse Approximation via `comptonScatterIA` (NRC/EGSnrc model).
+     * - `1`: Livermore model — Klein–Nishina sampling with incoherent scatter-factor
+     *   rejection using `material.scatterFactor()`.
+     * - `0`: Simple Klein–Nishina sampling without any scatter-factor correction.
+     *
+     * If `P` is `ParticleTrack`, the current position is recorded before scattering.
+     *
+     * @tparam Nshells           Number of electron shells in the material model.
+     * @tparam LOWENERGYCORRECTION Compile-time flag selecting the sampling algorithm (default 2).
+     * @tparam P                 Particle type satisfying `ParticleType` (default `Particle`).
+     * @param particle  The photon to scatter; energy and direction are updated in place.
+     * @param material  The material providing attenuation and scatter-factor data.
+     * @param state     The PRNG state used for random sampling.
+     * @return Energy imparted to the medium in eV (weighted: (E_i − E_f) × weight).
+     */
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2, ParticleType P = Particle>
     auto comptonScatter(P& particle, const Material<Nshells>& material, RandomState& state) noexcept
     // see http://geant4-userdoc.web.cern.ch/geant4-userdoc/UsersGuides/PhysicsReferenceManual/fo/PhysicsReferenceManual.pdf
@@ -294,6 +387,23 @@ namespace interactions {
         }
     }
 
+    /**
+     * @brief Samples a photoelectric absorption event with shell-resolved fluorescence (IA model).
+     *
+     * Selects the absorbing shell stochastically, weighted by each shell's partial
+     * photoelectric cross section relative to @p totalPhotoCrossSection. If the selected
+     * shell has a mean fluorescence photon energy above `MIN_ENERGY()`, a characteristic
+     * X-ray is emitted isotropically with the shell's fluorescence yield and energy;
+     * otherwise the photon is fully absorbed. The particle energy is set to the
+     * fluorescence photon energy (or zero on full absorption).
+     *
+     * @tparam Nshells Number of electron shells in the material model.
+     * @param totalPhotoCrossSection Total photoelectric cross section at the photon energy (cm²/g).
+     * @param particle  The photon; energy is set to the fluorescence photon energy or zero.
+     * @param material  The material providing shell cross sections and fluorescence data.
+     * @param state     The PRNG state used for random sampling.
+     * @return Energy imparted to the medium in eV (weighted by particle weight).
+     */
     template <std::size_t Nshells>
     auto photoelectricEffectIA(const double totalPhotoCrossSection, ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
@@ -333,6 +443,26 @@ namespace interactions {
         return E;
     }
 
+    /**
+     * @brief Samples a photoelectric absorption event and updates the particle.
+     *
+     * Dispatches based on `LOWENERGYCORRECTION`:
+     * - `2` (default): Full IA model with shell selection and fluorescence via
+     *   `photoelectricEffectIA`.
+     * - `0` or `1`: Simple full absorption — the photon energy is deposited entirely
+     *   and the particle energy is set to zero.
+     *
+     * If `P` is `ParticleTrack`, the current position is recorded before the interaction.
+     *
+     * @tparam Nshells           Number of electron shells in the material model.
+     * @tparam LOWENERGYCORRECTION Compile-time flag selecting the sampling algorithm (default 2).
+     * @tparam P                 Particle type satisfying `ParticleType` (default `Particle`).
+     * @param totalPhotoCrossSection Total photoelectric cross section at the photon energy (cm²/g).
+     * @param particle  The photon; energy is set to fluorescence photon energy or zero.
+     * @param material  The material providing shell and fluorescence data.
+     * @param state     The PRNG state used for random sampling.
+     * @return Energy imparted to the medium in eV (weighted by particle weight).
+     */
     template <int Nshells, int LOWENERGYCORRECTION = 2, ParticleType P = Particle>
     auto photoelectricEffect(const double totalPhotoCrossSection, P& particle, const Material<Nshells>& material, RandomState& state) noexcept
     {
@@ -349,18 +479,42 @@ namespace interactions {
         }
     }
 
+    /**
+     * @brief Outcome of a single photon interaction step.
+     *
+     * Returned by `interact()` and `interactForced()`. Contains the energy deposited
+     * in the current step and flags describing what happened to the particle.
+     */
     struct InteractionResult {
         // the size of InteractionResult is 16 bytes anyway, why not throw in
         // type of interaction, even it's almost not used
-        double energyImparted = 0;
-        bool particleAlive = true;
-        bool particleEnergyChanged = false;
-        bool particleDirectionChanged = false;
-        bool interactionWasPhotoelectric = false;
-        bool interactionWasCoherent = false;
-        bool interactionWasIncoherent = false;
+        double energyImparted = 0;          ///< Energy deposited in the medium this step (eV, weighted).
+        bool particleAlive = true;          ///< False if the particle was absorbed or killed by Russian roulette.
+        bool particleEnergyChanged = false; ///< True if the photon energy changed (photoelectric or Compton).
+        bool particleDirectionChanged = false; ///< True if the photon direction changed (any interaction).
+        bool interactionWasPhotoelectric = false; ///< True if the interaction was photoelectric absorption.
+        bool interactionWasCoherent = false;      ///< True if the interaction was Rayleigh (coherent) scatter.
+        bool interactionWasIncoherent = false;    ///< True if the interaction was Compton (incoherent) scatter.
     };
 
+    /**
+     * @brief Samples one analog photon interaction and updates the particle state.
+     *
+     * Selects the interaction type — photoelectric, incoherent (Compton), or coherent
+     * (Rayleigh) — by comparing a uniform random number against the partial cross
+     * sections in @p attenuation. After the interaction, Russian roulette is applied
+     * if the particle weight falls below `russianRuletteWeightThreshold()`.
+     *
+     * @tparam Nshells           Number of electron shells in the material model.
+     * @tparam LOWENERGYCORRECTION Compile-time flag forwarded to the individual interaction
+     *                            samplers (default 2 = full IA model).
+     * @param attenuation Pre-computed attenuation values (photoelectric, incoherent, coherent)
+     *                    at the particle energy (cm²/g).
+     * @param particle    The photon to interact; energy and direction updated in place.
+     * @param material    The material providing cross-section and shell data.
+     * @param state       The PRNG state used for random sampling.
+     * @return An `InteractionResult` describing the deposited energy and interaction type.
+     */
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2>
     InteractionResult interact(const AttenuationValues& attenuation, ParticleType auto& particle, const Material<Nshells>& material, RandomState& state)
     {
@@ -402,6 +556,29 @@ namespace interactions {
         return res;
     }
 
+    /**
+     * @brief Samples a forced-interaction step for variance reduction.
+     *
+     * Implements the interaction forcing technique: the photoelectric energy deposition
+     * is scored analytically as the expected contribution over the step, while a scatter
+     * event (Compton or Rayleigh) is sampled stochastically at a random point within the
+     * step. If no stochastic event occurs the particle is transported to the far boundary.
+     *
+     * The forced photoelectric contribution is:
+     *   E_imparted += E × weight × (1 − exp(−μ_total × ρ × L)) × (μ_pe / μ_total)
+     *
+     * Russian roulette is applied after any stochastic scatter if the weight is low.
+     *
+     * @tparam NMaterialShells   Number of electron shells in the material model.
+     * @tparam LOWENERGYCORRECTION Compile-time flag forwarded to interaction samplers (default 2).
+     * @param maxStepLen      Length of the transport step (cm).
+     * @param materialDensity Density of the current material (g/cm³).
+     * @param attenuation     Pre-computed attenuation values at the particle energy (cm²/g).
+     * @param particle        The photon; position, energy, and direction updated in place.
+     * @param material        The material providing cross-section and shell data.
+     * @param state           The PRNG state used for random sampling.
+     * @return An `InteractionResult` describing the deposited energy and interaction type.
+     */
     template <std::size_t NMaterialShells, int LOWENERGYCORRECTION = 2>
     InteractionResult interactForced(double maxStepLen, double materialDensity, const AttenuationValues& attenuation, ParticleType auto& particle, const Material<NMaterialShells>& material, RandomState& state)
     {
@@ -482,6 +659,21 @@ namespace interactions {
         return intRes;
     }
 
+    /**
+     * @brief Convenience overload of `interactForced` that computes attenuation internally.
+     *
+     * Looks up the attenuation values for the particle energy from @p material and
+     * delegates to the primary `interactForced` overload.
+     *
+     * @tparam Nshells           Number of electron shells in the material model.
+     * @tparam LOWENERGYCORRECTION Compile-time flag forwarded to interaction samplers (default 2).
+     * @param maxStepLenght   Length of the transport step (cm).
+     * @param density         Density of the current material (g/cm³).
+     * @param particle        The photon; position, energy, and direction updated in place.
+     * @param material        The material providing cross-section and shell data.
+     * @param state           The PRNG state used for random sampling.
+     * @return An `InteractionResult` describing the deposited energy and interaction type.
+     */
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2>
     InteractionResult interactForced(double maxStepLenght, double density, ParticleType auto& particle, const Material<Nshells>& material, RandomState& state)
     {

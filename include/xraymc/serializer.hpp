@@ -43,6 +43,18 @@ Example:
 
 
 */
+/**
+ * @brief Concept satisfied by types that can be round-tripped through a byte buffer.
+ *
+ * A conforming type must provide:
+ * - `serialize()` — returns a `std::vector<char>` containing the serialized payload.
+ * - `deserialize(buffer)` — static or member function returning `std::optional<U>`.
+ * - `magicID()` — returns a `std::array<char, 32>` identifying the type.
+ * - `validMagicID(buffer)` — returns `bool` indicating whether @p buffer starts
+ *   with the expected magic tag.
+ *
+ * @tparam U The candidate type.
+ */
 template <typename U>
 concept SerializeItemType = requires(U u, std::span<const char> buffer) {
     {
@@ -59,25 +71,58 @@ concept SerializeItemType = requires(U u, std::span<const char> buffer) {
     } -> std::same_as<bool>;
 };
 
+/**
+ * @brief Utility class for binary serialization and deserialization of XRayMClib objects.
+ *
+ * Provides a collection of static helper methods for reading and writing primitive
+ * scalars, vectors, arrays, strings, material composition maps, and `DoseScore`
+ * objects to/from flat `std::vector<char>` byte buffers.
+ *
+ * File I/O methods prepend/strip a 16-byte version header ("xraymc1        ").
+ * Each named item in a buffer is preceded by a 32-byte magic tag and a uint64
+ * payload length, allowing heterogeneous objects to be stored and recovered in order.
+ *
+ * All `deserialize` overloads consume bytes from a `std::span<const char>` and
+ * return the remaining span, enabling sequential deserialization by chaining calls.
+ * They throw `std::length_error` if the buffer is too short or a magic tag mismatches.
+ */
 class Serializer {
 public:
+    /**
+     * @brief Error codes returned by the file `read()` method.
+     */
     enum class parse_error {
-        buffer_size_short,
-        buffer_heading_mismatch,
-        buffer_version_mismatch,
-        buffer_file_error
+        buffer_size_short,        ///< File is too small to contain a valid header.
+        buffer_heading_mismatch,  ///< File header does not match the expected tag.
+        buffer_version_mismatch,  ///< File version tag does not match `version()`.
+        buffer_file_error         ///< File could not be opened or read.
     };
 
+    /**
+     * @brief Constructs a Serializer optionally bound to a file path.
+     * @param filename Path used by the non-static `write()` overload (default: empty).
+     */
     Serializer(const std::string& filename = "")
         : m_filename(filename)
     {
     }
 
+    /**
+     * @brief Returns an empty byte buffer suitable as a starting point for serialization.
+     * @return An empty `std::vector<char>`.
+     */
     static std::vector<char> getEmptyBuffer()
     {
         return std::vector<char> { };
     }
 
+    /**
+     * @brief Returns a 32-byte name-ID template filled with spaces.
+     *
+     * Used as a base when constructing magic ID arrays for named items.
+     *
+     * @return 32-byte array of space characters.
+     */
     static constexpr std::array<char, 32> getNameIDTemplate()
     {
         std::array<char, 32> t;
@@ -85,11 +130,23 @@ public:
         return t;
     }
 
+    /**
+     * @brief Returns the 16-byte file version tag written at the start of every file.
+     * @return Span over the literal string "xraymc1        " (16 chars).
+     */
     static std::span<const char, 16> version()
     {
         return std::span { "xraymc1        " };
     }
 
+    /**
+     * @brief Writes @p buffer to the file path set at construction time.
+     *
+     * Prepends the 16-byte version tag before the payload.
+     *
+     * @param buffer Serialized payload to write.
+     * @return True on success, false if no filename was set or the file cannot be opened.
+     */
     bool write(const std::vector<char>& buffer) const
     {
         if (m_filename.size() == 0)
@@ -98,6 +155,12 @@ public:
             return write(m_filename, buffer);
     }
 
+    /**
+     * @brief Writes @p buffer to @p filename, prefixed by the version tag.
+     * @param filename Destination file path.
+     * @param buffer   Serialized payload to write.
+     * @return True on success, false if the file cannot be opened.
+     */
     static bool write(const std::string& filename, const std::vector<char>& buffer)
     {
         std::ofstream of;
@@ -111,6 +174,15 @@ public:
         return false;
     }
 
+    /**
+     * @brief Reads a serialized file and returns the payload without the version header.
+     *
+     * Opens @p filename in binary mode, verifies the 16-byte version tag, strips it,
+     * and returns the remaining bytes. Returns an unexpected value on any failure.
+     *
+     * @param filename Source file path.
+     * @return The payload bytes on success, or a `parse_error` on failure.
+     */
     static std::expected<std::vector<char>, parse_error> read(const std::string& filename)
     {
         // reading buffer
@@ -132,6 +204,11 @@ public:
         return std::unexpected(parse_error::buffer_file_error);
     }
 
+    /**
+     * @brief Reads the 32-byte magic tag from the front of @p buffer.
+     * @param buffer Buffer whose first 32 bytes contain the item name.
+     * @return The 32-byte name array.
+     */
     static std::array<char, 32> getCurrentItemName(std::span<const char> buffer)
     {
         std::array<char, 32> name;
@@ -139,6 +216,12 @@ public:
         return name;
     }
 
+    /**
+     * @brief Appends a named item to @p buffer as [32-byte name][uint64 size][payload].
+     * @param name   32-byte magic tag identifying the item type.
+     * @param in     Serialized item payload.
+     * @param buffer Destination buffer; the tag, size, and payload are appended.
+     */
     static void serializeItem(const std::array<char, 32>& name, std::span<const char> in, std::vector<char>& buffer)
     {
 
@@ -151,6 +234,18 @@ public:
         std::copy(in.cbegin(), in.cend(), std::back_inserter(buffer));
     }
 
+    /**
+     * @brief Reads a named item from the front of @p buffer.
+     *
+     * Extracts the 32-byte magic tag into @p name, reads the uint64 payload size,
+     * copies the payload into @p out, and returns the remaining buffer span.
+     * Throws `std::length_error` if the buffer is too short.
+     *
+     * @param name   Output: receives the 32-byte item tag.
+     * @param out    Output: receives the item payload bytes.
+     * @param buffer Input buffer positioned at the start of a serialized item.
+     * @return Remaining buffer span after the consumed item.
+     */
     static std::span<const char> deserializeItem(std::array<char, 32>& name, std::vector<char>& out, std::span<const char> buffer)
     {
         if (buffer.size() < name.size()) {
@@ -171,6 +266,16 @@ public:
         return buffer.subspan(size);
     }
 
+    /**
+     * @brief Serializes a `SerializeItemType` object and appends it to @p buffer.
+     *
+     * Calls `item.magicID()` and `item.serialize()`, then delegates to the
+     * low-level `serializeItem(name, payload, buffer)` overload.
+     *
+     * @tparam U Type satisfying `SerializeItemType`.
+     * @param item   Object to serialize.
+     * @param buffer Destination buffer.
+     */
     template <SerializeItemType U>
     static void serializeItem(const U& item, std::vector<char>& buffer)
     {
@@ -179,7 +284,15 @@ public:
         serializeItem(name, ser, buffer);
     }
 
-    // Serialize a double or uint64 or uint8_t value
+    /**
+     * @brief Appends a scalar value to @p buffer as raw bytes.
+     *
+     * Constrained to `double`, `uint64_t`, and `uint8_t`.
+     *
+     * @tparam T Scalar type.
+     * @param in     Value to serialize.
+     * @param buffer Destination buffer; sizeof(T) bytes are appended.
+     */
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static void serialize(T in, std::vector<char>& buffer)
@@ -189,7 +302,17 @@ public:
         std::copy(in_c, in_c + sizeof(T), dest);
     }
 
-    // Deserialize a double or uint64 or uint8_t value
+    /**
+     * @brief Reads a scalar value from the front of @p begin.
+     *
+     * Constrained to `double`, `uint64_t`, and `uint8_t`.
+     * Throws `std::length_error` if fewer than sizeof(T) bytes remain.
+     *
+     * @tparam T Scalar type.
+     * @param value  Output: receives the deserialized value.
+     * @param begin  Input span positioned at the scalar's first byte.
+     * @return Remaining span after the consumed scalar.
+     */
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static std::span<const char> deserialize(T& value, std::span<const char> begin)
@@ -202,7 +325,15 @@ public:
         return begin.subspan(sizeof(T));
     }
 
-    // Serialize a vector of doubles or uint64 values or uint8
+    /**
+     * @brief Appends a vector of scalars to @p buffer as [uint64 count][raw elements].
+     *
+     * Constrained to `double`, `uint64_t`, `uint8_t`, and `uint32_t`.
+     *
+     * @tparam T Element type.
+     * @param in     Vector to serialize.
+     * @param buffer Destination buffer.
+     */
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value || std::is_same<T, std::uint32_t>::value)
     static void serialize(const std::vector<T>& in, std::vector<char>& buffer)
@@ -214,6 +345,16 @@ public:
         auto dest = std::back_inserter(buffer);
         std::copy(in_c, in_c + size, dest);
     }
+    /**
+     * @brief Appends a fixed-size array of scalars to @p buffer as [uint64 count][raw elements].
+     *
+     * Constrained to `double`, `uint64_t`, and `uint8_t`.
+     *
+     * @tparam T Element type.
+     * @tparam N Array length.
+     * @param in     Array to serialize.
+     * @param buffer Destination buffer.
+     */
     template <typename T, std::size_t N>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static void serialize(const std::array<T, N>& in, std::vector<char>& buffer)
@@ -226,6 +367,18 @@ public:
         std::copy(in_c, in_c + size, dest);
     }
 
+    /**
+     * @brief Reads a vector of scalars from @p begin.
+     *
+     * Reads the uint64 element count, then copies that many raw elements into @p out.
+     * Throws `std::length_error` if the buffer is too short.
+     * Constrained to `double`, `uint64_t`, `uint8_t`, and `uint32_t`.
+     *
+     * @tparam T Element type.
+     * @param out   Output vector; cleared and populated.
+     * @param begin Input span positioned at the serialized vector's first byte.
+     * @return Remaining span after the consumed data.
+     */
     template <typename T>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value || std::is_same<T, std::uint32_t>::value)
     static std::span<const char> deserialize(std::vector<T>& out, std::span<const char> begin)
@@ -243,6 +396,19 @@ public:
         return data_start.subspan(n_elements * sizeof(T));
     }
 
+    /**
+     * @brief Reads a fixed-size array of scalars from @p begin.
+     *
+     * Reads the uint64 element count and verifies it equals `N` before copying.
+     * Throws `std::length_error` if the buffer is too short or the count mismatches.
+     * Constrained to `double`, `uint64_t`, and `uint8_t`.
+     *
+     * @tparam T Element type.
+     * @tparam N Expected array length.
+     * @param out   Output array; overwritten in place.
+     * @param begin Input span positioned at the serialized array's first byte.
+     * @return Remaining span after the consumed data.
+     */
     template <typename T, std::size_t N>
         requires(std::is_same<T, double>::value || std::is_same<T, std::uint64_t>::value || std::is_same<T, std::uint8_t>::value)
     static std::span<const char> deserialize(std::array<T, N>& out, std::span<const char> begin)
@@ -261,6 +427,14 @@ public:
         return data_start.subspan(n_elements * sizeof(T));
     }
 
+    /**
+     * @brief Appends a vector of strings to @p buffer.
+     *
+     * Layout: [uint64 count] followed by [uint64 length][chars...] for each string.
+     *
+     * @param in     Strings to serialize.
+     * @param buffer Destination buffer.
+     */
     static void serialize(const std::vector<std::string>& in, std::vector<char>& buffer)
     {
         const std::uint64_t n_elements = in.size();
@@ -272,6 +446,16 @@ public:
         }
     }
 
+    /**
+     * @brief Reads a vector of strings from @p begin.
+     *
+     * Reads the uint64 count, then for each string reads its uint64 length and
+     * the corresponding character bytes.
+     *
+     * @param out   Output vector; resized and populated.
+     * @param begin Input span positioned at the serialized string vector's first byte.
+     * @return Remaining span after the consumed data.
+     */
     static std::span<const char> deserialize(std::vector<std::string>& out, std::span<const char> begin)
     {
         std::uint64_t n_elements;
@@ -286,6 +470,15 @@ public:
         return begin;
     }
 
+    /**
+     * @brief Serializes a single material's elemental composition to @p buffer.
+     *
+     * Layout: 8-byte "Material" tag, uint64 material count (always 1),
+     * uint64 element count, then [uint8 Z][double weight] pairs.
+     *
+     * @param map    Map of atomic number Z → mass fraction weight.
+     * @param buffer Destination buffer.
+     */
     static void serializeMaterialWeights(const std::map<std::uint8_t, double>& map, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
@@ -302,6 +495,16 @@ public:
         return;
     }
 
+    /**
+     * @brief Deserializes a single material's elemental composition from @p buffer.
+     *
+     * Verifies the "Material" tag and expects exactly one material entry.
+     * Throws `std::length_error` if the buffer is malformed or contains multiple materials.
+     *
+     * @param out    Output map populated with Z → weight pairs.
+     * @param buffer Input span positioned at the "Material" tag.
+     * @return Remaining span after the consumed data.
+     */
     static std::span<const char> deserializeMaterialWeights(std::map<std::uint8_t, double>& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
@@ -333,6 +536,16 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Serializes a list of materials' elemental compositions to @p buffer.
+     *
+     * Layout: 8-byte "Material" tag, uint64 material count, then for each material
+     * uint64 element count followed by [uint8 Z][double weight] pairs.
+     * Does nothing if @p maps is empty.
+     *
+     * @param maps   Vector of Z → weight maps, one per material.
+     * @param buffer Destination buffer.
+     */
     static void serializeMaterialWeights(const std::vector<std::map<std::uint8_t, double>>& maps, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
@@ -352,6 +565,16 @@ public:
         return;
     }
 
+    /**
+     * @brief Deserializes a list of materials' elemental compositions from @p buffer.
+     *
+     * Verifies the "Material" tag and reads all material entries.
+     * Throws `std::length_error` if the buffer is malformed or contains zero materials.
+     *
+     * @param out    Output vector resized to the number of materials in the buffer.
+     * @param buffer Input span positioned at the "Material" tag.
+     * @return Remaining span after the consumed data.
+     */
     static std::span<const char> deserializeMaterialWeights(std::vector<std::map<std::uint8_t, double>>& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> mat = { 'M', 'a', 't', 'e', 'r', 'i', 'a', 'l' };
@@ -385,6 +608,16 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Serializes a span of `DoseScore` objects to @p buffer.
+     *
+     * Layout: 8-byte "Dose    " tag, uint64 count, then for each score
+     * [double dose][double variance][uint64 numberOfEvents].
+     * Does nothing if @p in is empty.
+     *
+     * @param in     Span of dose scores to serialize.
+     * @param buffer Destination buffer.
+     */
     static void serializeDoseScore(std::span<const DoseScore> in, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
@@ -404,6 +637,16 @@ public:
         return;
     }
 
+    /**
+     * @brief Deserializes a vector of `DoseScore` objects from @p buffer.
+     *
+     * Verifies the "Dose    " tag and reads all entries.
+     * Throws `std::length_error` if the buffer is malformed or empty.
+     *
+     * @param out    Output vector; cleared and populated.
+     * @param buffer Input span positioned at the "Dose    " tag.
+     * @return Remaining span after the consumed data.
+     */
     static std::span<const char> deserializeDoseScore(std::vector<DoseScore>& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
@@ -434,6 +677,17 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Deserializes exactly N `DoseScore` objects from @p buffer into a fixed-size array.
+     *
+     * Verifies the "Dose    " tag and that the stored count equals `N`.
+     * Throws `std::length_error` if the buffer is malformed, empty, or the count mismatches.
+     *
+     * @tparam N Expected number of dose scores.
+     * @param out    Output array of length N; overwritten in place.
+     * @param buffer Input span positioned at the "Dose    " tag.
+     * @return Remaining span after the consumed data.
+     */
     template <std::size_t N>
     static std::span<const char> deserializeDoseScore(std::array<DoseScore, N>& out, std::span<const char> buffer)
     {
@@ -466,6 +720,14 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Serializes a single `DoseScore` to @p buffer.
+     *
+     * Writes the "Dose    " tag, count = 1, then [double dose][double variance][uint64 events].
+     *
+     * @param in     The dose score to serialize.
+     * @param buffer Destination buffer.
+     */
     static void serializeDoseScore(const DoseScore& in, std::vector<char>& buffer)
     {
         constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };
@@ -477,6 +739,16 @@ public:
         serialize(in.numberOfEvents(), buffer);
         return;
     }
+    /**
+     * @brief Deserializes a single `DoseScore` from @p buffer.
+     *
+     * Verifies the "Dose    " tag and that the stored count is exactly 1.
+     * Throws `std::length_error` if the buffer is malformed or the count is not 1.
+     *
+     * @param out    Output dose score; overwritten.
+     * @param buffer Input span positioned at the "Dose    " tag.
+     * @return Remaining span after the consumed data.
+     */
     static std::span<const char> deserializeDoseScore(DoseScore& out, std::span<const char> buffer)
     {
         constexpr std::array<char, 8> dose = { 'D', 'o', 's', 'e', ' ', ' ', ' ', ' ' };

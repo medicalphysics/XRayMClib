@@ -21,6 +21,17 @@ Copyright 2019 Erlend Andersen
 #include <type_traits>
 
 namespace xraymc {
+
+/**
+ * @brief Concept that constrains a type to standard floating-point types.
+ *
+ * Satisfied by `float`, `double`, and `long double`. Used throughout XRayMClib
+ * as a template constraint to ensure numeric precision compatibility for
+ * physical quantities such as energy, position, and cross-section values.
+ *
+ * @tparam T The type to check.
+ */
 template <typename T>
 concept Floating = std::is_floating_point<T>::value;
+
 }

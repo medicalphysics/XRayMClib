@@ -37,58 +37,120 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Concept satisfied when @p U is one of the types in the pack @p Us.
+ */
 template <typename U, typename... Us>
 concept AnyWorldItemType = (... or std::same_as<U, Us>);
 
-// Template for at least one type of items
+/**
+ * @brief Container and transport engine for a heterogeneous collection of world items.
+ *
+ * Holds a flat list of world items as `std::variant<F, Us...>`, accelerated by a
+ * KDTreeFlat for intersection queries. The space between items is filled with a
+ * homogeneous material (default: dry air at 1.225×10⁻³ g/cm³). Particle transport
+ * in the fill material uses analog Monte Carlo sampling with 16-shell cross-sections.
+ *
+ * Typical workflow:
+ * 1. Add items with addItem().
+ * 2. Call build() to construct the KD-tree and compute the AABB.
+ * 3. Call transport() for each simulated particle.
+ * 4. Call addEnergyScoredToDoseScore() and read dose from individual items.
+ *
+ * The world can be serialized to a byte buffer and reconstructed via deserialize().
+ *
+ * @tparam F     First (mandatory) world item type, satisfying WorldItemType.
+ * @tparam Us... Additional world item types, each satisfying WorldItemType.
+ */
 template <WorldItemType F, WorldItemType... Us>
 class World {
     static constexpr std::size_t WorldShells() { return 16; }
     using MaterialType = Material<WorldShells()>;
 
 public:
+    /// @brief Constructs an empty world with dry air as the fill material.
     World()
         : m_fillMaterial(MaterialType::byNistName("Air, Dry (near sea level)").value())
     {
     }
 
+    /**
+     * @brief Constructs an empty world and pre-reserves storage for @p reserveNumberOfWorldItems items.
+     * @param reserveNumberOfWorldItems Hint for the initial capacity of the item vector.
+     */
     World(std::size_t reserveNumberOfWorldItems)
         : m_fillMaterial(MaterialType::byNistName("Air, Dry (near sea level)").value())
     {
         m_items.reserve(reserveNumberOfWorldItems);
     }
 
+    /**
+     * @brief Sets the fill material between world items.
+     * @param mat Material cross-section data.
+     */
     void setMaterial(const MaterialType& mat)
     {
         m_fillMaterial = mat;
     }
+
+    /**
+     * @brief Sets both the fill material and its mass density.
+     * @param mat  Material cross-section data.
+     * @param dens Density in g/cm³; absolute value is used.
+     */
     void setMaterial(const MaterialType& mat, double dens)
     {
         m_fillMaterial = mat;
         m_fillMaterialDensity = std::abs(dens);
     }
+
+    /**
+     * @brief Sets the mass density of the fill material.
+     * @param dens Density in g/cm³; absolute value is used.
+     */
     void setMaterialDensity(double dens)
     {
         m_fillMaterialDensity = std::abs(dens);
     }
+
+    /**
+     * @brief Sets the fill material from elemental weight fractions.
+     * @param composition Map from atomic number to weight fraction.
+     */
     void setMaterialByWeight(const std::map<std::size_t, double>& composition)
     {
         m_fillMaterial = MaterialType::byWeight(composition).value();
     }
+
+    /**
+     * @brief Sets the fill material from elemental weight fractions and a density.
+     * @param composition Map from atomic number to weight fraction.
+     * @param dens        Density in g/cm³; absolute value is used.
+     */
     void setMaterialByWeight(const std::map<std::size_t, double>& composition, double dens)
     {
         m_fillMaterial = MaterialType::byWeight(composition).value();
         m_fillMaterialDensity = std::abs(dens);
     }
 
+    /// @brief Returns the current fill material.
     const MaterialType& fillMaterial() const { return m_fillMaterial; }
+
+    /// @brief Returns the fill material density in g/cm³.
     double fillMaterialDensity() const { return m_fillMaterialDensity; }
 
+    /// @brief Pre-allocates storage for @p size items to avoid repeated reallocations.
     void reserveNumberOfItems(std::size_t size)
     {
         m_items.reserve(size);
     }
 
+    /**
+     * @brief Copies @p item into the world and assigns a default name ("Item N").
+     * @tparam U One of the world item types (F or Us...).
+     * @param item Item to copy.
+     * @return Reference to the stored item.
+     */
     template <AnyWorldItemType<F, Us...> U>
     auto& addItem(U& item)
     {
@@ -97,6 +159,14 @@ public:
         m_item_names.push_back(name);
         return std::get<U>(m_items.back());
     }
+
+    /**
+     * @brief Copies @p item into the world with the given @p name.
+     * @tparam U One of the world item types (F or Us...).
+     * @param item Item to copy.
+     * @param name Human-readable name for the item.
+     * @return Reference to the stored item.
+     */
     template <AnyWorldItemType<F, Us...> U>
     auto& addItem(U& item, std::string_view name)
     {
@@ -105,6 +175,12 @@ public:
         return std::get<U>(m_items.back());
     }
 
+    /**
+     * @brief Moves @p item into the world and assigns a default name ("Item N").
+     * @tparam U One of the world item types (F or Us...).
+     * @param item Item to move.
+     * @return Reference to the stored item.
+     */
     template <AnyWorldItemType<F, Us...> U>
     auto& addItem(U&& item)
     {
@@ -113,6 +189,14 @@ public:
         m_item_names.push_back(name);
         return std::get<U>(m_items.back());
     }
+
+    /**
+     * @brief Moves @p item into the world with the given @p name.
+     * @tparam U One of the world item types (F or Us...).
+     * @param item Item to move.
+     * @param name Human-readable name for the item.
+     * @return Reference to the stored item.
+     */
     template <AnyWorldItemType<F, Us...> U>
     auto& addItem(U&& item, std::string_view name)
     {
@@ -121,6 +205,11 @@ public:
         return std::get<U>(m_items.back());
     }
 
+    /**
+     * @brief Default-constructs a new item of type @p U and adds it with a default name.
+     * @tparam U One of the world item types (F or Us...).
+     * @return Reference to the stored item.
+     */
     template <AnyWorldItemType<F, Us...> U>
     auto& addItem()
     {
@@ -130,6 +219,13 @@ public:
         m_item_names.push_back(name);
         return std::get<U>(m_items.back());
     }
+
+    /**
+     * @brief Default-constructs a new item of type @p U and adds it with the given @p name.
+     * @tparam U One of the world item types (F or Us...).
+     * @param name Human-readable name for the item.
+     * @return Reference to the stored item.
+     */
     template <AnyWorldItemType<F, Us...> U>
     auto& addItem(std::string_view name)
     {
@@ -139,26 +235,31 @@ public:
         return std::get<U>(m_items.back());
     }
 
+    /// @brief Returns the item vector (const overload).
     const auto& items() const
     {
         return m_items;
     }
 
+    /// @brief Returns the item vector (mutable overload).
     auto& items()
     {
         return m_items;
     }
 
+    /// @brief Returns the item name vector (const overload).
     const auto& itemNames() const
     {
         return m_item_names;
     }
 
+    /// @brief Returns the item name vector (mutable overload).
     auto& itemNames()
     {
         return m_item_names;
     }
 
+    /// @brief Returns a vector of mutable pointers to all stored item variants.
     std::vector<std::variant<F, Us...>*> getItemPointers()
     {
         std::vector<std::variant<F, Us...>*> ptrs(m_items.size());
@@ -168,6 +269,7 @@ public:
         return ptrs;
     }
 
+    /// @brief Returns a vector of const pointers to all stored item variants.
     std::vector<const std::variant<F, Us...>*> getItemPointers() const
     {
         std::vector<const std::variant<F, Us...>*> ptrs(m_items.size());
@@ -177,6 +279,10 @@ public:
         return ptrs;
     }
 
+    /**
+     * @brief Returns a mutable pointer to the item with the given @p name, or nullptr if not found.
+     * @param name Name to search for (exact match).
+     */
     std::variant<F, Us...>* getItemPointerFromName(std::string_view name)
     {
         for (std::size_t i = 0; i < m_item_names.size(); ++i) {
@@ -187,6 +293,10 @@ public:
         return nullptr;
     }
 
+    /**
+     * @brief Returns a const pointer to the item with the given @p name, or nullptr if not found.
+     * @param name Name to search for (exact match).
+     */
     const std::variant<F, Us...>* getItemPointerFromName(std::string_view name) const
     {
         for (std::size_t i = 0; i < m_item_names.size(); ++i) {
@@ -197,6 +307,7 @@ public:
         return nullptr;
     }
 
+    /// @brief Resets the energy-score accumulators in the world fill material and all items.
     void clearEnergyScored()
     {
         m_energyScored.clear();
@@ -205,6 +316,7 @@ public:
         }
     }
 
+    /// @brief Resets the dose-score accumulators in all items.
     void clearDoseScored()
     {
         for (auto& v : m_items) {
@@ -212,6 +324,10 @@ public:
         }
     }
 
+    /**
+     * @brief Converts each item's accumulated energy score to a dose score.
+     * @param calibration_factor Optional scaling factor applied during the conversion (default 1).
+     */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
         for (auto& v : m_items) {
@@ -219,6 +335,13 @@ public:
         }
     }
 
+    /**
+     * @brief Builds the KD-tree from the current item list and computes the padded AABB.
+     *
+     * Must be called after all items are added and before transport() or intersect().
+     * @param AABB_padding Extra margin added to each side of the item AABB in cm
+     *                     (minimum 0.1 cm is always applied; default 10 cm).
+     */
     void build(double AABB_padding = 10)
     {
         auto ptrs = getItemPointers();
@@ -233,6 +356,13 @@ public:
         }
     }
 
+    /**
+     * @brief Builds the KD-tree and expands the AABB to encompass @p aabb.
+     *
+     * Calls build() with default padding first, then unions the resulting AABB
+     * with @p aabb so that the world always covers the supplied region.
+     * @param aabb Minimum required bounding box as {xmin,ymin,zmin,xmax,ymax,zmax} in cm.
+     */
     void build(const std::array<double, 6>& aabb)
     {
         build();
@@ -242,17 +372,23 @@ public:
         }
     }
 
+    /// @brief Returns the padded world AABB computed by the last call to build().
     const std::array<double, 6>& AABB() const
     {
         return m_aabb;
     }
 
+    /// @brief Returns the center of the world AABB in cm.
     std::array<double, 3> center() const
     {
         const auto [l, r] = vectormath::splice(m_aabb);
         return vectormath::scale(0.5, vectormath::add(l, r));
     }
 
+    /**
+     * @brief Translates all items, the world AABB, and the KD-tree split planes by @p dist.
+     * @param dist Displacement vector in cm.
+     */
     void translate(const std::array<double, 3> dist)
     {
         for (auto& v : m_items)
@@ -265,16 +401,36 @@ public:
         m_kdtree.translate(dist);
     }
 
+    /**
+     * @brief Tests a particle ray against all world items via the KD-tree.
+     * @param p Particle whose position and direction define the ray.
+     * @return Closest transport intersection result within the world AABB.
+     */
     inline auto intersect(const ParticleType auto& p)
     {
         return m_kdtree.intersect(p, m_aabb);
     }
 
+    /**
+     * @brief Tests a particle ray for visualization intersection via the KD-tree.
+     * @param p Particle whose position and direction define the ray.
+     * @return Closest visualization intersection result within the world AABB.
+     */
     inline auto intersectVisualization(const ParticleType auto& p) const
     {
         return m_kdtree.intersectVisualization(p, m_aabb);
     }
 
+    /**
+     * @brief Advances a particle to the world boundary if it is currently outside.
+     *
+     * If the particle is already inside the AABB this is a no-op and returns true.
+     * If it is outside, the ray is tested against the AABB; if it hits, the particle
+     * is advanced to the surface and true is returned. Returns false if the particle
+     * will never enter the world.
+     * @param p Particle to transport; position is updated in place.
+     * @return true if the particle is inside (or has been moved inside) the world AABB.
+     */
     inline bool transportParticleToWorld(ParticleType auto& p) const
     {
         if (!basicshape::AABB::pointInside(p.pos, m_aabb)) {
@@ -289,6 +445,20 @@ public:
         return true;
     }
 
+    /**
+     * @brief Transports a particle through the world until it exits or is absorbed.
+     *
+     * First advances the particle to the world boundary via transportParticleToWorld().
+     * Then alternates between sampling a free path in the fill material and testing
+     * whether a world item is closer:
+     * - If an item boundary is closer, the particle is advanced to it and the item's
+     *   own transport() is called.
+     * - Otherwise the particle takes a step in the fill material and analog interaction
+     *   sampling is performed (LOWENERGYCORRECTION = 2, 16 shells).
+     * Transport stops when the particle exits the AABB or its energy reaches zero.
+     * @param p     Particle to transport; modified in place.
+     * @param state Random number generator state.
+     */
     void transport(ParticleType auto& p, RandomState& state)
     {
         bool continueSampling = transportParticleToWorld(p);
@@ -343,6 +513,14 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the 32-byte magic identifier for this World type.
+     *
+     * The magic ID is a fixed-width string ("World1" padded with spaces) used as a
+     * header tag during serialization to identify the buffer as a World object.
+     *
+     * @return A 32-byte character array containing the magic identifier.
+     */
     constexpr static std::array<char, 32> magicID()
     {
         std::string name = "World1";
@@ -352,6 +530,15 @@ public:
         return k;
     }
 
+    /**
+     * @brief Checks whether a byte buffer begins with the World magic identifier.
+     *
+     * Reads the first 32 bytes of @p data and compares them against `magicID()`.
+     * Used to validate a serialized buffer before attempting deserialization.
+     *
+     * @param data View of the byte buffer to inspect; must be at least 32 bytes.
+     * @return True if the buffer starts with the expected magic ID, false otherwise.
+     */
     static bool validMagicID(std::span<const char> data)
     {
         if (data.size() < 32)
@@ -360,6 +547,20 @@ public:
         return std::search(data.cbegin(), data.cbegin() + 32, id.cbegin(), id.cend()) == data.cbegin();
     }
 
+    /**
+     * @brief Serializes the world to a flat byte buffer.
+     *
+     * The buffer layout is:
+     *   1. Item count (uint64).
+     *   2. Each item's magic ID and serialized payload (via `Serializer::serializeItem`).
+     *   3. Fill material composition weights.
+     *   4. Fill material density (double).
+     *   5. Item name strings.
+     *
+     * The resulting buffer can be reconstructed with `deserialize()`.
+     *
+     * @return A `std::vector<char>` containing the complete serialized world.
+     */
     std::vector<char> serialize() const
     {
         auto buffer = Serializer::getEmptyBuffer();
@@ -378,6 +579,16 @@ public:
         return buffer;
     }
 
+    /**
+     * @brief Returns the magic IDs of all world item types supported by this World.
+     *
+     * Collects `magicID()` from the first type `F` and each type in `Us...` via a
+     * fold expression. Used during deserialization to match each stored item's tag
+     * against the known item types.
+     *
+     * @return A vector of 32-byte arrays, one per supported item type, in the order
+     *         `F, Us...`.
+     */
     static std::vector<std::array<char, 32>> itemMagicIDs()
     {
         std::vector<std::array<char, 32>> names;
@@ -386,6 +597,21 @@ public:
         return names;
     }
 
+    /**
+     * @brief Reconstructs a World from a serialized byte buffer.
+     *
+     * Reads the item count, then deserializes each item by matching its stored magic
+     * ID against the supported types (`F, Us...`) using their `validMagicID()` methods.
+     * After all items are restored, the fill material and density are read, and
+     * `build()` is called to rebuild the KD-tree acceleration structure.
+     *
+     * Returns `std::nullopt` if any item cannot be matched to a known type or if the
+     * fill material cannot be reconstructed from the stored composition weights.
+     *
+     * @param buffer A read-only view of the byte buffer produced by `serialize()`.
+     * @return An engaged `std::optional<World<F, Us...>>` on success, or
+     *         `std::nullopt` on failure.
+     */
     static std::optional<World<F, Us...>> deserialize(std::span<const char> buffer)
     {
         std::uint64_t n_elements;

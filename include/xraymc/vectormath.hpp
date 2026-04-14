@@ -26,19 +26,35 @@ Copyright 2019 Erlend Andersen
 #include <type_traits>
 #include <utility>
 
-// Header library for simple 3D vector math
+/// @brief Header-only library of 3D vector math utilities used by the transport core.
 namespace xraymc {
 namespace vectormath {
 
+    /**
+     * @brief Concept satisfied by non-boolean integral types used as array indices.
+     * @tparam T The candidate type.
+     */
     template <typename T>
     concept Index = std::is_integral_v<T> && std::is_same<bool, T>::value == false;
 
+    /**
+     * @brief Returns the squared Euclidean length of a 3D vector.
+     * @tparam T Floating-point type.
+     * @param vec Input vector.
+     * @return vec·vec (no square root taken).
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr T length_sqr(const std::array<T, 3>& vec) noexcept
     {
         return vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
     }
 
+    /**
+     * @brief Returns the Euclidean length of a 3D vector.
+     * @tparam T Floating-point type.
+     * @param vec Input vector.
+     * @return √(vec·vec).
+     */
     template <Floating T>
     [[nodiscard]] inline T length(const std::array<T, 3>& vec) noexcept
     {
@@ -46,6 +62,12 @@ namespace vectormath {
         return std::sqrt(lsqr);
     }
 
+    /**
+     * @brief Splits a 6-element array into two 3-element arrays.
+     * @tparam T Floating-point type.
+     * @param a Input array [x0, y0, z0, x1, y1, z1].
+     * @return Pair of {first three elements, last three elements}.
+     */
     template <Floating T>
     [[nodiscard]] inline std::pair<std::array<T, 3>, std::array<T, 3>> splice(const std::array<T, 6>& a)
     {
@@ -54,18 +76,41 @@ namespace vectormath {
         return std::make_pair(a1, a2);
     }
 
+    /**
+     * @brief Joins two 3-element arrays into a single 6-element array.
+     * @tparam T Floating-point type.
+     * @param a First vector [x0, y0, z0].
+     * @param b Second vector [x1, y1, z1].
+     * @return Array [x0, y0, z0, x1, y1, z1].
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 6> join(const std::array<T, 3>& a, const std::array<T, 3>& b)
     {
         return std::array { a[0], a[1], a[2], b[0], b[1], b[2] };
     }
 
+    /**
+     * @brief Returns the element-wise sum of two 3D vectors.
+     * @tparam T Floating-point type.
+     * @param v1 First vector.
+     * @param v2 Second vector.
+     * @return v1 + v2.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> add(const std::array<T, 3>& v1, const std::array<T, 3>& v2)
     {
         return std::array<T, 3> { v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2] };
     }
 
+    /**
+     * @brief Returns the element-wise sum of three or more 3D vectors (variadic).
+     * @tparam T    Floating-point type.
+     * @tparam Args Additional `std::array<T, 3>` arguments.
+     * @param v1   First vector.
+     * @param v2   Second vector.
+     * @param args Further vectors to accumulate.
+     * @return Element-wise sum of all arguments.
+     */
     template <Floating T, typename... Args>
     [[nodiscard]] inline constexpr std::array<T, 3> add(const std::array<T, 3>& v1, const std::array<T, 3>& v2, Args... args)
     {
@@ -73,42 +118,93 @@ namespace vectormath {
         return add(v, args...);
     }
 
+    /**
+     * @brief Adds a scalar to every element of a 3D vector.
+     * @tparam T Floating-point type.
+     * @param v1 Input vector.
+     * @param v2 Scalar to add to each component.
+     * @return {v1[0]+v2, v1[1]+v2, v1[2]+v2}.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr auto add(const std::array<T, 3>& v1, T v2) noexcept
     {
         return std::array { v1[0] + v2, v1[1] + v2, v1[2] + v2 };
     }
 
+    /**
+     * @brief Adds a scalar to every element of a 3D vector (scalar-first overload).
+     * @tparam T Floating-point type.
+     * @param v2 Scalar to add to each component.
+     * @param v1 Input vector.
+     * @return {v1[0]+v2, v1[1]+v2, v1[2]+v2}.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr auto add(T v2, const std::array<T, 3>& v1) noexcept
     {
         return add(v1, v2);
     }
 
+    /**
+     * @brief Returns the element-wise difference of two 3D vectors.
+     * @tparam T Floating-point type.
+     * @param v1 Minuend vector.
+     * @param v2 Subtrahend vector.
+     * @return v1 − v2.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> subtract(const std::array<T, 3>& v1, const std::array<T, 3>& v2) noexcept
     {
         return std::array<T, 3> { v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2] };
     }
 
+    /**
+     * @brief Scales a 3D vector by a scalar (vector-first).
+     * @tparam T Floating-point type.
+     * @param v Input vector.
+     * @param s Scale factor.
+     * @return v * s.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> scale(const std::array<T, 3>& v, T s)
     {
         return std::array { v[0] * s, v[1] * s, v[2] * s };
     }
 
+    /**
+     * @brief Scales a 3D vector by a scalar (scalar-first).
+     * @tparam T Floating-point type.
+     * @param s Scale factor.
+     * @param v Input vector.
+     * @return v * s.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> scale(T s, const std::array<T, 3>& v)
     {
         return std::array { v[0] * s, v[1] * s, v[2] * s };
     }
 
+    /**
+     * @brief Element-wise multiplies two 3D vectors.
+     * @tparam T Floating-point type.
+     * @param v Input vector.
+     * @param s Per-component scale factors.
+     * @return {v[0]*s[0], v[1]*s[1], v[2]*s[2]}.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> scale(const std::array<T, 3>& v, const std::array<T, 3>& s)
     {
         return std::array { v[0] * s[0], v[1] * s[1], v[2] * s[2] };
     }
 
+    /**
+     * @brief Normalizes a 3D vector to unit length in place.
+     *
+     * Multiplies each component by 1/‖vec‖. Behaviour is undefined if @p vec
+     * is the zero vector.
+     *
+     * @tparam T Floating-point type.
+     * @param vec Vector to normalize; modified in place.
+     */
     template <Floating T>
     inline void normalize(std::array<T, 3>& vec) noexcept
     {
@@ -120,6 +216,15 @@ namespace vectormath {
         vec[2] *= norm;
     }
 
+    /**
+     * @brief Returns a normalized copy of a 3D vector.
+     *
+     * Does not modify the input. Behaviour is undefined if @p vec is the zero vector.
+     *
+     * @tparam T Floating-point type.
+     * @param vec Input vector.
+     * @return Unit vector in the direction of @p vec.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> normalized(const std::array<T, 3>& vec) noexcept
     {
@@ -128,12 +233,26 @@ namespace vectormath {
         return scale(vec, norm);
     }
 
+    /**
+     * @brief Returns the dot (inner) product of two 3D vectors.
+     * @tparam T Floating-point type.
+     * @param v1 First vector.
+     * @param v2 Second vector.
+     * @return v1 · v2.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr T dot(const std::array<T, 3>& v1, const std::array<T, 3>& v2) noexcept
     {
         return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
     }
 
+    /**
+     * @brief Returns the cross product of two 3D vectors.
+     * @tparam T Floating-point type.
+     * @param v1 First vector.
+     * @param v2 Second vector.
+     * @return v1 × v2.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> cross(const std::array<T, 3>& v1, const std::array<T, 3> v2) noexcept
     {
@@ -144,6 +263,15 @@ namespace vectormath {
         };
     }
 
+    /**
+     * @brief Returns the cross product of two vectors packed into a 6-element array.
+     *
+     * Interprets elements [0,1,2] as the first vector and [3,4,5] as the second.
+     *
+     * @tparam T Floating-point type.
+     * @param v1 Packed pair of 3D vectors [x0,y0,z0, x1,y1,z1].
+     * @return v1[0:3] × v1[3:6].
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> cross(const std::array<T, 6>& v1) noexcept
     {
@@ -154,18 +282,49 @@ namespace vectormath {
         };
     }
 
+    /**
+     * @brief Returns the cross product of two vectors stored in a 2-element array of arrays.
+     * @tparam T Floating-point type.
+     * @param v Array of two 3D vectors {v[0], v[1]}.
+     * @return v[0] × v[1].
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> cross(const std::array<std::array<T, 3>, 2>& v) noexcept
     {
         return cross(v[0], v[1]);
     }
 
+    /**
+     * @brief Returns the scalar triple product v1 · (v2 × v3).
+     *
+     * Geometrically equals the signed volume of the parallelepiped spanned by the
+     * three vectors.
+     *
+     * @tparam T Floating-point type.
+     * @param v1 First vector.
+     * @param v2 Second vector.
+     * @param v3 Third vector.
+     * @return v1 · (v2 × v3).
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr T tripleProduct(const std::array<T, 3>& v1, const std::array<T, 3>& v2, const std::array<T, 3>& v3) noexcept
     {
         return dot(v1, cross(v2, v3));
     }
 
+    /**
+     * @brief Rotates a 3D vector about an axis by an angle given as sin/cos components.
+     *
+     * Uses Rodrigues' rotation formula decomposed as:
+     *   result = (vec · axis) · axis + cosAngle · (axis × vec) × axis + sinAngle · (axis × vec)
+     *
+     * @tparam T Floating-point type.
+     * @param vec      Vector to rotate.
+     * @param axis     Unit rotation axis.
+     * @param sinAngle Sine of the rotation angle.
+     * @param cosAngle Cosine of the rotation angle.
+     * @return Rotated vector.
+     */
     template <Floating T>
     [[nodiscard]] inline constexpr std::array<T, 3> rotate(const std::array<T, 3>& vec, const std::array<T, 3>& axis, const T sinAngle, const T cosAngle) noexcept
     {
@@ -179,6 +338,14 @@ namespace vectormath {
         };
     }
 
+    /**
+     * @brief Rotates a 3D vector about an axis by a given angle in radians.
+     * @tparam T Floating-point type.
+     * @param vec   Vector to rotate.
+     * @param axis  Unit rotation axis.
+     * @param angle Rotation angle in radians.
+     * @return Rotated vector.
+     */
     template <Floating T>
     [[nodiscard]] inline std::array<T, 3> rotate(const std::array<T, 3>& vec, const std::array<T, 3>& axis, const T angle) noexcept
     {
@@ -187,6 +354,17 @@ namespace vectormath {
         return rotate(vec, axis, sang, cang);
     }
 
+    /**
+     * @brief Computes the angle between two 3D vectors in radians.
+     *
+     * Uses the numerically stable Heron's formula variant to avoid cancellation
+     * errors for nearly parallel or anti-parallel vectors.
+     *
+     * @tparam T Floating-point type.
+     * @param vec1 First vector (need not be unit length).
+     * @param vec2 Second vector (need not be unit length).
+     * @return Angle in radians in [0, π].
+     */
     template <Floating T>
     [[nodiscard]] inline T angleBetween(const std::array<T, 3>& vec1, const std::array<T, 3>& vec2) noexcept
     {
@@ -205,6 +383,16 @@ namespace vectormath {
         return T { 2 } * std::atan(std::sqrt(nom / den));
     }
 
+    /**
+     * @brief Returns the index of the component with the smallest absolute value.
+     *
+     * Useful for constructing an arbitrary orthogonal vector without cancellation.
+     *
+     * @tparam U Return type, must satisfy `Index` (default `std::size_t`).
+     * @tparam T Floating-point element type.
+     * @param vec Input vector.
+     * @return Index in {0, 1, 2} of the component with the smallest |value|.
+     */
     template <Index U = std::size_t, Floating T>
     [[nodiscard]] inline U argmin3(const std::array<T, 3>& vec) noexcept
     {
@@ -215,6 +403,13 @@ namespace vectormath {
                                                 : 2;
     }
 
+    /**
+     * @brief Returns the index of the component with the largest absolute value (floating-point).
+     * @tparam U Return type, must satisfy `Index` (default `std::size_t`).
+     * @tparam T Floating-point element type.
+     * @param vec Input vector.
+     * @return Index in {0, 1, 2} of the component with the largest |value|.
+     */
     template <Index U = std::size_t, Floating T>
     [[nodiscard]] inline U argmax3(const std::array<T, 3>& vec) noexcept
     {
@@ -224,6 +419,14 @@ namespace vectormath {
         return x >= y ? x >= z ? 0 : 2 : y >= z ? 1
                                                 : 2;
     }
+
+    /**
+     * @brief Returns the index of the component with the largest value (integer overload).
+     * @tparam U Return type, must satisfy `Index` (default `std::size_t`).
+     * @tparam T Integer element type satisfying `Index`.
+     * @param vec Input vector.
+     * @return Index in {0, 1, 2} of the component with the largest value.
+     */
     template <Index U = std::size_t, Index T>
     [[nodiscard]] inline U argmax3(const std::array<T, 3>& vec) noexcept
     {
@@ -234,6 +437,19 @@ namespace vectormath {
                                                 : 2;
     }
 
+    /**
+     * @brief Transforms a vector from local to world coordinates.
+     *
+     * Applies the 3×3 matrix whose columns are the basis vectors @p b1, @p b2, @p b3:
+     *   result = b1·v[0] + b2·v[1] + b3·v[2]  (column-major multiply)
+     *
+     * @tparam T Floating-point type.
+     * @param b1     First column basis vector (local x-axis in world coords).
+     * @param b2     Second column basis vector (local y-axis in world coords).
+     * @param b3     Third column basis vector (local z-axis in world coords).
+     * @param vector Vector expressed in the local basis.
+     * @return Vector expressed in world coordinates.
+     */
     template <Floating T>
     [[nodiscard]] inline std::array<T, 3> changeBasis(const std::array<T, 3>& b1, const std::array<T, 3>& b2, const std::array<T, 3>& b3, const std::array<T, 3>& vector) noexcept
     {
@@ -245,6 +461,20 @@ namespace vectormath {
         return res;
     }
 
+    /**
+     * @brief Transforms a vector from world to local coordinates (inverse basis transform).
+     *
+     * Applies the transpose of the 3×3 matrix whose columns are @p b1, @p b2, @p b3
+     * (which equals the inverse when the basis is orthonormal):
+     *   result[i] = bi · vector
+     *
+     * @tparam T Floating-point type.
+     * @param b1     First basis vector (local x-axis in world coords).
+     * @param b2     Second basis vector (local y-axis in world coords).
+     * @param b3     Third basis vector (local z-axis in world coords).
+     * @param vector Vector expressed in world coordinates.
+     * @return Vector expressed in the local basis.
+     */
     template <Floating T>
     [[nodiscard]] inline std::array<T, 3> changeBasisInverse(const std::array<T, 3>& b1, const std::array<T, 3>& b2, const std::array<T, 3>& b3, const std::array<T, 3>& vector) noexcept
     {
@@ -256,6 +486,24 @@ namespace vectormath {
         return res;
     }
 
+    /**
+     * @brief Deflects a unit direction vector by polar angle @p theta and azimuthal angle @p phi.
+     *
+     * Constructs an arbitrary orthogonal axis by crossing @p vec with the world axis
+     * whose component in @p vec is smallest (to avoid numerical cancellation), then:
+     * 1. Rotates that axis by @p phi around @p vec to obtain the scattering plane normal.
+     * 2. Rotates @p vec by @p theta around the chosen axis.
+     * The result is re-normalized to correct accumulated floating-point drift.
+     *
+     * Used by the interaction samplers to apply a scattering deflection in the particle's
+     * local reference frame without requiring explicit Euler-angle bookkeeping.
+     *
+     * @tparam T Floating-point type.
+     * @param vec   Incident unit direction vector.
+     * @param theta Polar deflection angle from the incident direction (radians).
+     * @param phi   Azimuthal rotation angle around the incident direction (radians).
+     * @return New unit direction vector after the deflection.
+     */
     template <Floating T>
     [[nodiscard]] inline std::array<T, 3> peturb(const std::array<T, 3>& vec, const T theta, const T phi) noexcept
     {

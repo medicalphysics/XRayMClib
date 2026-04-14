@@ -24,21 +24,57 @@ Copyright 2024 Erlend Andersen
 #include <atomic>
 #include <vector>
 
-namespace xraymc {
+/**
+ * @brief Thread-safe collector of photon trajectory points across multiple transport histories.
+ *
+ * Maintains a pre-allocated flat buffer of `TrackPoint` entries. Each entry stores
+ * a particle ID and a 3D position. When `registerParticle()` is called from
+ * concurrent transport threads, an `std::atomic_ref` fetch-add on the write index
+ * ensures each thread reserves a contiguous, non-overlapping slice of the buffer
+ * without locking.
+ *
+ * Points for a specific particle can be retrieved in insertion order via `track()`.
+ * If the buffer is full, further calls to `registerParticle()` are silently ignored.
+ */
 class ParticleTracker {
 public:
+    /**
+     * @brief Constructs the tracker with a pre-allocated buffer capacity.
+     * @param size Maximum number of `TrackPoint` entries to store (default 1024).
+     */
     ParticleTracker(std::size_t size = 1024)
     {
         m_points.resize(size);
     }
 
+    /// @brief Default equality comparison (compares buffer contents and indices).
     bool operator==(const ParticleTracker&) const = default;
 
+    /**
+     * @brief Resizes the internal point buffer.
+     *
+     * Replaces the current buffer with one of @p size default-constructed entries.
+     * Should be called before transport begins; not safe to call concurrently with
+     * `registerParticle()`.
+     *
+     * @param size New buffer capacity in number of `TrackPoint` entries.
+     */
     void setNumberOfPoints(std::size_t size)
     {
         m_points.resize(size);
     }
 
+    /**
+     * @brief Records the interaction history of a `ParticleTrack` into the buffer.
+     *
+     * Atomically reserves `p.getSize() + 1` slots (history positions plus the
+     * current position) and writes them with a unique particle ID. If the buffer
+     * does not have enough remaining capacity, the particle is silently dropped.
+     *
+     * Safe to call from multiple threads simultaneously.
+     *
+     * @param p The particle whose history and current position are to be recorded.
+     */
     void registerParticle(const ParticleTrack& p)
     {
         // Threadsafe particle register
@@ -59,11 +95,26 @@ public:
         }
     }
 
+    /**
+     * @brief Returns the number of particles successfully registered so far.
+     * @return Count of particles whose histories have been stored in the buffer.
+     */
     std::uint64_t numberOfParticles() const
     {
         return m_currentId - 1;
     }
 
+    /**
+     * @brief Retrieves the stored positions for a specific particle in order.
+     *
+     * Scans the entire buffer and collects all entries whose particle ID matches
+     * @p particleNumber (0-based). Returns them in the order they were written,
+     * which corresponds to the sequence of interaction positions followed by the
+     * particle's final position.
+     *
+     * @param particleNumber Zero-based index of the particle to retrieve.
+     * @return Vector of 3D positions (in cm) for the requested particle.
+     */
     std::vector<std::array<double, 3>> track(std::uint64_t particleNumber) const
     {
         const auto id = particleNumber + 1;
@@ -75,13 +126,14 @@ public:
     }
 
 private:
+    /// @brief A single recorded point associated with a particle history.
     struct TrackPoint {
-        std::uint64_t particleID = 0;
-        std::array<double, 3> position;
+        std::uint64_t particleID = 0;      ///< 1-based ID of the owning particle.
+        std::array<double, 3> position;    ///< Position in cm.
         bool operator==(const TrackPoint&) const = default;
     };
-    std::vector<TrackPoint> m_points;
-    std::size_t m_index = 0;
-    std::uint64_t m_currentId = 1;
+    std::vector<TrackPoint> m_points; ///< Pre-allocated flat point buffer.
+    std::size_t m_index = 0;          ///< Next free write index (updated atomically).
+    std::uint64_t m_currentId = 1;    ///< Next particle ID to assign (updated atomically).
 };
 }

@@ -32,23 +32,69 @@ Copyright 2019 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Linearly interpolates between two points given as scalars.
+ *
+ * @tparam T Floating-point type.
+ * @param x0 x-coordinate of the left knot.
+ * @param x1 x-coordinate of the right knot.
+ * @param y0 y-value at @p x0.
+ * @param y1 y-value at @p x1.
+ * @param x  Query x-value.
+ * @return Linearly interpolated y-value at @p x.
+ */
 template <Floating T>
 inline T interp(const T x0, const T x1, const T y0, const T y1, const T x)
 {
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
 }
+
+/**
+ * @brief Linearly interpolates between two points given as C-arrays.
+ *
+ * @tparam T Floating-point type for the knot data.
+ * @tparam U Floating-point type for the query value.
+ * @param x  Two-element array of x-coordinates [x0, x1].
+ * @param y  Two-element array of y-values [y0, y1].
+ * @param xi Query x-value.
+ * @return Linearly interpolated y-value at @p xi.
+ */
 template <Floating T, Floating U>
 inline U interp(T x[2], T y[2], U xi)
 {
     return y[0] + (y[1] - y[0]) * (xi - x[0]) / (x[1] - x[0]);
 }
 
+/**
+ * @brief Linearly interpolates between two points given as `std::pair` values.
+ *
+ * @tparam T Floating-point type.
+ * @param v1 Left knot as {x, y}.
+ * @param v2 Right knot as {x, y}.
+ * @param x  Query x-value.
+ * @return Linearly interpolated y-value at @p x.
+ */
 template <Floating T>
 inline T interp(const std::pair<T, T>& v1, const std::pair<T, T>& v2, T x)
 {
     return v1.second + (v2.second - v1.second) * (x - v1.first) / (v2.first - v1.first);
 }
 
+/**
+ * @brief Log-log interpolates between two points given as scalars.
+ *
+ * Computes y(x) = 10^(log10(y0) + log10(y1/y0) / log10(x1/x0) * log10(x/x0)).
+ * Negative or zero values produce NaN via `std::log10`.
+ * Intermediate arithmetic is performed in double precision.
+ *
+ * @tparam T Floating-point type.
+ * @param x0 x-coordinate of the left knot (must be > 0).
+ * @param x1 x-coordinate of the right knot (must be > 0).
+ * @param y0 y-value at @p x0 (must be > 0).
+ * @param y1 y-value at @p x1 (must be > 0).
+ * @param x  Query x-value (must be > 0).
+ * @return Log-log interpolated y-value at @p x.
+ */
 template <Floating T>
 inline T logloginterp(T x0, T x1, T y0, T y1, T x)
 {
@@ -57,6 +103,19 @@ inline T logloginterp(T x0, T x1, T y0, T y1, T x)
     return std::pow(10., value); // std::pow always promotes to doubles
 }
 
+/**
+ * @brief Log-log interpolates between two points given as C-arrays.
+ *
+ * Equivalent to the scalar overload but reads knot data from two-element arrays.
+ * Intermediate arithmetic is performed in double precision.
+ *
+ * @tparam T  Floating-point type for the knot data (must be > 0).
+ * @tparam U  Floating-point type for the query value (must be > 0).
+ * @param x   Two-element array of x-coordinates [x0, x1].
+ * @param y   Two-element array of y-values [y0, y1].
+ * @param xi  Query x-value.
+ * @return Log-log interpolated y-value at @p xi.
+ */
 template <Floating T, Floating U>
 inline T logloginterp(T x[2], T y[2], U xi)
 {
@@ -69,6 +128,20 @@ inline T logloginterp(T x[2], T y[2], U xi)
     return std::pow(10., value); // std::pow always promotes to doubles
 }
 
+/**
+ * @brief Linearly interpolates within a sorted range given as separate x and y iterators.
+ *
+ * Clamps to the first y-value if @p xvalue is below the range, or to the last if above.
+ *
+ * @tparam It  Random-access iterator whose value type is `T`.
+ * @tparam T   Floating-point type.
+ * @param xbegin  Iterator to the first x-knot.
+ * @param xend    One-past-the-last x-knot iterator.
+ * @param ybegin  Iterator to the first y-knot (same length as x range).
+ * @param yend    One-past-the-last y-knot iterator.
+ * @param xvalue  Query x-value.
+ * @return Linearly interpolated y-value at @p xvalue.
+ */
 template <typename It, Floating T>
     requires std::is_same_v<typename std::iterator_traits<It>::value_type, T>
 T interpolate(It xbegin, It xend, It ybegin, It yend, T xvalue)
@@ -88,6 +161,19 @@ T interpolate(It xbegin, It xend, It ybegin, It yend, T xvalue)
 
     return interp(*lower, *upper, *lowery, *uppery, xvalue);
 }
+/**
+ * @brief Linearly interpolates a scalar from a sorted `{x, y}` pair vector.
+ *
+ * Template flags control out-of-range behaviour: when disabled, values outside
+ * the knot range return 0 instead of extrapolating.
+ *
+ * @tparam T                Floating-point type.
+ * @tparam EXTRAPOLATE_DOWN If false, returns 0 for x below the first knot.
+ * @tparam EXTRAPOLATE_UP   If false, returns 0 for x above the last knot.
+ * @param data Sorted vector of {x, y} knot pairs.
+ * @param x    Query x-value.
+ * @return Interpolated (or clamped/zero) y-value at @p x.
+ */
 template <Floating T, bool EXTRAPOLATE_DOWN = true, bool EXTRAPOLATE_UP = true>
 inline T interpolate(const std::vector<std::pair<T, T>>& data, T x)
 {
@@ -108,6 +194,17 @@ inline T interpolate(const std::vector<std::pair<T, T>>& data, T x)
     return interp(*lower, *upper, x);
 }
 
+/**
+ * @brief Interpolates a vector of query values from a sorted `{x, y}` pair vector.
+ *
+ * Uses a single advancing iterator for efficiency when @p x is sorted and @p data
+ * has at least 4 knots; falls back to repeated scalar calls otherwise.
+ *
+ * @tparam T Floating-point type.
+ * @param data Sorted vector of {x, y} knot pairs.
+ * @param x    Vector of query x-values (should be sorted ascending for best performance).
+ * @return Vector of interpolated y-values, one per element of @p x.
+ */
 template <Floating T>
 inline std::vector<T> interpolate(const std::vector<std::pair<T, T>>& data, const std::vector<T>& x)
 {
@@ -128,6 +225,17 @@ inline std::vector<T> interpolate(const std::vector<std::pair<T, T>>& data, cons
     return y;
 }
 
+/**
+ * @brief Removes redundant interior knots from a sorted `{x, y}` pair vector.
+ *
+ * Iterates through the knot sequence and erases any interior point whose
+ * linearly-interpolated value matches the actual value within a relative
+ * tolerance of @p epsilon. Calls `shrink_to_fit()` after pruning.
+ *
+ * @tparam T Floating-point type.
+ * @param data    Sorted vector of {x, y} knot pairs; modified in place.
+ * @param epsilon Relative tolerance for redundancy check (default 1×10⁻⁶).
+ */
 template <Floating T>
 void removeUnneededInterpolationPoints(std::vector<std::pair<T, T>>& data, T epsilon = 1E-6)
 {
@@ -147,7 +255,16 @@ void removeUnneededInterpolationPoints(std::vector<std::pair<T, T>>& data, T eps
     data.shrink_to_fit();
 }
 
-// Variadic template to add vectors of equal size
+/**
+ * @brief Element-wise adds two equal-length vectors (returning a new vector).
+ *
+ * Uses `std::execution::par_unseq` for parallel execution.
+ *
+ * @tparam T Floating-point type.
+ * @param f First input vector.
+ * @param l Second input vector (same length as @p f).
+ * @return New vector containing f[i] + l[i] for each element.
+ */
 template <Floating T>
 std::vector<T> addVectors(const std::vector<T>& f, const std::vector<T>& l)
 {
@@ -155,12 +272,36 @@ std::vector<T> addVectors(const std::vector<T>& f, const std::vector<T>& l)
     std::transform(std::execution::par_unseq, l.cbegin(), l.end(), res.cbegin(), res.begin(), std::plus<T>());
     return res;
 }
+
+/**
+ * @brief Element-wise adds a vector into an existing vector in place.
+ *
+ * Uses `std::execution::par_unseq` for parallel execution.
+ *
+ * @tparam T Floating-point type.
+ * @param f In-out vector; receives the sum.
+ * @param l Second input vector (same length as @p f).
+ * @return Reference to the modified @p f.
+ */
 template <Floating T>
 std::vector<T> addVectors(std::vector<T>& f, const std::vector<T>& l)
 {
     std::transform(std::execution::par_unseq, l.cbegin(), l.end(), f.cbegin(), f.begin(), std::plus<T>());
     return f;
 }
+
+/**
+ * @brief Variadic element-wise sum of three or more equal-length vectors.
+ *
+ * Recursively adds the first two vectors, then folds in the remaining ones.
+ *
+ * @tparam T    Floating-point type.
+ * @tparam args Additional `std::vector<T>` arguments.
+ * @param f     First input vector.
+ * @param l     Second input vector.
+ * @param other Additional vectors to accumulate.
+ * @return New vector containing the element-wise sum of all inputs.
+ */
 template <Floating T, typename... args>
 std::vector<T> addVectors(const std::vector<T>& f, const std::vector<T>& l, args... other)
 {
@@ -168,6 +309,17 @@ std::vector<T> addVectors(const std::vector<T>& f, const std::vector<T>& l, args
     return addVectors(res, other...);
 }
 
+/**
+ * @brief Computes a cumulative trapezoidal integral.
+ *
+ * Returns a vector the same length as @p f where element i holds
+ * ∫ f dx from x[0] to x[i], using the trapezoidal rule.
+ *
+ * @tparam T Floating-point type.
+ * @param x Abscissa values (strictly increasing).
+ * @param f Ordinate values, same length as @p x.
+ * @return Cumulative integral vector; first element is always 0.
+ */
 template <Floating T>
 std::vector<T> trapz_cum(const std::vector<T>& x, const std::vector<T>& f)
 {
@@ -178,6 +330,14 @@ std::vector<T> trapz_cum(const std::vector<T>& x, const std::vector<T>& f)
     }
     return integ;
 }
+/**
+ * @brief Trapezoidal integration over the full range of separate x/y vectors.
+ *
+ * @tparam T Floating-point type.
+ * @param x Abscissa values (strictly increasing).
+ * @param f Ordinate values, same length as @p x.
+ * @return ∫ f dx over [x.front(), x.back()].
+ */
 template <Floating T>
 T trapz(const std::vector<T>& x, const std::vector<T>& f)
 {
@@ -188,6 +348,13 @@ T trapz(const std::vector<T>& x, const std::vector<T>& f)
     return integ;
 }
 
+/**
+ * @brief Trapezoidal integration over the full range of a `{x, y}` pair vector.
+ *
+ * @tparam T Floating-point type.
+ * @param f Sorted vector of {x, y} knot pairs.
+ * @return ∫ f.y dx over [f.front().x, f.back().x].
+ */
 template <Floating T>
 T trapz(const std::vector<std::pair<T, T>>& f)
 {
@@ -198,6 +365,18 @@ T trapz(const std::vector<std::pair<T, T>>& f)
     return integ;
 }
 
+/**
+ * @brief Trapezoidal integration over a sub-range of a `{x, y}` pair vector.
+ *
+ * @p start and @p stop are clamped to the knot range. Partial trapezoids at
+ * both ends are added by linear interpolation to the nearest knots.
+ *
+ * @tparam T Floating-point type.
+ * @param f     Sorted vector of {x, y} knot pairs.
+ * @param start Lower integration limit (clamped to knot range).
+ * @param stop  Upper integration limit (clamped to knot range).
+ * @return ∫ f.y dx over [start, stop].
+ */
 template <Floating T>
 T trapz(const std::vector<std::pair<T, T>>& f, T start, T stop)
 {
@@ -224,6 +403,19 @@ T trapz(const std::vector<std::pair<T, T>>& f, T start, T stop)
     return integ;
 }
 
+/**
+ * @brief 20-point Gauss-Legendre quadrature given pre-evaluated function values.
+ *
+ * Computes ∫[start, stop] f(x) dx using the fixed 20-point Gauss-Legendre weight
+ * table and the caller-supplied function values at the corresponding nodes.
+ *
+ * @tparam T Floating-point type.
+ * @param start       Lower integration limit.
+ * @param stop        Upper integration limit.
+ * @param gaussPoints 20 function values evaluated at the Gauss-Legendre nodes
+ *                    (as returned by `gaussIntegrationPoints`).
+ * @return Approximate integral of f over [start, stop].
+ */
 template <Floating T>
 constexpr T gaussIntegration(const T start, const T stop, const std::array<T, 20>& gaussPoints)
 {
@@ -253,6 +445,17 @@ constexpr T gaussIntegration(const T start, const T stop, const std::array<T, 20
     const T value = std::transform_reduce(std::execution::unseq, weights.cbegin(), weights.cend(), gaussPoints.cbegin(), T { 0 }, std::plus<>(), std::multiplies<>());
     return value * interval_half;
 }
+/**
+ * @brief Computes the 20 Gauss-Legendre quadrature nodes mapped to [start, stop].
+ *
+ * Transforms the standard 20-point Gauss-Legendre nodes on [-1, 1] to the
+ * interval [start, stop] via the affine map x → (stop-start)/2 · ξ + (stop+start)/2.
+ *
+ * @tparam T Floating-point type.
+ * @param start Lower integration limit.
+ * @param stop  Upper integration limit.
+ * @return Array of 20 x-coordinates at which to evaluate the integrand.
+ */
 template <Floating T>
 constexpr std::array<T, 20> gaussIntegrationPoints(const T start, const T stop)
 {
@@ -285,6 +488,20 @@ constexpr std::array<T, 20> gaussIntegrationPoints(const T start, const T stop)
     return function_points;
 }
 
+/**
+ * @brief 20-point Gauss-Legendre quadrature of a callable.
+ *
+ * Evaluates @p function at the 20 Gauss-Legendre nodes on [start, stop] and
+ * returns the weighted sum scaled by (stop-start)/2.
+ *
+ * @tparam T        Floating-point type.
+ * @tparam F        Callable type satisfying `std::regular_invocable<T>` with
+ *                  return type `T`.
+ * @param start     Lower integration limit.
+ * @param stop      Upper integration limit.
+ * @param function  Function or functor to integrate.
+ * @return Approximate integral of @p function over [start, stop].
+ */
 template <Floating T, std::regular_invocable<T> F>
     requires std::is_same<std::invoke_result_t<F, T>, T>::value
 constexpr T gaussIntegration(const T start, const T stop, const F function)
@@ -296,19 +513,41 @@ constexpr T gaussIntegration(const T start, const T stop, const F function)
     return gaussIntegration(start, stop, function_values);
 }
 
+/**
+ * @brief Akima piecewise cubic spline with a dynamic (heap-allocated) knot array.
+ *
+ * Implements the Akima 1970 algorithm, which produces smooth cubic segments with
+ * low overshoot near data discontinuities. Knot slopes are weighted averages of
+ * adjacent finite differences, making the result insensitive to outliers.
+ *
+ * If fewer than 5 data points are provided, the data is padded to 5 points by
+ * linear interpolation before the spline is computed.
+ *
+ * @tparam T Floating-point type (default: double).
+ */
 template <Floating T = double>
 class AkimaSpline {
 public:
+    /// @brief Default constructor — initialises a trivial identity spline on [0, 1].
     AkimaSpline()
     {
         m_data.resize(2);
         m_data[1].x = 1;
     }
+    /**
+     * @brief Constructs the spline from a vector of {x, y} knot pairs.
+     * @param data Knot pairs; need not be sorted (setup sorts them).
+     */
     AkimaSpline(const std::vector<std::pair<T, T>>& data)
     {
         setup(data);
     }
 
+    /**
+     * @brief Constructs the spline from separate x and y vectors.
+     * @param x Abscissa values.
+     * @param y Ordinate values (zipped with @p x up to the shorter length).
+     */
     AkimaSpline(const std::vector<T>& x, const std::vector<T>& y)
     {
         std::vector<std::pair<T, T>> data(std::min(x.size(), y.size()));
@@ -320,6 +559,11 @@ public:
         setup(data);
     }
 
+    /**
+     * @brief Evaluates the spline at @p x.
+     * @param x Query value; clamped to the outermost segment if out of range.
+     * @return Interpolated y-value.
+     */
     T operator()(T x) const
     {
         const Interval v { .x = x };
@@ -333,6 +577,10 @@ public:
         return seg.a + seg.b * xd + seg.c * xd * xd + seg.d * xd * xd * xd;
     }
 
+    /**
+     * @brief Multiplies all spline coefficients by a scalar factor.
+     * @param s Scale factor applied to every segment's a, b, c, d coefficients.
+     */
     void scale(T s)
     {
         for (auto& v : m_data) {
@@ -343,6 +591,17 @@ public:
         }
     }
 
+    /**
+     * @brief Analytically integrates the spline over [start, stop].
+     *
+     * Integrates the cubic polynomial in each segment by exact anti-differentiation.
+     * @p start is clamped to the first knot; integration beyond the last knot
+     * uses the coefficients of the final segment.
+     *
+     * @param start Lower integration limit.
+     * @param stop  Upper integration limit.
+     * @return ∫[start, stop] spline(x) dx.
+     */
     T integral(T start, T stop) const
     {
         start = std::max(start, m_data.front().x);
@@ -389,6 +648,15 @@ public:
         return integrand;
     }
 
+    /**
+     * @brief Computes the Akima spline coefficients from knot data.
+     *
+     * Sorts the input, pads it to at least 5 points if necessary, computes the
+     * slope estimates s[i] using the weighted Akima formula, and derives the cubic
+     * coefficients (a, b, c, d) for each segment.
+     *
+     * @param data Knot pairs (unsorted is acceptable).
+     */
     void setup(std::vector<std::pair<T, T>> data)
     {
         if (data.size() < 5) {
@@ -426,6 +694,15 @@ public:
     }
 
 protected:
+    /**
+     * @brief Pads a data set with fewer than 5 points to exactly 5 points.
+     *
+     * Handles 0–4 input points by inserting linearly interpolated knots so that
+     * the Akima algorithm always receives the minimum required 5 knots.
+     *
+     * @param data Input knot pairs (0 to 4 elements).
+     * @return A 5-element knot vector suitable for `setup()`.
+     */
     std::vector<std::pair<T, T>> expandData(const std::vector<std::pair<T, T>>& data)
     {
         std::vector<std::pair<T, T>> res(5);
@@ -483,21 +760,44 @@ private:
     std::vector<Interval> m_data;
 };
 
+/**
+ * @brief Akima piecewise cubic spline with a compile-time fixed number of knots.
+ *
+ * Stores exactly `N_KNOTS` intervals in a `std::array`, making the object suitable
+ * for constexpr contexts and avoiding heap allocation. If the input has a different
+ * number of points than `N_KNOTS + 1`, a dynamic `AkimaSpline` is first fitted and
+ * then re-sampled at `N_KNOTS + 1` uniformly-spaced nodes.
+ *
+ * Provides `fromInternalData` / `copyInternalData` for serialization.
+ *
+ * @tparam T       Floating-point type (default: double).
+ * @tparam N_KNOTS Number of cubic segments; must be ≥ 5.
+ */
 template <Floating T = double, std::size_t N_KNOTS = 5>
 class AkimaSplineStatic {
 public:
+    /// @brief Default constructor — initialises knots at integer positions 0 … N_KNOTS-1.
     AkimaSplineStatic()
     {
         static_assert(N_KNOTS >= 5);
         for (std::size_t i = 0; i < N_KNOTS; ++i)
             m_data[i].x = static_cast<T>(i);
     }
+    /**
+     * @brief Constructs the static spline from a vector of {x, y} knot pairs.
+     * @param data Knot pairs; re-sampled to exactly N_KNOTS+1 nodes if size differs.
+     */
     AkimaSplineStatic(const std::vector<std::pair<T, T>>& data)
     {
         static_assert(N_KNOTS >= 5);
         setup(data);
     }
 
+    /**
+     * @brief Constructs the static spline from separate x and y vectors.
+     * @param x Abscissa values.
+     * @param y Ordinate values (zipped with @p x up to the shorter length).
+     */
     AkimaSplineStatic(const std::vector<T>& x, const std::vector<T>& y)
     {
         static_assert(N_KNOTS >= 5);
@@ -509,6 +809,10 @@ public:
         setup(data);
     }
 
+    /**
+     * @brief Multiplies all spline coefficients by a scalar factor.
+     * @param s Scale factor applied to every segment's a, b, c, d coefficients.
+     */
     void scale(T s)
     {
         for (auto& v : m_data) {
@@ -519,6 +823,12 @@ public:
         }
     }
 
+    /**
+     * @brief Analytically integrates the spline over [start, stop].
+     * @param start Lower limit (clamped to the first knot).
+     * @param stop  Upper limit.
+     * @return ∫[start, stop] spline(x) dx.
+     */
     T integral(T start, T stop) const
     {
         start = std::max(start, m_data.front().x);
@@ -565,6 +875,11 @@ public:
         return integrand;
     }
 
+    /**
+     * @brief Evaluates the spline at @p x.
+     * @param x Query value; uses the nearest boundary segment if out of range.
+     * @return Interpolated y-value.
+     */
     T operator()(T x) const
     {
         const Interval v { .x = x };
@@ -578,6 +893,15 @@ public:
         return seg.a + seg.b * xd + seg.c * xd * xd + seg.d * xd * xd * xd;
     }
 
+    /**
+     * @brief Fits the static spline from knot data.
+     *
+     * If @p data_r has exactly N_KNOTS+1 sorted points they are used directly;
+     * otherwise a temporary `AkimaSpline` is built and re-sampled at N_KNOTS+1
+     * uniformly-spaced nodes spanning the data range.
+     *
+     * @param data_r Input knot pairs (unsorted is acceptable).
+     */
     void setup(std::vector<std::pair<T, T>> data_r)
     {
         std::sort(data_r.begin(), data_r.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
@@ -630,6 +954,15 @@ public:
         }
     }
 
+    /**
+     * @brief Reconstructs a spline directly from its raw coefficient vector.
+     *
+     * The vector must contain exactly N_KNOTS × 5 values, stored as
+     * [x, a, b, c, d] for each of the N_KNOTS intervals.
+     *
+     * @param data Flat coefficient vector as produced by `copyInternalData()`.
+     * @return An engaged optional on success, or `std::nullopt` if the size is wrong.
+     */
     static std::optional<AkimaSplineStatic<T, N_KNOTS>> fromInternalData(const std::vector<double>& data)
     {
 
@@ -648,6 +981,14 @@ public:
         return item;
     }
 
+    /**
+     * @brief Serializes the spline coefficients to a flat double vector.
+     *
+     * Returns N_KNOTS × 5 values stored as [x, a, b, c, d] per interval,
+     * suitable for storage or transfer and reconstruction via `fromInternalData`.
+     *
+     * @return Flat coefficient vector of length N_KNOTS × 5.
+     */
     std::vector<double> copyInternalData() const
     {
         std::vector<double> data;
@@ -669,9 +1010,21 @@ private:
     std::array<Interval, N_KNOTS> m_data;
 };
 
+/**
+ * @brief Natural cubic spline interpolator with a dynamic (heap-allocated) knot array.
+ *
+ * Fits a C² piecewise cubic polynomial through all supplied data points using
+ * natural (second-derivative = 0) boundary conditions. Coefficients are stored as
+ * global polynomials in x (i.e. f(x) = a + b·x + c·x² + d·x³), which allows O(log n)
+ * evaluation after a binary search. The Thomas algorithm is used for the tridiagonal
+ * solve.
+ *
+ * @tparam T Floating-point type (default: double).
+ */
 template <Floating T = double>
 class CubicSplineInterpolator {
 public:
+    /// @brief Default constructor — initialises a trivial constant-1 spline.
     CubicSplineInterpolator()
     {
         m_x.resize(1);
@@ -684,6 +1037,11 @@ public:
         }
     }
 
+    /**
+     * @brief Constructs the spline from separate x and y vectors.
+     * @param x Abscissa values (sorted or unsorted).
+     * @param y Ordinate values (zipped up to the shorter length).
+     */
     CubicSplineInterpolator(const std::vector<T>& x, const std::vector<T>& y)
     {
         const auto N = std::min(x.size(), y.size());
@@ -696,12 +1054,24 @@ public:
         setup(data);
     }
 
+    /**
+     * @brief Constructs the spline from a vector of {x, y} knot pairs.
+     * @param data Knot pairs; sorted in ascending x order before fitting.
+     */
     CubicSplineInterpolator(std::vector<std::pair<T, T>> data)
     {
         std::sort(data.begin(), data.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
         setup(data);
     }
 
+    /**
+     * @brief Computes natural cubic spline coefficients from sorted knot data.
+     *
+     * Solves the tridiagonal system for second derivatives using the Thomas
+     * algorithm, then converts to global polynomial form a + b·x + c·x² + d·x³.
+     *
+     * @param data Sorted vector of {x, y} knot pairs.
+     */
     void setup(const std::vector<std::pair<T, T>>& data)
     {
 
@@ -748,6 +1118,11 @@ public:
         }
     }
 
+    /**
+     * @brief Evaluates the spline at @p x.
+     * @param x Query value; extrapolates with boundary polynomials if out of range.
+     * @return Interpolated y-value.
+     */
     T operator()(const T x) const
     {
         auto it = std::upper_bound(m_x.cbegin(), m_x.cend(), x);
@@ -755,6 +1130,13 @@ public:
         return m_coefficients[i][0] + m_coefficients[i][1] * x + m_coefficients[i][2] * x * x + m_coefficients[i][3] * x * x * x;
     }
 
+    /**
+     * @brief Computes the mean value of the spline over its full knot range.
+     *
+     * Integrates each segment analytically and divides by (x_last − x_first).
+     *
+     * @return ∫ spline(x) dx / (x_last − x_first).
+     */
     T meanValue() const
     {
         T integrand = 0;
@@ -771,6 +1153,10 @@ public:
         return integrand / (m_x.back() - m_x.front());
     }
 
+    /**
+     * @brief Multiplies all polynomial coefficients by a scalar.
+     * @param value Scale factor applied to every coefficient.
+     */
     void scale(T value)
     {
         for (auto& el : m_coefficients)
@@ -779,6 +1165,17 @@ public:
     }
 
 protected:
+    /**
+     * @brief Solves the tridiagonal cubic-spline system via the Thomas algorithm.
+     *
+     * Performs forward elimination followed by back-substitution on the system
+     * defined by sub-diagonal @p h_p, diagonal @p H_p, and right-hand side @p d_p.
+     *
+     * @param h_p Sub-diagonal vector (interval widths).
+     * @param H_p Diagonal vector.
+     * @param d_p Right-hand side vector.
+     * @return Solution vector of second-derivative values at the knots.
+     */
     static std::vector<T> thomasPenSplineElimination(const std::vector<T>& h_p, const std::vector<T>& H_p, const std::vector<T>& d_p)
     {
         // Thomas algorithm for gaussian elimination for a trigonal system of equations
@@ -812,9 +1209,28 @@ private:
     std::vector<T> m_x;
 };
 
+/**
+ * @brief Natural cubic spline interpolator with a compile-time fixed number of uniform knots.
+ *
+ * Fits an intermediate `CubicSplineInterpolator` over the data, then re-samples it at
+ * N uniformly-spaced nodes. The coefficients are stored in a flat `std::array` of
+ * (N-1)×4 values. Evaluation is O(1) via an index computed from the step size.
+ * Input values outside [start, stop] are clamped before evaluation.
+ *
+ * Also accepts a callable constructor for integration tasks where the function is
+ * known analytically.
+ *
+ * @tparam T Floating-point type.
+ * @tparam N Number of nodes (default 30); must be ≥ 2.
+ */
 template <Floating T, int N = 30>
 class CubicSplineInterpolatorStatic {
 public:
+    /**
+     * @brief Constructs the static spline from separate x and y vectors.
+     * @param x Abscissa values.
+     * @param y Ordinate values (zipped up to the shorter length).
+     */
     CubicSplineInterpolatorStatic(const std::vector<T>& x, const std::vector<T>& y)
     {
         const auto n_ele = std::min(x.size(), y.size());
@@ -827,12 +1243,26 @@ public:
         setup(data);
     }
 
+    /**
+     * @brief Constructs the static spline from a vector of {x, y} knot pairs.
+     * @param data Knot pairs; sorted before fitting.
+     */
     CubicSplineInterpolatorStatic(std::vector<std::pair<T, T>> data)
     {
         std::sort(data.begin(), data.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
         setup(data);
     }
 
+    /**
+     * @brief Constructs the static spline by sampling a callable on [start, stop].
+     *
+     * Evaluates @p function at N uniformly-spaced points and fits a cubic spline.
+     *
+     * @tparam F Callable type returning `T` when called with a `T` argument.
+     * @param start   Lower bound of the interpolation range.
+     * @param stop    Upper bound of the interpolation range.
+     * @param function Function or functor to sample.
+     */
     template <std::regular_invocable<T> F>
         requires std::is_same<std::invoke_result_t<F, T>, T>::value
     CubicSplineInterpolatorStatic(const T start, const T stop, F function)
@@ -840,6 +1270,11 @@ public:
         setup(start, stop, function);
     }
 
+    /**
+     * @brief Evaluates the spline at @p x_val.
+     * @param x_val Query value; clamped to [m_start, m_stop].
+     * @return Interpolated y-value.
+     */
     T operator()(const T x_val) const
     {
         const T x = std::clamp(x_val, m_start, m_stop);
@@ -850,6 +1285,12 @@ public:
     }
 
 protected:
+    /**
+     * @brief Samples @p function at N uniform nodes and computes spline coefficients.
+     * @param start    Lower bound.
+     * @param stop     Upper bound.
+     * @param function Callable to sample.
+     */
     template <std::regular_invocable<T> F>
         requires std::is_same<std::invoke_result_t<F, T>, T>::value
     void setup(const T start, const T stop, F function)
@@ -897,6 +1338,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Fits from knot data by first building a dynamic spline, then re-sampling.
+     * @param data Sorted vector of {x, y} knot pairs.
+     */
     void setup(const std::vector<std::pair<T, T>>& data)
     {
         CubicSplineInterpolator f(data);
@@ -905,6 +1350,13 @@ protected:
         setup(start, stop, f);
     }
 
+    /**
+     * @brief Thomas algorithm for the tridiagonal cubic-spline system.
+     * @param h_p Sub-diagonal (interval widths).
+     * @param H_p Diagonal.
+     * @param d_p Right-hand side.
+     * @return Second-derivative solution vector.
+     */
     static std::vector<T> thomasPenSplineElimination(const std::vector<T>& h_p, const std::vector<T>& H_p, const std::vector<T>& d_p)
     {
         // Thomas algorithm for gaussian elimination for a trigonal system of equations
@@ -941,16 +1393,39 @@ private:
     T m_stop = 0;
 };
 
+/**
+ * @brief Dense row-major matrix with a Gaussian-elimination linear solver.
+ *
+ * Provides element access, matrix-vector multiplication, in-place fill/resize,
+ * transpose, and an LU-based `solve()` that uses partial pivoting. Used internally
+ * by `CubicLSInterpolator` to assemble and solve the least-squares normal equations.
+ *
+ * @tparam T Floating-point type.
+ */
 template <Floating T>
 class Matrix {
 public:
+    /// @brief Default constructor — creates an empty 0×0 matrix.
     Matrix() { };
+
+    /**
+     * @brief Constructs an R×C zero-initialised matrix.
+     * @param R Number of rows.
+     * @param C Number of columns.
+     */
     Matrix(std::size_t R, std::size_t C)
         : m_r(R)
         , m_c(C)
     {
         m_data.resize(m_r * m_c, T { 0 });
     }
+
+    /**
+     * @brief Constructs an R×C matrix and copies data from a flat vector.
+     * @param R Number of rows.
+     * @param C Number of columns.
+     * @param d Row-major element data (must have at least R×C elements).
+     */
     Matrix(std::size_t R, std::size_t C, const std::vector<T>& d)
         : m_r(R)
         , m_c(C)
@@ -959,15 +1434,24 @@ public:
         std::copy(d.cbegin(), d.cend(), m_data.begin());
     }
 
+    /// @brief Returns a reference to the element at row @p r, column @p c.
     T& operator()(std::size_t r, std::size_t c)
     {
         return m_data[index(r, c)];
     }
+
+    /// @brief Returns a const reference to the element at row @p r, column @p c.
     const T& operator()(std::size_t r, std::size_t c) const
     {
 
         return m_data[index(r, c)];
     }
+
+    /**
+     * @brief Computes the matrix–vector product A·x.
+     * @param x Input vector (must have length equal to the number of columns).
+     * @return Result vector of length equal to the number of rows.
+     */
     std::vector<T> operator*(const std::vector<T>& x)
     {
         std::vector<T> y(x.size(), 0);
@@ -978,6 +1462,15 @@ public:
         }
         return y;
     }
+    /**
+     * @brief Solves the linear system A·x = b via Gaussian elimination with partial pivoting.
+     *
+     * Operates on a working copy of the matrix to preserve the original. Returns
+     * `std::nullopt` if the matrix is singular (a pivot ≤ ε is encountered).
+     *
+     * @param bvalues Right-hand side vector (must have length equal to the number of rows).
+     * @return Solution vector @p x on success, or `std::nullopt` if singular.
+     */
     std::optional<std::vector<T>> solve(const std::vector<T>& bvalues) const
     {
         // gaussian ellim
@@ -1014,14 +1507,23 @@ public:
         return b;
     }
 
+    /// @brief Fills every element with @p value.
     void fill(const T value)
     {
         std::fill(m_data.begin(), m_data.end(), value);
     }
+
+    /// @brief Sets all elements to zero.
     void setZero()
     {
         fill(T { 0 });
     }
+
+    /**
+     * @brief Resizes to R×C and zero-initialises all elements.
+     * @param r New number of rows.
+     * @param c New number of columns.
+     */
     void setZero(std::size_t r, std::size_t c)
     {
         m_r = r;
@@ -1030,9 +1532,16 @@ public:
         fill(T { 0 });
     }
 
+    /// @brief Returns the number of rows.
     std::size_t rows() const { return m_r; }
+
+    /// @brief Returns the number of columns.
     std::size_t cols() const { return m_c; }
 
+    /**
+     * @brief Returns the transpose of the matrix as a new object.
+     * @return New Matrix<T> with rows and columns swapped.
+     */
     Matrix<T> transpose() const
     {
         Matrix<T> t(m_c, m_r);
@@ -1045,6 +1554,7 @@ public:
     }
 
 protected:
+    /// @brief Swaps rows @p from and @p to in place.
     void swapRows(std::size_t from, std::size_t to)
     {
         if (from == to)
@@ -1054,11 +1564,17 @@ protected:
         }
     }
 
+    /// @brief Returns the flat index for element (r, c) in row-major storage.
     std::size_t index(std::size_t r, std::size_t c) const
     {
         return r * m_c + c;
     }
 
+    /**
+     * @brief Finds the row with the largest absolute value in column @p r at or below row @p r.
+     * @param r Starting row (and column) for pivot search.
+     * @return Row index of the largest pivot candidate.
+     */
     std::size_t find_row_argmax(std::size_t r) const
     {
         auto imax = r;
@@ -1079,9 +1595,31 @@ private:
     std::size_t m_c = 0;
 };
 
+/**
+ * @brief Cubic Hermite least-squares spline interpolator.
+ *
+ * Fits a piecewise cubic Hermite spline through a (potentially dense) set of data
+ * points using fewer knots than data points, minimising the sum of squared residuals.
+ * Knot positions can be specified explicitly or chosen automatically as uniform nodes.
+ *
+ * Supports discontinuous data: adjacent x-values that differ by less than machine
+ * epsilon are treated as a discontinuity, and independent spline segments are fitted
+ * on each contiguous piece when `maybe_discont` is true.
+ *
+ * Evaluation uses the Hermite basis: f = (2u+1)v²·p0 + u²(1−2v)·p1 + hu·v²·p0' + hu²v·p1'
+ * where u = (x−t_i)/h, v = u−1.
+ *
+ * @tparam T Floating-point type.
+ */
 template <Floating T>
 class CubicLSInterpolator {
 public:
+    /**
+     * @brief Constructs the least-squares spline from a vector of {x, y} knot pairs.
+     * @param data         Data points; need not be sorted.
+     * @param n_knots      Number of spline knots (default 30).
+     * @param maybe_discont If true, detects and handles discontinuities in the data.
+     */
     CubicLSInterpolator(const std::vector<std::pair<T, T>>& data, std::size_t n_knots = 30, bool maybe_discont = true)
     {
         std::vector<T> x, y;
@@ -1093,28 +1631,65 @@ public:
         }
         setupSplines(x, y, n_knots, maybe_discont);
     }
+    /**
+     * @brief Constructs the least-squares spline from separate x and y vectors.
+     * @param x            Abscissa values.
+     * @param y            Ordinate values.
+     * @param n_knots      Number of spline knots (default 30).
+     * @param maybe_discont If true, detects and handles discontinuities.
+     */
     CubicLSInterpolator(const std::vector<T>& x, const std::vector<T>& y, std::size_t n_knots = 30, bool maybe_discont = true)
     {
         setupSplines(x, y, n_knots, maybe_discont);
     }
 
+    /**
+     * @brief Constructs the least-squares spline with explicit knot positions.
+     * @param x            Abscissa values.
+     * @param y            Ordinate values.
+     * @param t            Explicit knot positions.
+     * @param maybe_discont If true, detects and handles discontinuities.
+     */
     CubicLSInterpolator(const std::vector<T>& x, const std::vector<T>& y, const std::vector<T>& t, bool maybe_discont = true)
     {
         setupSplines(x, y, t, maybe_discont);
     }
 
+    /**
+     * @brief Evaluates the spline at @p x.
+     * @param x Query value.
+     * @return Interpolated y-value.
+     */
     T operator()(const T x) const
     {
         return evaluateSpline(x, m_data);
     }
 
+    /// @brief Returns a const reference to the internal [t, p, p'] knot table.
     const std::vector<std::array<T, 3>>& getDataTable() const { return m_data; }
 
+    /**
+     * @brief Evaluates the spline from a full internal data table.
+     * @param x    Query value.
+     * @param data Knot table as returned by `getDataTable()`.
+     * @return Interpolated y-value.
+     */
     static inline T evaluateSpline(const T x, const std::vector<std::array<T, 3>>& data)
     {
         return evaluateSpline(x, data.cbegin(), data.cend());
     }
 
+    /**
+     * @brief Evaluates the spline from an iterator range over a knot table.
+     *
+     * Finds the enclosing interval by binary search and applies the cubic Hermite formula.
+     *
+     * @tparam It Random-access iterator to `std::array<T, 3>` elements [t, p, p'].
+     * @param x     Query value.
+     * @param begin Iterator to the first knot.
+     * @param end   One-past-the-last knot iterator.
+     * @return Interpolated y-value.
+     */
     template <std::random_access_iterator It>
         requires std::is_same_v<typename std::iterator_traits<It>::value_type, std::array<T, 3>>
     static inline T evaluateSpline(const T x, const It begin, const It end)
@@ -1165,6 +1740,19 @@ protected:
         std::vector<std::array<T, 3>> m_data; // m_t, m_z, m_zp
     };
 
+    /**
+     * @brief Internal dispatcher that splits at discontinuities and calls `calculateLSSplinePart`.
+     *
+     * When `maybe_discont` is true, consecutive x-values that differ by less than
+     * machine epsilon are treated as discontinuities; each contiguous piece is fitted
+     * independently and the resulting segments are concatenated.
+     *
+     * @tparam U Either `std::size_t` (number of knots) or `std::vector<T>` (explicit knots).
+     * @param x            Abscissa values.
+     * @param y            Ordinate values.
+     * @param t            Knot specification (count or explicit positions).
+     * @param maybe_discont Enable discontinuity detection.
+     */
     template <typename U>
         requires(std::is_convertible<U, std::vector<T>>::value || std::is_convertible<U, std::size_t>::value)
     void setupSplines(const std::vector<T>& x, const std::vector<T>& y, const U& t, bool maybe_discont)
@@ -1237,6 +1825,18 @@ protected:
         m_data = spline.m_data;
     }
 
+    /**
+     * @brief Fits a least-squares cubic Hermite spline to a single contiguous data piece.
+     *
+     * Automatically selects @p N uniformly-spaced knots if N ≤ 1. Caps @p N at
+     * (data.size()-1)/3 to keep the system overdetermined. Returns `std::nullopt`
+     * if the data is too sparse (fewer than 4 points or fewer than 2 knots).
+     *
+     * @param x Data abscissas (sorted ascending).
+     * @param y Data ordinates.
+     * @param N Number of knot intervals (0 = automatic).
+     * @return Spline segment, or `std::nullopt` on failure.
+     */
     std::optional<Spline> calculateLSSplinePart(const std::vector<T>& x, const std::vector<T>& y, std::size_t N = 0) const
     {
         const auto Nlim = (x.size() - 1) / 3;
@@ -1259,6 +1859,19 @@ protected:
         return calculateLSSplinePart(x, y, t);
     }
 
+    /**
+     * @brief Fits a least-squares cubic Hermite spline with explicit knot positions.
+     *
+     * Assembles and solves the normal equations for the Hermite basis functions
+     * (α, β, γ, δ) over each interval using a block-structured matrix system with
+     * C¹ continuity constraints (C and F matrices). Returns `std::nullopt` if the
+     * linear system is singular.
+     *
+     * @param x Data abscissas (sorted ascending).
+     * @param y Data ordinates.
+     * @param t Explicit knot positions (must include at least x.front() and x.back()).
+     * @return Spline segment storing [t, p, p'] values, or `std::nullopt` on failure.
+     */
     std::optional<Spline> calculateLSSplinePart(const std::vector<T>& x, const std::vector<T>& y, const std::vector<T>& t) const
     { // assume x is sorted
         const std::size_t N = t.size() - 1;
