@@ -23,6 +23,8 @@ Copyright 2023 Erlend Andersen
 #include <string>
 #include <utility>
 
+namespace xraymc {
+
 /**
  * @brief Thread-safe progress tracker for a Monte Carlo transport run.
  *
@@ -199,11 +201,11 @@ public:
     }
 
 private:
-    std::uint64_t m_nParticles = 1;          ///< Total number of particles to simulate.
-    std::uint64_t m_nParticleCount = 0;       ///< Number of particles completed so far.
+    std::uint64_t m_nParticles = 1; ///< Total number of particles to simulate.
+    std::uint64_t m_nParticleCount = 0; ///< Number of particles completed so far.
     std::chrono::time_point<std::chrono::high_resolution_clock> m_start; ///< Wall-clock start time.
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_end;   ///< Wall-clock end time.
-    std::chrono::milliseconds m_elapsed;      ///< Last-recorded elapsed time snapshot for ETA calculation.
-    bool m_continue_simulation_flag = true;   ///< False after `setStopSimulation()` is called.
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_end; ///< Wall-clock end time.
+    std::chrono::milliseconds m_elapsed; ///< Last-recorded elapsed time snapshot for ETA calculation.
+    bool m_continue_simulation_flag = true; ///< False after `setStopSimulation()` is called.
 };
 }

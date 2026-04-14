@@ -24,6 +24,8 @@ Copyright 2024 Erlend Andersen
 #include <atomic>
 #include <vector>
 
+namespace xraymc {
+
 /**
  * @brief Thread-safe collector of photon trajectory points across multiple transport histories.
  *
@@ -128,12 +130,12 @@ public:
 private:
     /// @brief A single recorded point associated with a particle history.
     struct TrackPoint {
-        std::uint64_t particleID = 0;      ///< 1-based ID of the owning particle.
-        std::array<double, 3> position;    ///< Position in cm.
+        std::uint64_t particleID = 0; ///< 1-based ID of the owning particle.
+        std::array<double, 3> position; ///< Position in cm.
         bool operator==(const TrackPoint&) const = default;
     };
     std::vector<TrackPoint> m_points; ///< Pre-allocated flat point buffer.
-    std::size_t m_index = 0;          ///< Next free write index (updated atomically).
-    std::uint64_t m_currentId = 1;    ///< Next particle ID to assign (updated atomically).
+    std::size_t m_index = 0; ///< Next free write index (updated atomically).
+    std::uint64_t m_currentId = 1; ///< Next particle ID to assign (updated atomically).
 };
 }
