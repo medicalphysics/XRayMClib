@@ -32,6 +32,14 @@ namespace xraymc {
 namespace basicshape {
     namespace tetrahedron {
 
+        /**
+         * @brief Computes the normal vector of the triangle defined by three points.
+         * @tparam NORMALIZE If true (default), returns a unit normal; otherwise returns the unnormalized cross product.
+         * @param p0 First vertex of the triangle.
+         * @param p1 Second vertex of the triangle.
+         * @param p2 Third vertex of the triangle.
+         * @return Normal vector of the triangle, optionally normalized.
+         */
         template <bool NORMALIZE = true>
         static std::array<double, 3> normalVector(const std::array<double, 3>& p0, const std::array<double, 3>& p1, const std::array<double, 3>& p2)
         {
@@ -43,6 +51,14 @@ namespace basicshape {
                 return vectormath::cross(s2, s1);
         }
 
+        /**
+         * @brief Computes the axis-aligned bounding box (AABB) of a tetrahedron.
+         * @param v0 First vertex.
+         * @param v1 Second vertex.
+         * @param v2 Third vertex.
+         * @param v3 Fourth vertex.
+         * @return Array of six values [xmin, ymin, zmin, xmax, ymax, zmax].
+         */
         static constexpr std::array<double, 6> AABB(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3)
         {
             std::array<double, 6> aabb;
@@ -53,6 +69,13 @@ namespace basicshape {
             return aabb;
         }
 
+        /**
+         * @brief Computes the axis-aligned bounding box (AABB) of a triangle.
+         * @param v0 First vertex.
+         * @param v1 Second vertex.
+         * @param v2 Third vertex.
+         * @return Array of six values [xmin, ymin, zmin, xmax, ymax, zmax].
+         */
         static constexpr std::array<double, 6> triangleAABB(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2)
         {
             std::array<double, 6> aabb;
@@ -63,6 +86,15 @@ namespace basicshape {
             return aabb;
         }
 
+        /**
+         * @brief Tests whether a point lies inside a tetrahedron.
+         * @param v0 First vertex of the tetrahedron.
+         * @param v1 Second vertex of the tetrahedron.
+         * @param v2 Third vertex of the tetrahedron.
+         * @param v3 Fourth vertex of the tetrahedron.
+         * @param point The point to test.
+         * @return True if the point is inside or on the boundary of the tetrahedron.
+         */
         static bool pointInside(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& point)
         {
             // F3 (V0V1V2), F2 (V1V0V3), F1 (V2V3V0), F0 (V3V2V1)
@@ -81,6 +113,16 @@ namespace basicshape {
             return inside;
         }
 
+        /**
+         * @brief Tests whether a triangle overlaps an axis-aligned bounding box.
+         *
+         * Uses the separating axis theorem approach from Schwarz & Seidel (SIGA 2010).
+         * @param v0 First vertex of the triangle.
+         * @param v1 Second vertex of the triangle.
+         * @param v2 Third vertex of the triangle.
+         * @param aabb The AABB as [xmin, ymin, zmin, xmax, ymax, zmax].
+         * @return True if the triangle overlaps the AABB.
+         */
         static bool triangleAABBoverlap(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 6>& aabb)
         {
             // test for a triangle overlapping a AABB
@@ -164,6 +206,18 @@ namespace basicshape {
             return overlap;
         }
 
+        /**
+         * @brief Tests whether a tetrahedron overlaps an axis-aligned bounding box.
+         *
+         * First performs a coarse AABB-AABB overlap test, then checks each of the four
+         * triangular faces against the AABB for a precise result.
+         * @param v0 First vertex of the tetrahedron.
+         * @param v1 Second vertex of the tetrahedron.
+         * @param v2 Third vertex of the tetrahedron.
+         * @param v3 Fourth vertex of the tetrahedron.
+         * @param aabb The AABB as [xmin, ymin, zmin, xmax, ymax, zmax].
+         * @return True if any face of the tetrahedron overlaps the AABB.
+         */
         static constexpr bool insideAABB(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 6>& aabb)
         {
 
@@ -197,6 +251,14 @@ namespace basicshape {
             return overlap;
         }
 
+        /**
+         * @brief Computes the volume of a tetrahedron.
+         * @param v0 First vertex.
+         * @param v1 Second vertex.
+         * @param v2 Third vertex.
+         * @param v3 Fourth vertex.
+         * @return Volume of the tetrahedron (always non-negative).
+         */
         static double volume(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3)
         {
             const auto a = vectormath::subtract(v1, v0);
@@ -206,6 +268,15 @@ namespace basicshape {
             return scale * std::abs(vectormath::tripleProduct(a, b, c));
         }
 
+        /**
+         * @brief Returns the outward face normal of the tetrahedron face closest to a given point.
+         * @param v0 First vertex of the tetrahedron.
+         * @param v1 Second vertex of the tetrahedron.
+         * @param v2 Third vertex of the tetrahedron.
+         * @param v3 Fourth vertex of the tetrahedron.
+         * @param p The query point.
+         * @return Unit normal of the face nearest to @p p.
+         */
         static std::array<double, 3> closestNormalToPoint(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& p)
         {
             const std::array<std::array<double, 3>, 4> normals = {
@@ -225,6 +296,17 @@ namespace basicshape {
             return normals[std::distance(dist.cbegin(), ind)];
         }
 
+        /**
+         * @brief Verifies that all four face normals of a tetrahedron point outward.
+         *
+         * For each face, checks that the opposite vertex lies on the negative side of
+         * the face's normal, which is the expected convention for outward-facing normals.
+         * @param v0 First vertex of the tetrahedron.
+         * @param v1 Second vertex of the tetrahedron.
+         * @param v2 Third vertex of the tetrahedron.
+         * @param v3 Fourth vertex of the tetrahedron.
+         * @return True if all face normals point outward.
+         */
         static bool tetrahedronNormalsOutsideTest(
             const std::array<double, 3>& v0,
             const std::array<double, 3>& v1,
@@ -249,6 +331,14 @@ namespace basicshape {
             return d[0] < 0 && d[1] < 0 && d[2] < 0 && d[3] < 0;
         }
 
+        /**
+         * @brief Computes the ray-triangle intersection distance using the Möller–Trumbore algorithm.
+         * @param v0 First vertex of the triangle.
+         * @param v1 Second vertex of the triangle.
+         * @param v2 Third vertex of the triangle.
+         * @param p The particle (ray), providing position and direction.
+         * @return The parametric distance @c t along the ray to the intersection, or @c std::nullopt if there is no intersection.
+         */
         static std::optional<double> intersectTriangle(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const ParticleType auto& p)
         {
             const auto E1 = vectormath::subtract(v1, v0);
@@ -302,6 +392,18 @@ namespace basicshape {
             */
         }
 
+        /**
+         * @brief Computes the ray-tetrahedron intersection.
+         *
+         * Tests the ray against all four triangular faces and returns the closest
+         * positive-distance hit, along with whether the ray origin is inside the tetrahedron.
+         * @param v0 First vertex of the tetrahedron.
+         * @param v1 Second vertex of the tetrahedron.
+         * @param v2 Third vertex of the tetrahedron.
+         * @param v3 Fourth vertex of the tetrahedron.
+         * @param particle The particle (ray), providing position and direction.
+         * @return A @c WorldIntersectionResult describing the intersection.
+         */
         static WorldIntersectionResult intersect(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
         {
 
@@ -329,6 +431,19 @@ namespace basicshape {
             return res;
         }
 
+        /**
+         * @brief Computes the ray-tetrahedron intersection for visualization, including the surface normal at the hit.
+         *
+         * Like @c intersect, but also computes the outward face normal at the closest intersection
+         * point for use in rendering and visualization.
+         * @tparam U The scalar type used by @c VisualizationIntersectionResult.
+         * @param v0 First vertex of the tetrahedron.
+         * @param v1 Second vertex of the tetrahedron.
+         * @param v2 Third vertex of the tetrahedron.
+         * @param v3 Fourth vertex of the tetrahedron.
+         * @param particle The particle (ray), providing position and direction.
+         * @return A @c VisualizationIntersectionResult describing the intersection and surface normal.
+         */
         template <typename U>
         VisualizationIntersectionResult<U> intersectVisualization(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const ParticleType auto& particle)
         {
