@@ -25,21 +25,55 @@ Copyright 2025 Erlend Andersen
 #include <array>
 
 namespace xraymc {
-struct SphereSamplingCircularField {
-    // Sampling of uniform points on a sphere constrained by a rectangular field
-    // Based on random sampling of points on a whole sphere by sampling x, y, z in [-1, 1] and normalizing the vector
-    // Uses simple random sampling of x, y, z inside a constrained box and rejecting points outside field
-    // perhaps https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone is better?
 
+/**
+ * @brief Uniform direction sampler constrained to a circular cone around the +z axis.
+ *
+ * Samples directions uniformly over the spherical cap defined by a half-opening
+ * angle θ from the +z axis (i.e. the set of unit vectors with cos θ ≥ cos(angle)).
+ *
+ * The method exploits the fact that for a uniform distribution on a sphere the
+ * z-coordinate is uniformly distributed on [−1, 1]. Constraining the cap is
+ * therefore equivalent to drawing z uniformly from [cos(angle), 1] and sampling
+ * the azimuthal angle φ uniformly from [0, 2π):
+ *
+ *   z   ~ Uniform(cos(angle), 1)
+ *   φ   ~ Uniform(0, 2π)
+ *   dir = (√(1−z²)·cos φ,  √(1−z²)·sin φ,  z)
+ *
+ * This produces a rejection-free, O(1) sampler with no approximation.
+ */
+struct SphereSamplingCircularField {
+    /**
+     * @brief Constructs the sampler for the given cone half-angle.
+     * @param angle  Half-opening angle of the cone [rad]. A value of 0 produces
+     *               directions exactly along +z; π produces the full sphere.
+     *               Default: 0.
+     */
     SphereSamplingCircularField(double angle = 0)
     {
         setData(angle);
     }
 
+    /**
+     * @brief Sets the cone half-angle.
+     *
+     * Precomputes and stores cos(angle) to avoid repeated trigonometric evaluation
+     * inside `operator()`.
+     *
+     * @param angle  Half-opening angle of the cone [rad].
+     */
     void setData(double angle)
     {
         m_cosz = std::cos(angle);
     }
+
+    /**
+     * @brief Samples a uniformly distributed unit direction within the cone.
+     *
+     * @param state  Per-thread PRNG state.
+     * @return Unit direction vector {x, y, z} with z ∈ [cos(angle), 1].
+     */
     std::array<double, 3> operator()(RandomState& state) const
     {
         const auto z = state.randomUniform(m_cosz, 1.0);
@@ -51,6 +85,6 @@ struct SphereSamplingCircularField {
         return dir;
     }
 
-    double m_cosz = 0;
+    double m_cosz = 0; ///< Cosine of the cone half-angle; lower bound for the z-coordinate draw.
 };
 }

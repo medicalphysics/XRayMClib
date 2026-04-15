@@ -35,14 +35,6 @@ Copyright 2026 Erlend Andersen
 
 namespace xraymc {
 
-/*
-FILEDESCRIPTION the saved files contains a version header of 16 chars and binary data
-
-Example:
-"xraymc1        "
-
-
-*/
 /**
  * @brief Concept satisfied by types that can be round-tripped through a byte buffer.
  *
@@ -92,10 +84,10 @@ public:
      * @brief Error codes returned by the file `read()` method.
      */
     enum class parse_error {
-        buffer_size_short,        ///< File is too small to contain a valid header.
-        buffer_heading_mismatch,  ///< File header does not match the expected tag.
-        buffer_version_mismatch,  ///< File version tag does not match `version()`.
-        buffer_file_error         ///< File could not be opened or read.
+        buffer_size_short, ///< File is too small to contain a valid header.
+        buffer_heading_mismatch, ///< File header does not match the expected tag.
+        buffer_version_mismatch, ///< File version tag does not match `version()`.
+        buffer_file_error ///< File could not be opened or read.
     };
 
     /**

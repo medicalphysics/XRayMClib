@@ -33,13 +33,27 @@ Copyright 2019 Erlend Andersen
 namespace xraymc {
 
 /**
- * @brief Class for simple generation of random numbers
- * This class aims to provide a small and fast PRNG, but should perhaps be replaced by a STL random generator.
+ * @brief Per-thread PCG32 pseudo-random number generator state.
+ *
+ * Wraps the "Really Minimal PCG32" generator (M.E. O'Neill, 2014, Apache-2.0).
+ * Each transport worker thread owns one `RandomState` instance; the object is
+ * intentionally non-copyable to prevent accidental sharing of PRNG state between
+ * threads.
+ *
+ * Provides:
+ * - `randomUniform()` — floating-point value in [0, 1).
+ * - `randomUniform(max)` / `randomUniform(min, max)` — bounded uniform samples.
+ * - `randomNormal()` — a pair of standard-normal values via Box-Muller.
+ * - `randomInteger(max)` / `randomInteger32BitCapped(max)` — unbiased integer draws.
+ * - `pcg32()` — direct access to the underlying 32-bit generator output.
  */
 class RandomState {
 public:
     /**
-     * @brief Initiate a RandomState with a seed from the local machine random device implementation.
+     * @brief Seeds the generator from the platform's non-deterministic random device.
+     *
+     * Uses `std::random_device` to produce two independent 64-bit seed values,
+     * giving a different sequence on each construction.
      */
     RandomState()
     {
@@ -49,16 +63,19 @@ public:
         m_state[1] = static_cast<std::uint64_t>(dist(d));
     }
     /**
-     * @brief Initiate RandomState with a custom seed
-     * @param state Pointer to a array with two unsigned 64 bit numbers. Both numbers must not be zero.
+     * @brief Seeds the generator from a caller-supplied 2-element array.
+     *
+     * @param state Pointer to an array of two `uint64_t` seed values.
+     *              Neither value should be zero; the sequence is fully determined
+     *              by these two values.
      */
     RandomState(std::uint64_t state[2])
     {
         m_state[0] = state[0];
         m_state[1] = state[1];
     }
-    RandomState(const RandomState&) = delete; // non construction-copyable
-    RandomState& operator=(const RandomState&) = delete; // non copyable
+    RandomState(const RandomState&) = delete; ///< Non-copyable: each thread must own its own state.
+    RandomState& operator=(const RandomState&) = delete; ///< Non-copyable: each thread must own its own state.
 
     /**
      * @brief Generate a random floating point number in range [0, 1.0)
@@ -119,6 +136,15 @@ public:
             static_assert(std::is_integral<T>::value || std::is_floating_point<T>::value, "Must be integral or floating point value.");
     }
 
+    /**
+     * @brief Generates a pair of independent standard-normal samples via Box-Muller.
+     *
+     * Draws two uniform values u1, u2 ∈ (0, 1) and returns
+     * {√(−2 ln u1) · sin(2π u2), √(−2 ln u1) · cos(2π u2)},
+     * both distributed as N(0, 1).
+     *
+     * @return Pair of independent N(0, 1) random variates.
+     */
     inline std::pair<double, double> randomNormal() noexcept
     {
         const auto u1 = randomUniform();
@@ -129,9 +155,14 @@ public:
     }
 
     /**
-     * @brief Generate random unsigned integer on interval 0 to max inclusive
-     * @param max
-     * @return
+     * @brief Returns a uniformly distributed integer in [0, max).
+     *
+     * Uses rejection sampling to eliminate modulo bias. Constrained to types
+     * of at most 32 bits; use `randomInteger32BitCapped` for wider types.
+     *
+     * @tparam T Unsigned integral type, sizeof(T) ≤ 4.
+     * @param max Exclusive upper bound.
+     * @return Unbiased random integer in [0, max).
      */
     template <std::unsigned_integral T>
     inline T randomInteger(const T max) noexcept
@@ -145,6 +176,17 @@ public:
         }
     }
 
+    /**
+     * @brief Returns a uniformly distributed integer in [0, max) for 64-bit or wider types.
+     *
+     * Identical rejection-sampling logic to `randomInteger`, but the result is capped
+     * to the 32-bit generator output range. Use this overload when @p max fits in a
+     * `uint32_t` but the variable type is `uint64_t` or larger.
+     *
+     * @tparam T Unsigned integral type, sizeof(T) > 4.
+     * @param max Exclusive upper bound (must fit within uint32_t).
+     * @return Unbiased random integer in [0, max).
+     */
     template <std::unsigned_integral T>
     inline T randomInteger32BitCapped(const T max) noexcept
     {
@@ -158,11 +200,14 @@ public:
     }
 
     /**
-     * @brief Implementation of the pcg32 random number generator
-     * The function below is borrowed from:
-     * Really* minimal PCG32 code / (c) 2014 M.E. O'Neill / pcg-random.org
-     * Licensed under Apache License 2.0 (NO WARRANTY, etc. see website)
-     * @return A random 32 bit unsigned integer.
+     * @brief Advances the PCG32 state and returns a 32-bit pseudo-random integer.
+     *
+     * Implementation of the "Really Minimal PCG32" generator
+     * (© 2014 M.E. O'Neill / pcg-random.org, Apache-2.0).
+     * Uses the LCG multiplier 6364136223846793005 and the XSH-RR output
+     * function for good statistical quality at low cost.
+     *
+     * @return A pseudo-random 32-bit unsigned integer.
      */
     inline std::uint32_t pcg32() noexcept
     {
@@ -174,24 +219,33 @@ public:
         const std::uint32_t rot = oldstate >> 59u;
         return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
     }
-    std::uint64_t m_state[2];
+    std::uint64_t m_state[2]; ///< PCG32 state: [0] is the LCG accumulator, [1] is the stream selector.
 };
 
 /**
- * @brief Class for sampling of random numbers from a specified descreet distribution.
- * Class for sampling of random numbers from a specified descreet distribution. This implementation use the filling of histogram method.
+ * @brief O(1) sampler for a discrete probability distribution using Vose's alias method.
+ *
+ * Builds a two-column alias table from a weight vector during construction.
+ * Each `sampleIndex()` call draws exactly two uniform values — one to select a
+ * column and one to accept or redirect to the alias — giving O(1) sampling
+ * regardless of the number of bins.
+ *
+ * @tparam T Floating-point type (default: double).
  */
 template <Floating T = double>
 class RandomDistribution {
 public:
     /**
-     * @brief Initialize RandomDistribution class
-     * @param weights A vector of probabilities for each bin. Weights should be atleast of size two. The weights vector will be normalized such that sum of weights is unity.
+     * @brief Constructs the alias table from a weight vector.
+     * @param weights Per-bin probability weights; automatically normalized to sum to 1.
+     *                Must contain at least two elements.
      */
     RandomDistribution(const std::vector<T>& weights)
     {
         m_data = generateTable(weights);
     }
+
+    /// @brief Default constructor — creates a trivial single-bin distribution.
     RandomDistribution()
     {
         m_data.push_back(std::make_pair(T { 1 }, 0));
@@ -210,6 +264,16 @@ public:
         return r < m_data[k].first ? k : m_data[k].second;
     }
 
+    /**
+     * @brief Builds the alias table for a given weight vector.
+     *
+     * Implements the "squaring the histogram" (Vose) alias method:
+     * normalizes weights to sum to N, then iteratively pairs under-full and
+     * over-full buckets until all probabilities are in [0, 1].
+     *
+     * @param weights Per-bin weights (need not be normalized).
+     * @return Vector of {acceptance probability, alias index} pairs.
+     */
     static std::vector<std::pair<T, std::uint64_t>> generateTable(const std::vector<T>& weights)
     {
         // Squaring the histogram method
@@ -265,19 +329,35 @@ private:
 };
 
 /**
- * @brief Class for sampling of a specter of values according to a distribution.
+ * @brief O(1) sampler for a continuous energy spectrum represented as a histogram.
+ *
+ * Stores a beam spectrum as an alias table over energy bins. `sampleValue()` first
+ * draws a bin index via the alias method, then returns a uniform random energy
+ * within that bin's energy interval — approximating sampling from the piecewise-
+ * constant PDF defined by the input weights.
+ *
+ * Provides `copyInternalData()` / `fromInternalData()` for serialization.
+ *
+ * @tparam T Floating-point type (default: double).
  */
 template <Floating T = double>
 class SpecterDistribution {
 public:
+    /// @brief Default constructor — creates an empty distribution.
     SpecterDistribution()
     {
     }
 
     /**
-     * @brief Initialize specter distribution
-     * @param energy A vector energy in keV for each bin. Must be monotonical increasing
-     * @param weighs A vector of weights for each bin. Weights should be at least of size two. The weights vector will be normalized such that sum of weights is unity. Size of weights must be equal to size of energies.
+     * @brief Constructs a spectrum distribution from separate energy and weight vectors.
+     *
+     * Builds an alias table from the supplied weights so that `sampleValue()` runs in O(1).
+     * Weights are normalized internally; they need not sum to unity on input.
+     *
+     * @param energy  Energy values in keV for each bin, in monotonically increasing order.
+     *                Must have the same size as @p weights.
+     * @param weights Relative probability weight for each energy bin. Must be non-negative.
+     *                Size must match @p energy and be at least 1.
      */
     SpecterDistribution(const std::vector<T>& energy, const std::vector<T>& weights)
     {
@@ -292,8 +372,14 @@ public:
     }
 
     /**
-     * @brief Initialize specter distribution
-     * @param weights A vector of pairs {energy, probability} for each bin. Weights should be at least of size two. The weights vector will be normalized such that sum of weights is unity.
+     * @brief Constructs a spectrum distribution from a vector of (energy, weight) pairs.
+     *
+     * Convenience overload that accepts a combined vector of `{energy_keV, weight}` pairs.
+     * Energies are extracted into a monotonically increasing sequence and weights are
+     * normalized internally via the alias method.
+     *
+     * @param specter Vector of `{energy [keV], relative weight}` pairs, one per bin.
+     *                Must have at least one element.
      */
     SpecterDistribution(const std::vector<std::pair<T, T>>& specter)
     {
@@ -378,12 +464,44 @@ private:
     std::vector<DataElement> m_data;
 };
 
+/**
+ * @brief Adaptive-grid CDF-inversion sampler for an arbitrary continuous PDF.
+ *
+ * At construction, an N-point grid is built over [xmin, xmax] by iteratively
+ * refining the interval with the largest Simpson-integration error until exactly
+ * N grid points are placed. Each grid element stores the local CDF value and two
+ * shape coefficients (a, b) that enable analytic inversion of the piecewise-
+ * rational CDF approximation — giving O(log N) sampling via a binary search on the
+ * CDF array followed by a closed-form root solve.
+ *
+ * The two `operator()` overloads allow sampling from the full domain or from a
+ * truncated upper bound.
+ *
+ * @tparam T Floating-point type.
+ * @tparam N Number of grid points (default: 20). Higher values improve accuracy at
+ *           the cost of construction time and memory.
+ */
 template <Floating T, std::size_t N = 20>
 class CPDFSampling {
 public:
+    /// @brief Default constructor — grid is zero-initialised; must be assigned before use.
     CPDFSampling() = default;
     bool operator==(const CPDFSampling<T, N>&) const = default;
 
+    /**
+     * @brief Constructs the sampler by building an adaptive N-point grid for @p pdf.
+     *
+     * Starts with N/2 uniformly spaced points and iteratively inserts a new midpoint
+     * into the interval whose integrated-PDF estimate has the largest absolute error
+     * (measured against a 51-point Simpson quadrature) until exactly N points remain.
+     * The final grid stores per-element CDF values and shape coefficients for O(1)
+     * analytic CDF inversion within each interval.
+     *
+     * @tparam F  Callable type; must accept and return `T` (enforced by concept).
+     * @param xmin  Lower bound of the sampling domain.
+     * @param xmax  Upper bound of the sampling domain.
+     * @param pdf   Probability density function to sample from. Need not be normalised.
+     */
     template <std::regular_invocable<T> F>
         requires std::is_same<std::invoke_result_t<F, T>, T>::value
     CPDFSampling(T xmin, T xmax, const F& pdf)
@@ -414,6 +532,16 @@ public:
         auto grid = buildGrid(points, pdf);
         std::copy(grid.cbegin(), grid.cend(), m_grid.begin());
     }
+    /**
+     * @brief Samples a value from the full distribution [xmin, xmax].
+     *
+     * Draws a uniform CDF variate, locates the enclosing grid interval via binary
+     * search, then analytically inverts the piecewise-rational CDF to obtain the
+     * corresponding x value. Thread-safe when @p state is not shared.
+     *
+     * @param state Per-thread PRNG state.
+     * @return Random variate distributed according to the PDF supplied at construction.
+     */
     T operator()(RandomState& state) const
     {
         const T r1 = state.randomUniform<T>(m_grid[0].e, m_grid[N - 1].e);
@@ -428,6 +556,19 @@ public:
         const auto res = pos0->x + nom * (pos1->x - pos0->x) / den;
         return res;
     }
+    /**
+     * @brief Samples a value from the distribution truncated to [xmin, max_x].
+     *
+     * Restricts the CDF range to the grid interval containing @p max_x, samples a
+     * CDF variate uniformly from that restricted range, and inverts analytically.
+     * If the inversion overshoots @p max_x (possible due to the rational approximation),
+     * the draw is rejected and retried — making this a rejection sampler within the
+     * truncated domain. Thread-safe when @p state is not shared.
+     *
+     * @param max_x  Exclusive upper bound; the returned value is guaranteed ≤ @p max_x.
+     * @param state  Per-thread PRNG state.
+     * @return Random variate in [xmin, max_x] distributed proportionally to the PDF.
+     */
     T operator()(T max_x, RandomState& state) const
     {
         const auto max_xpos = std::upper_bound(m_grid.cbegin() + 1, m_grid.cend() - 1, max_x, [](const auto num, const auto& element) -> bool { return num < element.x; });
@@ -448,15 +589,33 @@ public:
     }
 
 protected:
+    /**
+     * @brief One node of the adaptive CDF grid.
+     *
+     * Stores the PDF-domain coordinate @p x, the cumulative probability @p e at that
+     * point, and two rational-approximation shape coefficients @p a and @p b used for
+     * analytic CDF inversion within the interval [x, x_next].
+     */
     struct GridEl {
-        T x = 0;
-        T e = 0;
-        T a = 0;
-        T b = 0;
+        T x = 0; ///< PDF-domain coordinate of this grid node.
+        T e = 0; ///< Cumulative probability (CDF value) at this node.
+        T a = 0; ///< First rational-approximation shape coefficient.
+        T b = 0; ///< Second rational-approximation shape coefficient.
         bool operator==(const GridEl&) const = default;
     };
 
-    // calcluate p from points
+    /**
+     * @brief Estimates the integrated PDF over the interval [@p g0.x, @p g1.x].
+     *
+     * Uses a numerical quadrature over the rational CDF approximation defined by
+     * the shape coefficients in @p g0, providing an estimate that can be compared
+     * against a direct Simpson integration for error-driven grid refinement.
+     *
+     * @param g0      Left grid node.
+     * @param g1      Right grid node.
+     * @param Nsteps  Number of quadrature steps (default: 50).
+     * @return Estimated integral of the PDF over the interval.
+     */
     static T integrateGrid(const GridEl& g0, const GridEl& g1, std::size_t Nsteps = 50)
     {
         T sum = 0;
@@ -476,6 +635,19 @@ protected:
         }
         return sum * step;
     }
+    /**
+     * @brief Builds a CDF grid from a set of x-domain sample points and a PDF functor.
+     *
+     * Evaluates the PDF at each point and accumulates a running Simpson integral to
+     * produce unnormalized CDF values. For each consecutive pair of points, computes
+     * the rational-approximation shape coefficients @p a and @p b that allow analytic
+     * CDF inversion within that interval.
+     *
+     * @tparam F   Callable accepting and returning `T`.
+     * @param points  Ordered x-domain knot positions.
+     * @param pdf     PDF functor; called once per knot.
+     * @return Vector of @p GridEl nodes with x, cumulative-e, a, and b filled in.
+     */
     template <typename F>
     static std::vector<GridEl> buildGrid(const std::vector<T> points, const F& pdf)
     {
@@ -502,6 +674,19 @@ protected:
         return grid;
     }
 
+    /**
+     * @brief Computes the definite integral of @p pdf over [x0, x1] via composite Simpson's rule.
+     *
+     * Uses @p Nsimp uniformly spaced points (must be odd). Serves as the reference
+     * integrator for error-driven grid refinement during construction.
+     *
+     * @tparam F      Callable accepting and returning `T`.
+     * @tparam Nsimp  Number of quadrature points (default: 51, must be odd).
+     * @param x0   Lower integration bound.
+     * @param x1   Upper integration bound.
+     * @param pdf  PDF functor to integrate.
+     * @return Approximate integral of @p pdf over [x0, x1].
+     */
     template <typename F, int Nsimp = 51>
     static T simpson_integral(T x0, T x1, const F& pdf)
     {

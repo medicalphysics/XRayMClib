@@ -26,35 +26,96 @@ Copyright 2025 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Uniform direction sampler constrained to an axis-aligned spherical rectangle.
+ *
+ * Samples unit directions uniformly over the solid angle subtended by a rectangular
+ * field whose edges are aligned with the x- and y-axes and whose centre is on the +z
+ * axis. The field is specified by its angular half-extents or by explicit min/max angles
+ * in x and y.
+ *
+ * Implements the area-preserving parametrisation described in:
+ *   "An Area-Preserving Parametrization for Spherical Rectangles"
+ *   C. Ureña, M. Fajardo, A. King (2013).
+ *
+ * The algorithm maps two independent uniform variates (u, v) ∈ [0,1)² to a point on
+ * the spherical cap via an analytic CDF inversion — no rejection sampling is needed.
+ *
+ * For a field that is not axis-aligned, use `SphereSamplingRectangularGeneralField`.
+ */
 struct SphereSamplingRectangularField {
-    // Sampling of uniform points on a sphere constrained by an axis aligned rectangular field
-    // Based on: An Area-Preserving Parametrization for Spherical Rectangles by
-    // Carlos Ureña1 and Marcos Fajardo2 and Alan King
+    /**
+     * @brief Constructs a symmetric field from a pair of half-angles {x, y} [rad].
+     * @param angles  `{collimationHalfAngle_x, collimationHalfAngle_y}` in radians.
+     */
     SphereSamplingRectangularField(const std::array<double, 2>& angles)
     {
         setData(angles[0], angles[1]);
     }
+
+    /**
+     * @brief Constructs a symmetric field from separate x and y half-angles [rad].
+     * @param collimationHalfAngle_x  Half-angle in the x direction [rad]. Default: 0.
+     * @param collimationHalfAngle_y  Half-angle in the y direction [rad]. Default: 0.
+     */
     SphereSamplingRectangularField(double collimationHalfAngle_x = 0, double collimationHalfAngle_y = 0)
     {
         setData(collimationHalfAngle_x, collimationHalfAngle_y);
     }
+
+    /**
+     * @brief Constructs an asymmetric field from a four-element angle array [rad].
+     * @param angles  `{x_min, y_min, x_max, y_max}` angular bounds in radians.
+     */
     SphereSamplingRectangularField(const std::array<double, 4>& angles)
     {
         setData(angles[0], angles[1], angles[2], angles[3]);
     }
+
+    /**
+     * @brief Constructs an asymmetric field from explicit min/max angles [rad].
+     * @param x_min  Minimum x angle [rad].
+     * @param y_min  Minimum y angle [rad].
+     * @param x_max  Maximum x angle [rad].
+     * @param y_max  Maximum y angle [rad].
+     */
     SphereSamplingRectangularField(double x_min, double y_min, double x_max, double y_max)
     {
         setData(x_min, y_min, x_max, y_max);
     }
+
+    /**
+     * @brief Sets an asymmetric field from a four-element angle array [rad].
+     * @param angles  `{x_min, y_min, x_max, y_max}` angular bounds in radians.
+     */
     void setData(const std::array<double, 4>& angles)
     {
         setData(angles[0], angles[1], angles[2], angles[3]);
     }
+
+    /**
+     * @brief Sets a symmetric field from x and y half-angles [rad].
+     *
+     * Expands to `setData(-hx, -hy, +hx, +hy)`.
+     *
+     * @param collimationHalfAngle_x  Half-angle in the x direction [rad].
+     * @param collimationHalfAngle_y  Half-angle in the y direction [rad].
+     */
     void setData(double collimationHalfAngle_x, double collimationHalfAngle_y)
     {
         setData(-collimationHalfAngle_x, -collimationHalfAngle_y, collimationHalfAngle_x, collimationHalfAngle_y);
     }
 
+    /**
+     * @brief Samples a uniformly distributed unit direction within the rectangular field.
+     *
+     * Draws two independent uniform variates u and v, inverts the area-preserving CDF
+     * analytically to obtain the x- and y-direction tangent components, then normalises
+     * to produce a unit vector pointing into the +z hemisphere.
+     *
+     * @param state  Per-thread PRNG state.
+     * @return Unit direction vector {x, y, z} with z > 0.
+     */
     std::array<double, 3> operator()(RandomState& state) const
     {
         const auto u = state.randomUniform();
@@ -77,6 +138,21 @@ struct SphereSamplingRectangularField {
         return dir;
     }
 
+    /**
+     * @brief Sets an asymmetric field from explicit angular bounds and precomputes sampling constants.
+     *
+     * Converts angular bounds to tangent-plane coordinates, computes the four bounding-plane
+     * normals of the spherical rectangle, then derives the area-preserving parametrisation
+     * constants m_S and m_k used by `operator()`.
+     *
+     * Very small fields (|max − min| < 1e-6 rad in either dimension) are expanded slightly
+     * to avoid numerical degenerate cases.
+     *
+     * @param x_min_ang  Minimum x angular bound [rad].
+     * @param y_min_ang  Minimum y angular bound [rad].
+     * @param x_max_ang  Maximum x angular bound [rad].
+     * @param y_max_ang  Maximum y angular bound [rad].
+     */
     void setData(double x_min_ang, double y_min_ang, double x_max_ang, double y_max_ang)
     {
         auto away_zero = [](double& min, double& max) -> void {
@@ -125,23 +201,44 @@ struct SphereSamplingRectangularField {
         return;
     }
 
-    double m_x0;
-    double m_y0;
-    double m_y0sq;
-    double m_x1;
-    double m_y1;
-    double m_y1sq;
-    double m_b0;
-    double m_b1;
-    double m_b0sq;
-    double m_k;
-    double m_S;
+    double m_x0;    ///< Tangent-plane x coordinate of the left edge.
+    double m_y0;    ///< Tangent-plane y coordinate of the bottom edge.
+    double m_y0sq;  ///< m_y0².
+    double m_x1;    ///< Tangent-plane x coordinate of the right edge.
+    double m_y1;    ///< Tangent-plane y coordinate of the top edge.
+    double m_y1sq;  ///< m_y1².
+    double m_b0;    ///< z-component of the bottom bounding-plane normal n0.
+    double m_b1;    ///< z-component of the top bounding-plane normal n2.
+    double m_b0sq;  ///< m_b0².
+    double m_k;     ///< CDF offset constant (2π − g2 − g3).
+    double m_S;     ///< Solid angle of the spherical rectangle [sr].
 };
 
+/**
+ * @brief Uniform direction sampler constrained to an arbitrarily oriented spherical rectangle.
+ *
+ * Generalises `SphereSamplingRectangularField` to support rectangular fields that are
+ * not aligned with the coordinate axes. The field is defined by a lower-left corner in
+ * world space, two orthogonal edge vectors (`plane_cosinex`, `plane_cosiney`), and the
+ * source position. Sampled world-space directions are returned as unit vectors.
+ *
+ * Implements the same area-preserving CDF-inversion algorithm as
+ * `SphereSamplingRectangularField`, extended to arbitrary orientation by transforming
+ * into a local frame aligned with the plane normal.
+ *
+ * Reference: "An Area-Preserving Parametrization for Spherical Rectangles",
+ * C. Ureña, M. Fajardo, A. King (2013).
+ */
 struct SphereSamplingRectangularGeneralField {
-    // Sampling of uniform points on a sphere constrained by a arbitrary rectangular field
-    // Based on: An Area-Preserving Parametrization for Spherical Rectangles by
-    // Carlos Ureña1 and Marcos Fajardo2 and Alan King
+    /**
+     * @brief Constructs the sampler from an explicit world-space rectangle description.
+     *
+     * @param plane_lower_left  World-space position of the rectangle's lower-left corner.
+     * @param plane_cosinex     Edge vector along the local x axis (length = field width).
+     * @param plane_cosiney     Edge vector along the local y axis (length = field height).
+     *                          Must be orthogonal to @p plane_cosinex.
+     * @param source_pos        World-space source (focal spot) position.
+     */
     SphereSamplingRectangularGeneralField(
         const std::array<double, 3>& plane_lower_left,
         const std::array<double, 3>& plane_cosinex,
@@ -150,26 +247,68 @@ struct SphereSamplingRectangularGeneralField {
     {
         setData(plane_lower_left, plane_cosinex, plane_cosiney, source_pos);
     }
+
+    /**
+     * @brief Constructs a symmetric axis-aligned field from a pair of half-angles {x, y} [rad].
+     * @param angles  `{collimationHalfAngle_x, collimationHalfAngle_y}` in radians.
+     */
     SphereSamplingRectangularGeneralField(const std::array<double, 2>& angles)
     {
         setData(angles[0], angles[1]);
     }
+
+    /**
+     * @brief Constructs a symmetric axis-aligned field from x and y half-angles [rad].
+     * @param collimationHalfAngle_x  Half-angle in the x direction [rad]. Default: 0.01.
+     * @param collimationHalfAngle_y  Half-angle in the y direction [rad]. Default: 0.01.
+     */
     SphereSamplingRectangularGeneralField(double collimationHalfAngle_x = .01, double collimationHalfAngle_y = .01)
     {
         setData(collimationHalfAngle_x, collimationHalfAngle_y);
     }
+
+    /**
+     * @brief Constructs an asymmetric axis-aligned field from a four-element angle array [rad].
+     * @param angles  `{x_min, y_min, x_max, y_max}` angular bounds in radians.
+     */
     SphereSamplingRectangularGeneralField(const std::array<double, 4>& angles)
     {
         setData(angles[0], angles[1], angles[2], angles[3]);
     }
+
+    /**
+     * @brief Constructs an asymmetric axis-aligned field from explicit min/max angles [rad].
+     * @param x_min  Minimum x angle [rad].
+     * @param y_min  Minimum y angle [rad].
+     * @param x_max  Maximum x angle [rad].
+     * @param y_max  Maximum y angle [rad].
+     */
     SphereSamplingRectangularGeneralField(double x_min, double y_min, double x_max, double y_max)
     {
         setData(x_min, y_min, x_max, y_max);
     }
+
+    /**
+     * @brief Sets an asymmetric axis-aligned field from a four-element angle array [rad].
+     * @param angles  `{x_min, y_min, x_max, y_max}` angular bounds in radians.
+     */
     void setData(const std::array<double, 4>& angles)
     {
         setData(angles[0], angles[1], angles[2], angles[3]);
     }
+
+    /**
+     * @brief Sets an asymmetric axis-aligned field from explicit angular bounds [rad].
+     *
+     * Converts angular bounds to tangent-plane coordinates, constructs a world-space
+     * rectangle on the z = 1 plane centred on the origin, and delegates to the
+     * world-space `setData` overload.
+     *
+     * @param x_min_ang  Minimum x angular bound [rad].
+     * @param y_min_ang  Minimum y angular bound [rad].
+     * @param x_max_ang  Maximum x angular bound [rad].
+     * @param y_max_ang  Maximum y angular bound [rad].
+     */
     void setData(double x_min_ang, double y_min_ang, double x_max_ang, double y_max_ang)
     {
         const double x_min = std::tan(x_min_ang);
@@ -183,6 +322,16 @@ struct SphereSamplingRectangularGeneralField {
         setData(p, cos_x, cos_y, o);
     }
 
+    /**
+     * @brief Sets a symmetric axis-aligned field from x and y half-angles [rad].
+     *
+     * Constructs a world-space rectangle on the z = 1 plane of full size
+     * 2·tan(hx) × 2·tan(hy) centred on the origin and delegates to the
+     * world-space `setData` overload.
+     *
+     * @param collimationHalfAngle_x  Half-angle in the x direction [rad].
+     * @param collimationHalfAngle_y  Half-angle in the y direction [rad].
+     */
     void setData(double collimationHalfAngle_x, double collimationHalfAngle_y)
     {
         const double x = std::tan(collimationHalfAngle_x);
@@ -194,6 +343,20 @@ struct SphereSamplingRectangularGeneralField {
         setData(p, cos_x, cos_y, o);
     }
 
+    /**
+     * @brief Sets the sampler from a world-space rectangle and source position.
+     *
+     * Computes the local frame (x̂, ŷ, ẑ) aligned with the plane, projects the
+     * rectangle corners into that frame, builds the four bounding-plane normals,
+     * and derives the area-preserving parametrisation constants m_S and m_k.
+     * The plane normal direction is flipped if necessary so that m_z0 < 0
+     * (i.e. the source lies on the positive-normal side of the plane).
+     *
+     * @param plane_lower_left  World-space lower-left corner of the rectangle.
+     * @param plane_cosinex     Edge vector along local x (length = field width).
+     * @param plane_cosiney     Edge vector along local y (length = field height).
+     * @param source_pos        World-space source position.
+     */
     void setData(
         const std::array<double, 3>& plane_lower_left,
         const std::array<double, 3>& plane_cosinex,
@@ -246,6 +409,17 @@ struct SphereSamplingRectangularGeneralField {
         return;
     }
 
+    /**
+     * @brief Samples a uniformly distributed unit direction within the rectangular field.
+     *
+     * Draws two independent uniform variates u and v, inverts the area-preserving CDF
+     * analytically in the local frame, then transforms the result back to world space
+     * and normalises. Clamps intermediate values to avoid numerical overflow at the
+     * field boundary.
+     *
+     * @param state  Per-thread PRNG state.
+     * @return Unit direction vector in world space pointing into the rectangular field.
+     */
     std::array<double, 3> operator()(RandomState& state) const
     {
         const auto u = state.randomUniform();
@@ -272,36 +446,57 @@ struct SphereSamplingRectangularGeneralField {
         return dir;
     }
 
-    std::array<double, 3> m_o;
-    std::array<double, 3> m_x;
-    std::array<double, 3> m_y;
-    std::array<double, 3> m_z;
-    double m_z0;
-    double m_z0sq;
-    double m_x0;
-    double m_y0;
-    double m_y0sq;
-    double m_x1;
-    double m_y1;
-    double m_y1sq;
-    double m_b0;
-    double m_b1;
-    double m_b0sq;
-    double m_k;
-    double m_S;
+    std::array<double, 3> m_o; ///< Source (origin) position in world space.
+    std::array<double, 3> m_x; ///< Local x-axis unit vector (along plane_cosinex).
+    std::array<double, 3> m_y; ///< Local y-axis unit vector (along plane_cosiney).
+    std::array<double, 3> m_z; ///< Local z-axis unit vector (plane normal, pointing toward source).
+    double m_z0;    ///< Signed distance from source to the plane along m_z (always ≤ 0).
+    double m_z0sq;  ///< m_z0².
+    double m_x0;    ///< Local-frame x coordinate of the left edge.
+    double m_y0;    ///< Local-frame y coordinate of the bottom edge.
+    double m_y0sq;  ///< m_y0².
+    double m_x1;    ///< Local-frame x coordinate of the right edge.
+    double m_y1;    ///< Local-frame y coordinate of the top edge.
+    double m_y1sq;  ///< m_y1².
+    double m_b0;    ///< z-component of the bottom bounding-plane normal n0.
+    double m_b1;    ///< z-component of the top bounding-plane normal n2.
+    double m_b0sq;  ///< m_b0².
+    double m_k;     ///< CDF offset constant (2π − g2 − g3).
+    double m_S;     ///< Solid angle of the spherical rectangle [sr].
 };
 
+/**
+ * @brief Uniform direction sampler constrained to a square field via rejection sampling.
+ *
+ * Samples directions uniformly within the square cap defined by |x| ≤ sin(half_angle)
+ * and |y| ≤ sin(half_angle) on the unit sphere. The algorithm draws directions
+ * uniformly from the enclosing circular cone (radius sin(half_angle)·√2) and rejects
+ * those whose projected x or y component exceeds the square boundary.
+ *
+ * @note This is a rejection sampler. For small or very large half-angles the acceptance
+ * rate approaches π/4 ≈ 0.785 (the ratio of a square to its circumscribed circle).
+ * For fields that are axis-aligned rectangular (not necessarily square) consider using
+ * `SphereSamplingRectangularField` which is rejection-free.
+ */
 struct SphereSamplingSquareField {
-    // Sampling of uniform points on a sphere constrained by a Square field
-    // Based on random sampling of points on a whole sphere by sampling x, y, z in [-1, 1] and normalizing the vector
-    // Uses simple random sampling of x, y, z inside a constrained box and rejecting points outside field
-    // perhaps https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone is better?
-
+    /**
+     * @brief Constructs the sampler for the given square half-angle.
+     * @param half_angle  Half-width of the square field [rad]. Default: 0.01.
+     */
     SphereSamplingSquareField(double half_angle = .01)
     {
         setData(half_angle);
     }
 
+    /**
+     * @brief Sets the square half-angle and precomputes the enclosing-cone cosine.
+     *
+     * Computes `border = sin(half_angle)` (clamped away from zero) and
+     * `cosz = cos(asin(border·√2))` — the cosine of the enclosing circular cone
+     * used as the outer bound for the rejection loop.
+     *
+     * @param half_angle  Half-width of the square field [rad].
+     */
     void setData(double half_angle)
     {
         border = std::max(std::sin(half_angle), std::numeric_limits<double>::min());
@@ -309,6 +504,15 @@ struct SphereSamplingSquareField {
         cosz = std::sqrt(1 - sinz * sinz);
     }
 
+    /**
+     * @brief Samples a uniformly distributed unit direction within the square field.
+     *
+     * Repeatedly draws directions from the enclosing circular cone until both |x| and
+     * |y| are within `border`. Thread-safe when @p state is not shared.
+     *
+     * @param state  Per-thread PRNG state.
+     * @return Unit direction vector {x, y, z} with |x| ≤ border and |y| ≤ border.
+     */
     std::array<double, 3> operator()(RandomState& state) const
     {
         std::array<double, 3> dir;
@@ -330,8 +534,8 @@ struct SphereSamplingSquareField {
         dir = { x, y, z };
         return dir;
     }
-    double border = 0;
-    double cosz = 1;
+    double border = 0; ///< sin(half_angle) — maximum allowed |x| and |y| component.
+    double cosz = 1;   ///< cos of the enclosing cone angle (cos(asin(border·√2))).
 };
 
 }

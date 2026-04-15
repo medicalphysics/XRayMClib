@@ -26,6 +26,29 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Concept constraining a type to the beam interface required by the transport engine.
+ *
+ * A type `B` satisfies `BeamType` when it provides the following expressions:
+ *
+ * | Expression | Return type | Description |
+ * |---|---|---|
+ * | `beam.exposure(index).sampleParticle(state)` | (any) | Samples a photon from exposure `index` using PRNG `state`. |
+ * | `beam.exposure(index).numberOfParticles()` | `std::uint64_t` | Number of particles in exposure `index`. |
+ * | `beam.exposure(index).position()` | convertible to `std::array<double,3>` | Source position for exposure `index` [cm]. |
+ * | `beam.numberOfExposures()` | `std::uint64_t` | Total number of exposures (i.e. gantry positions / tube firings). |
+ * | `beam.numberOfParticles()` | `std::uint64_t` | Total number of particles across all exposures. |
+ * | `beam.calibrationFactor(progress)` | convertible to `double` | Dose calibration factor applied after transport. |
+ *
+ * The `Transport` engine distributes exposures across worker threads and calls
+ * `beam.calibrationFactor(progress)` once after all threads complete to convert
+ * accumulated energy scores to dose.
+ *
+ * Conforming beam types include (non-exhaustively): `CTSpiralBeam`, `CTAxialBeam`,
+ * `DXBeam`, and `IsotropicBeam`.
+ *
+ * @tparam B  The beam type to check.
+ */
 template <typename B>
 concept BeamType = requires(B beam, std::array<double, 3> vec, RandomState state, std::uint64_t index, TransportProgress* progress) {
     {
