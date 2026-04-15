@@ -27,8 +27,24 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Singleton registry of NIST compound and mixture material compositions.
+ *
+ * Provides elemental mass fractions and reference densities for ~170 materials
+ * taken from the NIST X-Ray Mass Attenuation Coefficients database
+ * (https://physics.nist.gov/PhysRefData/XrayMassCoef/tab2.html).
+ *
+ * Material data includes biological tissues (ICRP/ICRU reference compositions),
+ * polymers, crystals, gases, dosimetric phantoms, and common laboratory compounds.
+ * All public methods are static; the singleton is managed internally via `Instance()`.
+ * Copy construction and assignment are deleted to enforce the singleton pattern.
+ */
 class NISTMaterials {
 public:
+    /**
+     * @brief Returns the names of all materials in the registry.
+     * @return Vector of material name strings in map-iteration order.
+     */
     static const std::vector<std::string> listNames()
     {
         const auto& instance = Instance();
@@ -37,6 +53,12 @@ public:
             [](const auto& n) { return n.first; });
         return names;
     }
+    /**
+     * @brief Returns the elemental mass fractions for the named material.
+     *
+     * @param name  Material name as returned by `listNames()`.
+     * @return Map of `{Z → mass fraction}`. Returns an empty map if @p name is not found.
+     */
     static std::map<std::uint8_t, double> Composition(const std::string& name)
     {
         const auto& instance = Instance();
@@ -45,6 +67,12 @@ public:
         std::map<std::uint8_t, double> empty;
         return empty;
     }
+    /**
+     * @brief Returns the reference density of the named material [g/cm³].
+     *
+     * @param name  Material name as returned by `listNames()`.
+     * @return Reference density [g/cm³], or 0 if @p name is not found.
+     */
     static double density(const std::string& name)
     {
         const auto& instance = Instance();
@@ -53,20 +81,36 @@ public:
         return 0;
     }
 
+    /// @brief Copy construction is deleted (singleton).
     NISTMaterials(const NISTMaterials&) = delete;
+    /// @brief Copy assignment is deleted (singleton).
     void operator=(const NISTMaterials&) = delete;
 
 protected:
+    /**
+     * @brief Internal storage for a single NIST material entry.
+     */
     struct NISTdata {
-        double density = 0;
-        std::map<std::uint8_t, double> massFractions;
+        double density = 0;                          ///< Reference density [g/cm³].
+        std::map<std::uint8_t, double> massFractions; ///< Elemental mass fractions keyed by atomic number Z.
     };
+
+    /**
+     * @brief Returns the singleton `NISTMaterials` instance, constructing it on first call.
+     * @return Const reference to the singleton.
+     */
     static const NISTMaterials& Instance()
     {
         static NISTMaterials instance;
         return instance;
     }
 
+    /**
+     * @brief Constructs the singleton by populating the material registry.
+     *
+     * Inserts all ~170 NIST material entries (compositions and densities) into
+     * `nistdata` at construction time.
+     */
     NISTMaterials()
     {
         nistdata["A-150 Tissue-Equivalent Plastic"] = { .density = 1.127f, .massFractions = { { 1, 0.101327f }, { 6, 0.775501f }, { 7, 0.035057f }, { 8, 0.052316f }, { 9, 0.017422f }, { 20, 0.018378f } } };
@@ -253,6 +297,6 @@ protected:
     }
 
 private:
-    std::map<std::string, NISTdata> nistdata;
+    std::map<std::string, NISTdata> nistdata;   ///< Registry mapping material name to density and mass fractions.
 };
 }

@@ -29,14 +29,40 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 namespace basicshape {
+    /**
+     * @brief Geometric primitives for a finite right-circular cylinder.
+     *
+     * The cylinder is parameterised by a centre point, a unit axis direction,
+     * a radius, and a half-height. All coordinates are in [cm].
+     */
     namespace cylinder {
 
+        /**
+         * @brief Geometric description of a finite right-circular cylinder.
+         *
+         * The cylinder extends from `center − direction × half_height` to
+         * `center + direction × half_height` along its axis, with the given radius.
+         * The axis direction is always normalised at construction time.
+         */
         struct Cylinder {
-            std::array<double, 3> center = { 0, 0, 0 };
-            std::array<double, 3> direction = { 0, 0, 1 };
-            double radius = 1;
-            double half_height = 1;
+            std::array<double, 3> center = { 0, 0, 0 };    ///< Centre point of the cylinder [cm].
+            std::array<double, 3> direction = { 0, 0, 1 };  ///< Unit vector along the cylinder axis.
+            double radius = 1;                               ///< Cylinder radius [cm].
+            double half_height = 1;                          ///< Half-length along the axis [cm].
+
+            /// @brief Default-constructs a unit cylinder centred at the origin, aligned with the z-axis.
             Cylinder() = default;
+
+            /**
+             * @brief Constructs a cylinder with explicit parameters.
+             *
+             * @p direction_arr is normalised internally.
+             *
+             * @param center_arr        Centre of the cylinder [cm].
+             * @param direction_arr     Axis direction (normalised internally).
+             * @param radii             Cylinder radius [cm].
+             * @param half_height_wall  Half-length along the axis [cm].
+             */
             Cylinder(const std::array<double, 3>& center_arr, const std::array<double, 3>& direction_arr, double radii, double half_height_wall)
                 : center(center_arr)
                 , radius(radii)
@@ -45,14 +71,28 @@ namespace basicshape {
                 direction = vectormath::normalized(direction_arr);
             }
 
+            /// @brief Equality comparison (all fields).
             bool operator==(const Cylinder&) const = default;
 
+            /**
+             * @brief Returns the volume of the cylinder [cm³].
+             * @return π × radius² × 2 × half_height [cm³].
+             */
             double volume() const
             {
                 return std::numbers::pi_v<double> * radius * radius * half_height * 2;
             }
         };
 
+        /**
+         * @brief Computes the axis-aligned bounding box of a cylinder.
+         *
+         * The AABB is computed from the two end-disc extents and the disc radii
+         * projected onto each world axis.
+         *
+         * @param cyl  The cylinder to bound.
+         * @return AABB as `{x_min, y_min, z_min, x_max, y_max, z_max}` [cm].
+         */
         static std::array<double, 6> cylinderAABB(const Cylinder& cyl)
         {
             // calculating disc extents
@@ -75,6 +115,16 @@ namespace basicshape {
             return aabb;
         }
 
+        /**
+         * @brief Returns true if @p pos lies inside or on the surface of @p cylinder.
+         *
+         * Tests radial containment within the infinite cylinder first, then checks
+         * that the point lies between the two end-caps.
+         *
+         * @param pos       3-D point [cm].
+         * @param cylinder  Cylinder to test against.
+         * @return True if @p pos is inside or on the surface of @p cylinder.
+         */
         static constexpr bool pointInside(const std::array<double, 3>& pos, const Cylinder& cylinder)
         {
             const auto d = vectormath::cross(cylinder.direction, vectormath::subtract(pos, cylinder.center));
@@ -178,6 +228,23 @@ namespace basicshape {
             return std::nullopt;
         }*/
 
+        /**
+         * @brief Computes the full (forward and backward) ray–cylinder intersection interval.
+         *
+         * Handles two cases:
+         * - **Parallel ray** (`|na|² < ε`): the ray is parallel to the cylinder axis; only
+         *   end-cap intersections are tested.
+         * - **General ray**: the lateral surface intersection is computed from the
+         *   cross-product formulation, then each intersection t-value is replaced by
+         *   the corresponding cap t-value if the lateral hit is outside the end-caps.
+         *
+         * Returns `nullopt` if the ray misses the cylinder entirely.
+         *
+         * @param p        Particle satisfying `ParticleType` (`.pos`, `.dir`).
+         * @param cylinder Cylinder to intersect.
+         * @return `{t_enter, t_exit}` [cm] if the ray hits; `nullopt` otherwise.
+         *         Both t-values may be negative (ray hits are behind the origin).
+         */
         static std::optional<std::array<double, 2>> intersectInterval(const ParticleType auto& p, const Cylinder& cylinder)
         {
             const auto b = vectormath::subtract(cylinder.center, p.pos);
@@ -262,6 +329,16 @@ namespace basicshape {
             }
         }
 
+        /**
+         * @brief Computes the forward-only ray–cylinder intersection interval.
+         *
+         * Delegates to `intersectInterval` then clamps t_enter to ≥ 0 and discards
+         * the result entirely if t_exit ≤ 0 (cylinder is fully behind the ray origin).
+         *
+         * @param p        Particle satisfying `ParticleType`.
+         * @param cylinder Cylinder to intersect.
+         * @return `{t_enter, t_exit}` with t_enter ≥ 0 if the ray hits; `nullopt` otherwise.
+         */
         static std::optional<std::array<double, 2>> intersectForwardInterval(const ParticleType auto& p, const Cylinder& cylinder)
         {
             auto t_cand = intersectInterval(p, cylinder);
@@ -274,6 +351,19 @@ namespace basicshape {
             return t_cand;
         }
 
+        /**
+         * @brief Computes the ray–cylinder intersection for particle transport.
+         *
+         * Returns a `WorldIntersectionResult` with:
+         * - `intersectionValid = true` if the ray hits the cylinder and t_exit > 0.
+         * - `rayOriginIsInsideItem = true` if the particle origin is inside the cylinder
+         *   (t_enter ≤ 0); in that case `intersection` = t_exit (the exit distance).
+         * - `intersection` = t_enter if the origin is outside [cm].
+         *
+         * @param p        Particle satisfying `ParticleType`.
+         * @param cylinder Cylinder to intersect.
+         * @return `WorldIntersectionResult` describing the intersection.
+         */
         static WorldIntersectionResult intersect(const ParticleType auto& p, const Cylinder& cylinder)
         {
             const auto t_cand = intersectInterval(p, cylinder);
@@ -289,6 +379,18 @@ namespace basicshape {
             return res;
         }
 
+        /**
+         * @brief Returns the outward surface normal at a point on the cylinder surface.
+         *
+         * Determines whether @p pos is on a flat end-cap or on the lateral surface by
+         * comparing the radial distance from the axis to `radius × (1 − ε)`:
+         * - **End-cap**: returns `±direction` depending on which cap was hit.
+         * - **Lateral surface**: returns the normalised radial vector from the axis to @p pos.
+         *
+         * @param pos      Point on the cylinder surface [cm].
+         * @param cylinder The cylinder.
+         * @return Outward unit normal vector at @p pos.
+         */
         static std::array<double, 3> normalOnPoint(const std::array<double, 3>& pos, const Cylinder& cylinder)
         {
             // finding normal
@@ -310,6 +412,18 @@ namespace basicshape {
             return normal;
         }
 
+        /**
+         * @brief Computes a ray–cylinder intersection for visualisation, including the surface normal.
+         *
+         * Uses `intersectInterval` (no forward clamping) and returns both the hit distance
+         * and the outward surface normal at the hit point. If the ray origin is inside the
+         * cylinder the normal is negated (pointing inward, toward the origin).
+         *
+         * @tparam U    Type tag for the `VisualizationIntersectionResult`.
+         * @param p        Particle satisfying `ParticleType`.
+         * @param cylinder Cylinder to intersect.
+         * @return `VisualizationIntersectionResult<U>` with intersection distance and outward normal.
+         */
         template <typename U>
         VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p, const Cylinder& cylinder)
         {

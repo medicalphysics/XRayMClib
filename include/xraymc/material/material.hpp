@@ -33,28 +33,68 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Per-subshell data mixed down from the constituent elements of a `Material`.
+ *
+ * Stores the weighted-average orbital parameters needed to sample photoelectric
+ * interactions and fluorescence emission within a compound material. At most `N`
+ * explicit shells are tracked; any remaining shells are collapsed into a single
+ * remainder shell by `Material::createMaterialAtomicShells`.
+ */
 struct MaterialShell {
-    double numberOfElectronsFraction = 0;
-    double bindingEnergy = 0;
-    double HartreeFockOrbital_0 = 0;
-    double numberOfPhotonsPerInitVacancy = 0;
-    double energyOfPhotonsPerInitVacancy = 0;
+    double numberOfElectronsFraction = 0;       ///< Fraction of total material electrons in this shell (normalised to 1 across all shells).
+    double bindingEnergy = 0;                    ///< Shell binding energy [keV].
+    double HartreeFockOrbital_0 = 0;             ///< Hartree–Fock orbital momentum parameter p₀ [a.u.] for Compton profile sampling.
+    double numberOfPhotonsPerInitVacancy = 0;    ///< Average fluorescence photons emitted per initial vacancy in this shell.
+    double energyOfPhotonsPerInitVacancy = 0;    ///< Average total fluorescence energy per initial vacancy [keV].
 
+    /// @brief Equality comparison (all fields).
     bool operator==(const MaterialShell& other) const = default;
 };
 
+/**
+ * @brief Mass attenuation coefficients [cm²/g] for the three photon interaction types at a given energy.
+ */
 struct AttenuationValues {
-    double photoelectric;
-    double incoherent;
-    double coherent;
+    double photoelectric;   ///< Photoelectric absorption mass attenuation coefficient [cm²/g].
+    double incoherent;      ///< Incoherent (Compton) scattering mass attenuation coefficient [cm²/g].
+    double coherent;        ///< Coherent (Rayleigh) scattering mass attenuation coefficient [cm²/g].
+    /// @brief Returns the total mass attenuation coefficient (sum of all three interactions) [cm²/g].
     double sum() const noexcept { return photoelectric + incoherent + coherent; }
 };
 
+/**
+ * @brief A photon-transport material built from weighted elemental cross-section data.
+ *
+ * Stores cubic least-squares spline interpolation tables (in log-log space) for
+ * photoelectric absorption, incoherent (Compton) scattering, coherent (Rayleigh)
+ * scattering, form factors, incoherent scattering functions, and mean Compton scatter
+ * energies. Per-subshell photoelectric cross-sections are kept separately for up to `N`
+ * shells; excess shells are collapsed into a single remainder shell.
+ *
+ * A `Material` cannot be default-constructed publicly; use one of the static factory
+ * methods:
+ * - `byZ(Z)`                    — pure element by atomic number.
+ * - `byWeight(weights)`         — mixture by elemental mass fractions.
+ * - `byChemicalFormula(str)`    — compound from a chemical formula string (e.g. "H2O").
+ * - `byNistName(name)`          — compound from the NIST material registry.
+ *
+ * @tparam N  Maximum number of explicit atomic subshells tracked per material.
+ *            Shells beyond `N` are averaged into a remainder shell. Default: 16.
+ */
 template <std::size_t N = 16>
 class Material {
 public:
+    /// @brief Equality comparison across all internal tables and composition data.
     bool operator==(const Material<N>& other) const = default;
 
+    /**
+     * @brief Constructs a pure-element material for atomic number @p Z.
+     *
+     * @param Z  Atomic number (integral type).
+     * @return An engaged `optional<Material>` if @p Z is in the loaded physics data,
+     *         `nullopt` otherwise.
+     */
     static std::optional<Material<N>> byZ(std::integral auto Z)
     {
         auto a = AtomHandler::Atom(Z);
@@ -66,6 +106,16 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Constructs a compound or mixture material from elemental mass fractions.
+     *
+     * Weights are normalised internally so they do not need to sum to 1. Entries
+     * whose Z is not found in the loaded physics data cause `nullopt` to be returned.
+     *
+     * @tparam I  Integral key type for the weight map.
+     * @param weights  Map of `{Z → mass fraction}` (unnormalised).
+     * @return An engaged `optional<Material>` on success, `nullopt` if any Z is invalid.
+     */
     template <std::integral I>
     static std::optional<Material<N>> byWeight(const std::map<I, double>& weights)
     {
@@ -82,6 +132,17 @@ public:
         }
     }
 
+    /**
+     * @brief Constructs a material from a chemical formula string (e.g. "H2O", "Ca3(PO4)2").
+     *
+     * Parses element symbols and stoichiometric counts (including parenthesised groups)
+     * via `parseCompoundStr`, converts atom counts to mass fractions using tabulated
+     * atomic weights, then delegates to `byWeight`. Returns `nullopt` if the string
+     * cannot be parsed or contains unsupported elements (Z outside [1, 99]).
+     *
+     * @param str  Chemical formula string.
+     * @return An engaged `optional<Material>` on success, `nullopt` on parse failure.
+     */
     static std::optional<Material<N>> byChemicalFormula(const std::string& str)
     {
         auto numberDensCompound = parseCompoundStr(str);
@@ -97,6 +158,15 @@ public:
         return Material<N>::byWeight(weight);
     }
 
+    /**
+     * @brief Constructs a material from a NIST compound name.
+     *
+     * Looks up the mass fractions in `NISTMaterials` and delegates to `byWeight`.
+     * Returns `nullopt` if @p name is not found in the NIST registry.
+     *
+     * @param name  NIST compound name as returned by `listNistCompoundNames()`.
+     * @return An engaged `optional<Material>` on success, `nullopt` if not found.
+     */
     static std::optional<Material<N>> byNistName(const std::string& name)
     {
         const auto& w = NISTMaterials::Composition(name);
@@ -106,22 +176,47 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Returns the names of all materials available in the NIST registry.
+     * @return Vector of NIST material name strings.
+     */
     static std::vector<std::string> listNistCompoundNames()
     {
         return NISTMaterials::listNames();
     }
 
+    /**
+     * @brief Returns the effective atomic number Z_eff of the material.
+     *
+     * Computed as the mass-fraction-weighted mean of the constituent atomic numbers:
+     * Z_eff = Σ Z_i × w_i.
+     *
+     * @return Effective atomic number (dimensionless).
+     */
     double effectiveZ() const
     {
         double Zeff = std::transform_reduce(m_composition.cbegin(), m_composition.cend(), 0.0, std::plus<>(), [](const auto& pair) -> double { return pair.first * pair.second; });
         return Zeff;
     }
 
+    /**
+     * @brief Returns the normalised elemental composition as mass fractions.
+     * @return Const reference to the `{Z → mass fraction}` map (fractions sum to 1).
+     */
     const std::map<std::uint8_t, double>& composition() const
     {
         return m_composition;
     }
 
+    /**
+     * @brief Returns the incoherent scattering function S(x) at the given momentum transfer.
+     *
+     * Evaluates the cubic spline fit to the mass-fraction-weighted incoherent
+     * scattering function in log-log space.
+     *
+     * @param momentumTransfer  Momentum transfer x [Å⁻¹].
+     * @return S(x) — incoherent scattering function (dimensionless, 0–Z).
+     */
     inline double scatterFactor(double momentumTransfer) const
     {
         const auto logmomt = std::log(momentumTransfer);
@@ -130,6 +225,15 @@ public:
         return std::exp(CubicLSInterpolator<double>::evaluateSpline(logmomt, begin, end));
     }
 
+    /**
+     * @brief Returns the coherent scattering form factor F(x) at the given momentum transfer.
+     *
+     * Evaluates the cubic spline fit to the mass-fraction-weighted form factor in
+     * log-log space.
+     *
+     * @param momentumTransfer  Momentum transfer x [Å⁻¹].
+     * @return F(x) — form factor (dimensionless, 0–Z).
+     */
     inline double formFactor(const double momentumTransfer) const
     {
         const auto logmomt = std::log(momentumTransfer);
@@ -138,11 +242,28 @@ public:
         return std::exp(CubicLSInterpolator<double>::evaluateSpline(logmomt, begin, end));
     }
 
+    /**
+     * @brief Samples a squared momentum transfer q² from the form-factor-squared distribution.
+     *
+     * Uses the precomputed CPDF inverse-sampling table to draw q² ∈ [q²_min, @p qsquared_max]
+     * proportional to F²(q) — the squared form factor — for coherent (Rayleigh) scatter angle
+     * sampling.
+     *
+     * @param qsquared_max  Upper bound for q² [Å⁻²], typically `momentumTransferMax(energy)²`.
+     * @param state         Per-thread PRNG state.
+     * @return Sampled q² [Å⁻²].
+     */
     inline double sampleSquaredMomentumTransferFromFormFactorSquared(double qsquared_max, RandomState& state) const
     {
         return m_formFactorInvSamp(qsquared_max, state);
     }
 
+    /**
+     * @brief Returns the mean scattered photon energy for Compton interactions [keV].
+     *
+     * @param energy  Incident photon energy [keV].
+     * @return Mean energy of the scattered photon [keV].
+     */
     inline double meanIncoherentScatterEnergy(double energy) const
     {
         const auto begin = m_attenuationTable.cbegin() + m_attenuationTableOffset[5];
@@ -150,6 +271,15 @@ public:
         return std::exp(CubicLSInterpolator<double>::evaluateSpline(std::log(energy), begin, end));
     }
 
+    /**
+     * @brief Returns the mean scattered photon energy for Compton interactions [keV],
+     *        with the incident energy supplied as its natural logarithm.
+     *
+     * Avoids a redundant `log()` call when the log-energy is already available.
+     *
+     * @param logenergy  Natural logarithm of the incident photon energy [ln(keV)].
+     * @return Mean energy of the scattered photon [keV].
+     */
     inline double meanIncoherentScatterLogEnergy(double logenergy) const
     {
         const auto begin = m_attenuationTable.cbegin() + m_attenuationTableOffset[5];
@@ -157,12 +287,33 @@ public:
         return std::exp(CubicLSInterpolator<double>::evaluateSpline(logenergy, begin, end));
     }
 
+    /**
+     * @brief Returns the mass energy-transfer attenuation coefficient μ_tr/ρ [cm²/g].
+     *
+     * Computes the attenuation values at @p energy then delegates to the overload
+     * that accepts pre-computed `AttenuationValues`.
+     *
+     * @param energy  Photon energy [keV].
+     * @return μ_tr/ρ [cm²/g].
+     */
     inline double massEnergyTransferAttenuation(double energy) const
     {
         const auto att = attenuationValues(energy);
         return massEnergyTransferAttenuation(att, energy);
     }
 
+    /**
+     * @brief Returns the mass energy-transfer attenuation coefficient μ_tr/ρ [cm²/g].
+     *
+     * Accounts for the fluorescence escape fraction in photoelectric interactions and
+     * the fraction of Compton energy retained by the recoil electron:
+     *
+     *   μ_tr/ρ = μ_pe/ρ × (1 − f_fluorescence) + μ_inc/ρ × (1 − E_scatter/E)
+     *
+     * @param att     Pre-computed `AttenuationValues` at @p energy [cm²/g each].
+     * @param energy  Incident photon energy [keV].
+     * @return μ_tr/ρ [cm²/g].
+     */
     inline double massEnergyTransferAttenuation(const AttenuationValues& att, double energy) const
     {
         const auto logEnergy = std::log(energy);
@@ -180,7 +331,13 @@ public:
         return att.photoelectric * f_pe + att.incoherent * f_inc;
     }
 
-    // photo, coherent, incoherent
+    /**
+     * @brief Returns the photoelectric, incoherent, and coherent mass attenuation
+     *        coefficients at a single energy [cm²/g].
+     *
+     * @param energy  Photon energy [keV].
+     * @return `AttenuationValues` with photoelectric, incoherent, and coherent coefficients.
+     */
     inline AttenuationValues attenuationValues(double energy) const
     {
         const auto logEnergy = std::log(energy);
@@ -196,7 +353,13 @@ public:
         };
         return att;
     }
-    // photo, coherent, incoherent
+    /**
+     * @brief Returns the photoelectric, incoherent, and coherent mass attenuation
+     *        coefficients for a vector of energies [cm²/g], evaluated in parallel.
+     *
+     * @param energy  Vector of photon energies [keV].
+     * @return Vector of `AttenuationValues`, one entry per input energy.
+     */
     std::vector<AttenuationValues> attenuationValues(const std::vector<double>& energy) const
     {
         std::vector<AttenuationValues> att(energy.size());
@@ -216,6 +379,15 @@ public:
             return a; });
         return att;
     }
+    /**
+     * @brief Returns the total mass attenuation coefficient μ/ρ [cm²/g] for a vector of energies.
+     *
+     * Equivalent to summing the three components of `attenuationValues(energy)`, evaluated
+     * in parallel.
+     *
+     * @param energy  Vector of photon energies [keV].
+     * @return Vector of total mass attenuation coefficients [cm²/g].
+     */
     inline std::vector<double> totalAttenuationValue(const std::vector<double>& energy) const
     {
         const auto att = attenuationValues(energy);
@@ -224,6 +396,12 @@ public:
         return sum;
     }
 
+    /**
+     * @brief Returns the total photoelectric mass attenuation coefficient μ_pe/ρ [cm²/g].
+     *
+     * @param energy  Photon energy [keV].
+     * @return Photoelectric mass attenuation coefficient [cm²/g].
+     */
     inline double attenuationPhotoeletric(double energy) const
     {
         const auto logEnergy = std::log(energy);
@@ -232,34 +410,75 @@ public:
         return std::exp(CubicLSInterpolator<double>::evaluateSpline(logEnergy, begin, end));
     }
 
+    /**
+     * @brief Returns the per-subshell photoelectric mass attenuation coefficient [cm²/g].
+     *
+     * @param shell   Subshell index in [0, numberOfShells()).
+     * @param energy  Photon energy [keV].
+     * @return Subshell photoelectric mass attenuation coefficient [cm²/g], or 0 if
+     *         @p energy is below the subshell binding energy or @p shell is out of range.
+     */
     inline double attenuationPhotoelectricShell(std::uint8_t shell, double energy) const
     {
         const auto logEnergy = std::log(energy);
         return attenuationPhotoelectricShell_logEnergy(shell, logEnergy);
     }
 
+    /// @brief Returns the number of tracked subshells (at most `N + 1` including the remainder shell).
     inline std::uint8_t numberOfShells() const
     {
         return m_numberOfShells;
     }
 
+    /**
+     * @brief Returns the `MaterialShell` data for the given subshell index.
+     * @param shell  Index in [0, numberOfShells()).
+     * @return Const reference to the `MaterialShell`.
+     */
     inline const MaterialShell& shell(std::size_t shell) const
     {
         return m_shells[shell];
     }
 
+    /// @brief Returns the full array of all tracked subshells.
     inline const auto& shells() const { return m_shells; }
 
+    /**
+     * @brief Returns the momentum transfer x for a given photon energy and scattering angle.
+     *
+     * x = (E / hc) × sin(θ/2) [Å⁻¹]
+     *
+     * @param energy  Incident photon energy [keV].
+     * @param angle   Scattering angle θ [rad].
+     * @return Momentum transfer x [Å⁻¹].
+     */
     static double momentumTransfer(double energy, double angle)
     {
         return momentumTransferMax(energy) * std::sin(angle * 0.5); // per Å
     }
 
+    /**
+     * @brief Returns the momentum transfer x for a given photon energy and cosine of scattering angle.
+     *
+     * x = (E / hc) × sqrt((1 − cosθ) / 2) [Å⁻¹]
+     *
+     * @param energy    Incident photon energy [keV].
+     * @param cosAngle  Cosine of the scattering angle.
+     * @return Momentum transfer x [Å⁻¹].
+     */
     static double momentumTransferCosAngle(double energy, double cosAngle)
     {
         return momentumTransferMax(energy) * std::sqrt((1 - cosAngle) * 0.5); // per Å
     }
 
+    /**
+     * @brief Returns the maximum possible momentum transfer for back-scattering (θ = π) [Å⁻¹].
+     *
+     * x_max = E / hc [Å⁻¹]
+     *
+     * @param energy  Incident photon energy [keV].
+     * @return Maximum momentum transfer [Å⁻¹].
+     */
     static constexpr double momentumTransferMax(double energy)
     {
         static constexpr double hc_si = 1.239841193E-6; // ev*m
@@ -270,6 +489,15 @@ public:
         return energy * hc_inv; // per Å
     }
 
+    /**
+     * @brief Returns true if @p cmp is a parseable chemical formula with supported elements.
+     *
+     * A string is valid if `parseCompoundStr` produces at least one entry and every
+     * entry has Z in (0, 99] with a positive stoichiometric count.
+     *
+     * @param cmp  Chemical formula string to validate.
+     * @return True if valid; false otherwise.
+     */
     static bool validCompoundString(const std::string& cmp)
     {
         const auto m = parseCompoundStr(cmp);
@@ -280,6 +508,11 @@ public:
         return valid;
     }
 
+    /**
+     * @brief Returns true if @p name is a known NIST material name.
+     * @param name  Material name to look up.
+     * @return True if the name exists in the NIST registry; false otherwise.
+     */
     static bool validNistName(const std::string& name)
     {
         const auto& w = NISTMaterials::Composition(name);
@@ -287,9 +520,15 @@ public:
     }
 
     /**
-     * This function parses a chemical formula string and returns a map of elements
-     * Z and number density (not normalized). It's kinda messy but supports parenthesis
-     * in the expression.
+     * @brief Parses a chemical formula string into a map of atomic number to stoichiometric count.
+     *
+     * Supports element symbols, integer and decimal stoichiometric coefficients, and
+     * nested parentheses (e.g. "Ca3(PO4)2"). Counts are **not** normalised to mass
+     * fractions — conversion to mass fractions is done by `byChemicalFormula` using
+     * tabulated atomic weights.
+     *
+     * @param str  Chemical formula string (e.g. "H2O", "Ca3(PO4)2").
+     * @return Map of `{Z → stoichiometric count}`. Empty if the string cannot be parsed.
      */
     static std::map<std::uint8_t, double> parseCompoundStr(const std::string& str)
     {
@@ -369,10 +608,22 @@ public:
     }
 
 protected:
+    /// @brief Default constructor; accessible only to factory methods.
     Material()
     {
     }
 
+    /**
+     * @brief Returns the per-subshell photoelectric mass attenuation coefficient [cm²/g],
+     *        with the energy supplied as its natural logarithm.
+     *
+     * Avoids a redundant `log()` call in hot inner loops. Returns 0 if @p shell is
+     * out of range or if @p logEnergy is below the subshell binding-energy threshold.
+     *
+     * @param shell      Subshell index in [0, numberOfShells()).
+     * @param logEnergy  Natural logarithm of the photon energy [ln(keV)].
+     * @return Subshell photoelectric mass attenuation coefficient [cm²/g].
+     */
     inline double attenuationPhotoelectricShell_logEnergy(std::uint8_t shell, double logEnergy) const
     {
         if (shell < m_numberOfShells) {
@@ -387,15 +638,37 @@ protected:
         return 0;
     }
 
+    /**
+     * @brief Identifies which cross-section or scattering-function table to build.
+     *
+     * Used internally by `constructSplineInterpolator` to select the correct
+     * data array from each `AtomicElement` and tune the spline knot count and
+     * discontinuity handling.
+     */
     enum class LUTType {
-        photoelectric,
-        coherent,
-        incoherent,
-        formfactor,
-        scatterfactor,
-        incoherentenergy
+        photoelectric,    ///< Total photoelectric cross-section table.
+        coherent,         ///< Coherent (Rayleigh) scattering cross-section table.
+        incoherent,       ///< Incoherent (Compton) scattering cross-section table.
+        formfactor,       ///< Coherent form factor F(x) table.
+        scatterfactor,    ///< Incoherent scattering function S(x) table.
+        incoherentenergy  ///< Mean Compton scatter energy table.
     };
 
+    /**
+     * @brief Builds a weighted least-squares cubic spline from multiple element data arrays.
+     *
+     * Merges all element data into a single array, applies mass-fraction weights, sorts
+     * and de-duplicates the combined points, optionally converts to log-log space, then
+     * fits a `CubicLSInterpolator` with @p nknots knots.
+     *
+     * @param data           One data array per element: `{(x, y)}` pairs (linear space).
+     * @param weights        Mass fractions corresponding to each data array.
+     * @param loglog         If true, both axes are log-transformed before fitting.
+     * @param nknots         Number of spline knots.
+     * @param maybe_discont  If true, the fitter is allowed to place knots at discontinuities
+     *                       (used for photoelectric edges).
+     * @return Fitted `CubicLSInterpolator`.
+     */
     static CubicLSInterpolator<double> constructSplineInterpolator(const std::vector<std::vector<std::pair<double, double>>>& data, const std::vector<double>& weights, bool loglog = false, std::size_t nknots = 15, bool maybe_discont = true)
     {
         const auto Nvec = std::transform_reduce(data.cbegin(), data.cend(), std::size_t { 0 }, std::plus<>(), [](const auto& rh) -> std::size_t { return rh.size(); });
@@ -469,9 +742,18 @@ protected:
         return interpolator;
     }
 
-    // constructs a least squares spline interpolator from attenuation data from a compound
-    // This function is a bit convoluted since we want to preserve discontiuities in the interpolation
-    // But is basicly an weighted average of attenuation coefficients for each element.
+    /**
+     * @brief Builds a mass-fraction-weighted least-squares spline for the given `LUTType`.
+     *
+     * Gathers the appropriate raw data array from each constituent element, applies
+     * type-specific preprocessing (coherent edge insertion, incoherent point densification),
+     * selects the knot count and discontinuity flag, then delegates to the data-array
+     * overload of `constructSplineInterpolator`.
+     *
+     * @param normalizedWeight  Normalised mass fractions `{Z → fraction}` (sum to 1).
+     * @param type              Which cross-section or function table to build.
+     * @return Fitted `CubicLSInterpolator` in log-log space.
+     */
     static CubicLSInterpolator<double> constructSplineInterpolator(const std::map<std::uint8_t, double>& normalizedWeight, LUTType type)
     {
         auto getAtomArr = [&](const AtomicElement& atom, LUTType type = LUTType::photoelectric) -> const std::vector<std::pair<double, double>>& {
@@ -563,6 +845,18 @@ protected:
         return lut;
     }
 
+    /**
+     * @brief Core factory: builds all interpolation tables and shell data for the given composition.
+     *
+     * Normalises the weight fractions, fits six spline LUTs (photoelectric, incoherent,
+     * coherent, form factor, scatter factor, mean Compton energy), packs them into the
+     * flat `m_attenuationTable` array, builds per-subshell photoelectric tables via
+     * `createMaterialAtomicShells`, and precomputes the form-factor inverse-sampling
+     * table via `generateFormFactorInverseSampling`.
+     *
+     * @param compositionByWeight  Map of `{Z → mass fraction}` (need not be normalised).
+     * @return An engaged `optional<Material>` on success, `nullopt` if any Z is unknown.
+     */
     static std::optional<Material<N>> constructMaterial(const std::map<std::uint8_t, double>& compositionByWeight)
     {
         for (const auto& [Z, w] : compositionByWeight) {
@@ -609,6 +903,14 @@ protected:
         return m;
     }
 
+    /**
+     * @brief Precomputes the CPDF inverse-sampling table for the coherent form factor squared.
+     *
+     * Builds a `CPDFSampling<double, 20>` over q² ∈ [q²_min, q²_max] proportional to
+     * F²(q), enabling rejection-free sampling of the coherent scattering angle.
+     *
+     * @param material  Material to update in-place (sets `m_formFactorInvSamp`).
+     */
     static void generateFormFactorInverseSampling(Material<N>& material)
     {
         const auto qmax = Material<N>::momentumTransferMax(MAX_ENERGY());
@@ -622,6 +924,19 @@ protected:
         material.m_formFactorInvSamp = CPDFSampling<double, 20>(qmin * qmin, qmax * qmax, func);
     }
 
+    /**
+     * @brief Builds the per-subshell photoelectric tables and `MaterialShell` records.
+     *
+     * Collects all subshells from all constituent elements, sorts them by binding energy
+     * (highest first), keeps the top `N` explicitly (each with its own spline), and
+     * collapses the remainder into a single averaged shell. Also normalises the
+     * `numberOfElectronsFraction` across all shells.
+     *
+     * @param material          Material to update in-place.
+     * @param normalizedWeight  Normalised mass fractions `{Z → fraction}`.
+     * @param offset            Output array of table offsets updated by this function
+     *                          for indices 6 through 6+N.
+     */
     static void createMaterialAtomicShells(Material<N>& material, const std::map<std::uint8_t, double>& normalizedWeight, std::array<std::size_t, 6 + N>& offset)
     {
         struct Shell {
@@ -689,12 +1004,12 @@ protected:
     }
 
 private:
-    std::array<std::uint_fast32_t, 6 + N + 1> m_attenuationTableOffset;
-    CPDFSampling<double, 20> m_formFactorInvSamp;
-    std::array<MaterialShell, N + 1> m_shells;
-    std::uint8_t m_numberOfShells = 0;
-    std::vector<std::array<double, 3>> m_attenuationTable;
-    std::map<std::uint8_t, double> m_composition;
+    std::array<std::uint_fast32_t, 6 + N + 1> m_attenuationTableOffset;  ///< Start indices into `m_attenuationTable` for each of the 6 LUTs + N shell tables + sentinel.
+    CPDFSampling<double, 20> m_formFactorInvSamp;                          ///< Inverse-CDF sampler for coherent scattering angle via F²(q).
+    std::array<MaterialShell, N + 1> m_shells;                             ///< Per-subshell data (N explicit shells + 1 remainder shell).
+    std::uint8_t m_numberOfShells = 0;                                     ///< Actual number of shells populated (≤ N + 1).
+    std::vector<std::array<double, 3>> m_attenuationTable;                 ///< Flat packed spline knot table: {log_x, log_y, dy/dx} for all LUTs.
+    std::map<std::uint8_t, double> m_composition;                          ///< Normalised elemental mass fractions {Z → fraction}.
 };
 
 }

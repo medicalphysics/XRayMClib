@@ -31,8 +31,29 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+/**
+ * @brief Singleton registry of photon-interaction data for all chemical elements.
+ *
+ * Loads the binary physics-data file (`physicslists.bin`) once at program startup
+ * and provides static accessors to `AtomicElement` records keyed by atomic number Z.
+ * The data file is located by first checking the current working directory, then
+ * falling back to the compile-time path `XRAYMCLIB_PHYSICSLISTSPATH`.
+ *
+ * All public methods are static; the singleton is managed internally via `Instance()`.
+ * Copy construction and assignment are deleted to enforce the singleton pattern.
+ */
 class AtomHandler {
 public:
+    /**
+     * @brief Returns the `AtomicElement` for the given atomic number.
+     *
+     * If @p Z is not found in the loaded data (e.g. because the element is outside
+     * the supported range or the data file failed to load), a reference to an empty
+     * dummy element is returned.
+     *
+     * @param Z  Atomic number (integral type).
+     * @return Const reference to the corresponding `AtomicElement`, or a dummy if absent.
+     */
     static const AtomicElement& Atom(std::integral auto Z)
     {
         auto& instance = Instance();
@@ -42,18 +63,36 @@ public:
         return instance.m_dummyElement;
     }
 
+    /**
+     * @brief Returns true if data for atomic number @p Z has been loaded.
+     * @param Z  Atomic number (integral type).
+     * @return True if the element exists in the registry; false otherwise.
+     */
     static bool atomExists(std::integral auto Z)
     {
         auto& instance = Instance();
         return instance.m_elements.contains(Z);
     }
 
+    /**
+     * @brief Returns the full map of all loaded elements, keyed by atomic number.
+     * @return Const reference to the internal `{Z → AtomicElement}` map.
+     */
     static const std::map<std::uint8_t, AtomicElement>& allAtoms()
     {
         const auto& instance = Instance();
         return instance.m_elements;
     }
 
+    /**
+     * @brief Converts an atomic number to its chemical symbol string.
+     *
+     * Supports Z in [1, 100] (H through Fm). Returns an empty string for
+     * values outside this range.
+     *
+     * @param Z  Atomic number (integral type).
+     * @return Chemical symbol (e.g. "H", "Fe", "Au"), or "" if Z is out of range.
+     */
     static std::string toSymbol(std::integral auto Z)
     {
         std::string res;
@@ -64,15 +103,31 @@ public:
         return res;
     }
 
+    /// @brief Copy construction is deleted (singleton).
     AtomHandler(const AtomHandler&) = delete;
+    /// @brief Copy assignment is deleted (singleton).
     void operator=(const AtomHandler&) = delete;
 
 protected:
+    /**
+     * @brief Returns the singleton `AtomHandler` instance, constructing it on first call.
+     * @return Const reference to the singleton.
+     */
     static const AtomHandler& Instance()
     {
         static AtomHandler instance;
         return instance;
     }
+
+    /**
+     * @brief Constructs the singleton by locating and loading the physics-data file.
+     *
+     * Searches for `physicslists.bin` first in the current working directory, then
+     * at the compile-time path `XRAYMCLIB_PHYSICSLISTSPATH`. If found, the file is
+     * read into memory and deserialized via `AtomSerializer::deserializeAtoms`.
+     * If the file cannot be found or read, `m_elements` remains empty and all
+     * `Atom()` queries return the dummy element.
+     */
     AtomHandler()
     {
         // reading data
@@ -95,8 +150,8 @@ protected:
     }
 
 private:
-    AtomicElement m_dummyElement;
-    std::map<std::uint8_t, AtomicElement> m_elements;
+    AtomicElement m_dummyElement;                        ///< Returned for unknown atomic numbers.
+    std::map<std::uint8_t, AtomicElement> m_elements;   ///< Loaded element data keyed by atomic number Z.
 };
 
 }
