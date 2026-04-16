@@ -62,8 +62,8 @@ concept ParticleType = requires(U p, const U pc, std::array<double, 3> vec, doub
 struct Particle {
     std::array<double, 3> pos; ///< Position in cm.
     std::array<double, 3> dir; ///< Unit direction vector.
-    double energy;             ///< Photon energy in keV.
-    double weight;             ///< Statistical weight (1.0 for unweighted histories).
+    double energy; ///< Photon energy in keV.
+    double weight; ///< Statistical weight (1.0 for unweighted histories).
 
     /**
      * @brief Advances the particle along its direction by @p dist cm.
@@ -107,7 +107,7 @@ struct Particle {
 };
 
 /**
- * @brief Photon particle that records the last N interaction positions for debugging.
+ * @brief Photon particle that records the last N interaction positions.
  *
  * Extends the basic `Particle` state with a circular buffer of the N most recent
  * positions registered via `registerPosition()`. The interaction samplers call
@@ -119,14 +119,14 @@ struct ParticleTrack {
 
     std::array<double, 3> pos; ///< Position in cm.
     std::array<double, 3> dir; ///< Unit direction vector.
-    double energy;             ///< Photon energy in keV.
-    double weight;             ///< Statistical weight.
+    double energy; ///< Photon energy in keV.
+    double weight; ///< Statistical weight.
 
     /// @brief Maximum number of positions stored in the history buffer.
     static constexpr std::uint_fast32_t N = 5;
 
     std::array<std::array<double, 3>, N> m_history; ///< Circular position history buffer.
-    std::uint_fast32_t m_index = 0;                 ///< Total number of positions registered.
+    std::uint_fast32_t m_index = 0; ///< Total number of positions registered.
 
     /**
      * @brief Advances the particle along its direction by @p dist cm.
