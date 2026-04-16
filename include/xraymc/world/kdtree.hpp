@@ -44,8 +44,7 @@ namespace xraymc {
 /**
  * @brief Recursive pointer-based KD-tree over heterogeneous world items.
  *
- * @deprecated Prefer the flat-array accelerators (MeshKDTreeFlat,
- *             TetrahedalMeshContourKDTree) for new code.
+ * @deprecated Prefer the flat-array accelerator MeshKDTreeFlat for new code.
  *
  * Organises a collection of world item variant pointers into a binary spatial tree
  * using a median-cut strategy along the widest AABB axis. Each internal node stores
@@ -186,7 +185,7 @@ public:
     KDTreeIntersectionResult<std::variant<Us...>> intersect(const ParticleType auto& particle, const std::array<double, 6>& aabb)
     {
         const auto& inter = basicshape::AABB::intersectForwardInterval(particle, aabb);
-        return inter ? intersect(particle, *inter) : KDTreeIntersectionResult<std::variant<Us...>> {};
+        return inter ? intersect(particle, *inter) : KDTreeIntersectionResult<std::variant<Us...>> { };
     }
 
     /**
@@ -271,7 +270,7 @@ public:
     VisualizationIntersectionResult<std::variant<Us...>> intersectVisualization(const ParticleType auto& particle, const std::array<double, 6>& aabb) const
     {
         const auto& inter = basicshape::AABB::intersectForwardInterval(particle, aabb);
-        return inter ? intersectVisualization(particle, *inter) : VisualizationIntersectionResult<std::variant<Us...>> {};
+        return inter ? intersectVisualization(particle, *inter) : VisualizationIntersectionResult<std::variant<Us...>> { };
     }
 
     /**

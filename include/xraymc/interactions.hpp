@@ -16,6 +16,24 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2023 Erlend Andersen
 */
 
+/**
+ * @file interactions.hpp
+ * @brief Photon interaction samplers for analog and forced Monte Carlo transport.
+ *
+ * Implements the three photon interaction processes needed for diagnostic X-ray
+ * Monte Carlo simulation:
+ * - **Rayleigh (coherent) scattering** — `rayleightScatter()`
+ * - **Compton (incoherent) scattering** — `comptonScatter()` / `comptonScatterIA()`
+ * - **Photoelectric absorption** — `photoelectricEffect()` / `photoelectricEffectIA()`
+ *
+ * Two transport modes are provided:
+ * - **Analog** — `interact()`: samples one interaction per call from the full cross section.
+ * - **Forced** — `interactForced()`: scores photoelectric energy analytically and samples
+ *   scatter events stochastically for variance reduction.
+ *
+ * All samplers share the `LOWENERGYCORRECTION` compile-time flag (see namespace doc).
+ */
+
 #pragma once
 
 #include "xraymc/constants.hpp"
@@ -26,7 +44,54 @@ Copyright 2023 Erlend Andersen
 
 namespace xraymc {
 
-/// @brief Free functions implementing photon interaction physics for Monte Carlo transport.
+/**
+ * @namespace xraymc::interactions
+ * @brief Free functions implementing photon interaction physics for Monte Carlo transport.
+ *
+ * All public samplers are function templates parameterised on:
+ * - `Nshells` — number of electron shells in the `Material` model (compile-time constant).
+ * - `LOWENERGYCORRECTION` — selects the physics model complexity (see table below).
+ * - `P` — particle type satisfying `ParticleType` (default `Particle`; use `ParticleTrack`
+ *   to record interaction positions automatically).
+ *
+ * ### `LOWENERGYCORRECTION` flag
+ *
+ * | Value | Compton                                | Rayleigh                        | Photoelectric              |
+ * |-------|----------------------------------------|---------------------------------|----------------------------|
+ * | `0`   | Klein–Nishina only                     | Dipole distribution             | Full absorption            |
+ * | `1`   | Klein–Nishina + incoherent scatter factor (Livermore) | Form-factor corrected | Full absorption |
+ * | `2`   | Full Relativistic Impulse Approximation | Form-factor corrected | Shell-resolved + fluorescence |
+ *
+ * The default throughout the library is `2` (highest fidelity).
+ *
+ * ### Transport flow
+ *
+ * **Analog** (`interact`):
+ * ```
+ * interact()
+ * ├── photoelectricEffect()  →  photoelectricEffectIA()
+ * ├── comptonScatter()       →  comptonScatterIA()  or  Klein-Nishina
+ * └── rayleightScatter()
+ * ```
+ * After each interaction, Russian roulette is applied if the particle weight
+ * drops below `russianRuletteWeightThreshold()`.
+ *
+ * **Forced** (`interactForced`):
+ * ```
+ * interactForced()
+ * ├── Photoelectric energy scored analytically (Beer-Lambert expectation)
+ * ├── comptonScatter()   (stochastic, at sampled step position)
+ * └── rayleightScatter() (stochastic, at sampled step position)
+ * ```
+ * The forced variant eliminates photoelectric variance at the cost of always
+ * translating the particle to a scatter point within the step.
+ *
+ * ### Return values
+ * All interaction functions return the energy imparted to the medium in **eV**,
+ * already multiplied by the particle weight. The particle is updated in place.
+ * High-level callers receive an `InteractionResult` from `interact()` /
+ * `interactForced()` which also carries flags for each interaction type.
+ */
 namespace interactions {
 
     /**
@@ -488,13 +553,13 @@ namespace interactions {
     struct InteractionResult {
         // the size of InteractionResult is 16 bytes anyway, why not throw in
         // type of interaction, even it's almost not used
-        double energyImparted = 0;          ///< Energy deposited in the medium this step (eV, weighted).
-        bool particleAlive = true;          ///< False if the particle was absorbed or killed by Russian roulette.
+        double energyImparted = 0; ///< Energy deposited in the medium this step (eV, weighted).
+        bool particleAlive = true; ///< False if the particle was absorbed or killed by Russian roulette.
         bool particleEnergyChanged = false; ///< True if the photon energy changed (photoelectric or Compton).
         bool particleDirectionChanged = false; ///< True if the photon direction changed (any interaction).
         bool interactionWasPhotoelectric = false; ///< True if the interaction was photoelectric absorption.
-        bool interactionWasCoherent = false;      ///< True if the interaction was Rayleigh (coherent) scatter.
-        bool interactionWasIncoherent = false;    ///< True if the interaction was Compton (incoherent) scatter.
+        bool interactionWasCoherent = false; ///< True if the interaction was Rayleigh (coherent) scatter.
+        bool interactionWasIncoherent = false; ///< True if the interaction was Compton (incoherent) scatter.
     };
 
     /**

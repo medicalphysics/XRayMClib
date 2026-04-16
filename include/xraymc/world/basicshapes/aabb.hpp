@@ -28,6 +28,14 @@ Copyright 2023 Erlend Andersen
 #include <optional>
 
 namespace xraymc {
+
+/**
+ * @namespace xraymc::basicshape
+ * @brief Geometric primitives.
+ *
+ * Collection of geometric primitives that are used by items in the World.
+ * Implements intersection tests and simple geometric propeties.
+ */
 namespace basicshape {
     /**
      * @brief Axis-Aligned Bounding Box (AABB) geometry primitives.

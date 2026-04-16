@@ -16,6 +16,36 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2019 Erlend Andersen
 */
 
+/**
+ * @file vectormath.hpp
+ * @brief Header-only 3D vector math utilities used throughout XRayMClib.
+ *
+ * All functions operate on `std::array<T, 3>` (or `std::array<T, 6>` for packed pairs)
+ * and are templated on a `Floating` type (typically `double`). The design keeps
+ * vector values on the stack and avoids heap allocation.
+ *
+ * ## Functional groups
+ *
+ * | Group              | Functions                                                          |
+ * |--------------------|--------------------------------------------------------------------|
+ * | Length / norm      | `length_sqr`, `length`, `normalize`, `normalized`                 |
+ * | Arithmetic         | `add`, `subtract`, `scale`                                        |
+ * | Products           | `dot`, `cross`, `tripleProduct`                                   |
+ * | Rotation           | `rotate` (sin/cos or angle overload), `peturb`                    |
+ * | Angle              | `angleBetween`                                                     |
+ * | Arg-extrema        | `argmin3`, `argmax3`                                              |
+ * | Basis change       | `changeBasis`, `changeBasisInverse`                               |
+ * | Pack / unpack      | `splice`, `join`                                                  |
+ *
+ * ## Design notes
+ * - All functions are `[[nodiscard]]` where they return a value.
+ * - `normalize` modifies its argument in place; `normalized` returns a copy.
+ * - `angleBetween` uses Heron's numerically stable formula and should be preferred
+ *   over `std::acos(dot(a, b))` for nearly parallel or anti-parallel vectors.
+ * - `peturb` is the primary entry point for scattering deflections: it maps a
+ *   polar angle @p theta and azimuthal angle @p phi onto a new direction without
+ *   requiring explicit coordinate-frame bookkeeping.
+ */
 #pragma once
 
 #include "xraymc/floating.hpp"
@@ -26,8 +56,20 @@ Copyright 2019 Erlend Andersen
 #include <type_traits>
 #include <utility>
 
-/// @brief Header-only library of 3D vector math utilities used by the transport core.
 namespace xraymc {
+
+/**
+ * @namespace xraymc::vectormath
+ * @brief Header-only 3D vector math utilities used by the transport core.
+ *
+ * Vectors are represented as `std::array<T, 3>` where `T` satisfies the
+ * `Floating` concept (see floating.hpp). Packed AABB-style values use
+ * `std::array<T, 6>` with the layout `[xmin, ymin, zmin, xmax, ymax, zmax]`.
+ *
+ * The namespace intentionally avoids a dedicated vector class so that all
+ * geometry data can be stored in plain aggregate types, simplifying
+ * serialization and SIMD-friendly memory layouts.
+ */
 namespace vectormath {
 
     /**
