@@ -16,36 +16,9 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2026 Erlend Andersen
 */
 
-#include "xraymc/serializer.hpp"
-#include "xraymc/world/worlditems/aavoxelgrid.hpp"
-#include "xraymc/world/worlditems/ctdiphantom.hpp"
-#include "xraymc/world/worlditems/depthdose.hpp"
-#include "xraymc/world/worlditems/enclosedroom.hpp"
-#include "xraymc/world/worlditems/flatdetector.hpp"
-#include "xraymc/world/worlditems/fluencescore.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh.hpp"
-#include "xraymc/world/worlditems/triangulatedmesh.hpp"
-#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
-#include "xraymc/world/worlditems/worldbox.hpp"
-#include "xraymc/world/worlditems/worldboxgrid.hpp"
-#include "xraymc/world/worlditems/worldcylinder.hpp"
-#include "xraymc/world/worlditems/worldsphere.hpp"
-
-#include "xraymc/beams/cbctbeam.hpp"
-#include "xraymc/beams/ctsequentialbeam.hpp"
-#include "xraymc/beams/ctspiralbeam.hpp"
-#include "xraymc/beams/ctspiraldualenergybeam.hpp"
-#include "xraymc/beams/dxbeam.hpp"
-#include "xraymc/beams/isotropicbeam.hpp"
-#include "xraymc/beams/isotropicbeamcircle.hpp"
 #include "xraymc/beams/isotropiccircularbeam.hpp"
 #include "xraymc/beams/isotropiccircularmonoenergybeam.hpp"
-#include "xraymc/beams/isotropicmonoenergybeam.hpp"
-#include "xraymc/beams/isotropicmonoenergybeamcircle.hpp"
-#include "xraymc/beams/pencilbeam.hpp"
-#include "xraymc/transport.hpp"
-#include "xraymc/world/visualization/visualizeworld.hpp"
-#include "xraymc/world/world.hpp"
+#include "xraymc/xraymc.hpp"
 
 #include <iostream>
 

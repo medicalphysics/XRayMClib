@@ -84,7 +84,8 @@ set(MATERIAL_HEADER_LIST
 add_library(material INTERFACE ${MATERIAL_HEADER_LIST})
 target_include_directories(material INTERFACE ${xraymclib_SOURCE_DIR}/include)
 
-set(HEADER_LIST         
+set(HEADER_LIST  
+    "${xraymclib_SOURCE_DIR}/include/xraymc/xraymc.hpp"   
     "${xraymclib_SOURCE_DIR}/include/xraymc/xraymcrandom.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/interactions.hpp"    
     "${xraymclib_SOURCE_DIR}/include/xraymc/transport.hpp"
