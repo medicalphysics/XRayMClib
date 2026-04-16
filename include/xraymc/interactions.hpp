@@ -87,7 +87,7 @@ namespace xraymc {
  * translating the particle to a scatter point within the step.
  *
  * ### Return values
- * All interaction functions return the energy imparted to the medium in **eV**,
+ * All interaction functions return the energy imparted to the medium in **keV**,
  * already multiplied by the particle weight. The particle is updated in place.
  * High-level callers receive an `InteractionResult` from `interact()` /
  * `interactForced()` which also carries flags for each interaction type.
@@ -234,7 +234,7 @@ namespace interactions {
      * @param particle  The photon to scatter; energy and direction are updated in place.
      * @param material  The material providing shell data and Hartree–Fock orbitals.
      * @param state     The PRNG state used for random sampling.
-     * @return Energy imparted to the medium in eV (weighted: (E_i − E_f) × weight).
+     * @return Energy imparted to the medium in keV (weighted: (E_i − E_f) × weight).
      */
     template <std::size_t Nshells>
     double comptonScatterIA(ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
@@ -405,7 +405,7 @@ namespace interactions {
      * @param particle  The photon to scatter; energy and direction are updated in place.
      * @param material  The material providing attenuation and scatter-factor data.
      * @param state     The PRNG state used for random sampling.
-     * @return Energy imparted to the medium in eV (weighted: (E_i − E_f) × weight).
+     * @return Energy imparted to the medium in keV (weighted: (E_i − E_f) × weight).
      */
     template <std::size_t Nshells, int LOWENERGYCORRECTION = 2, ParticleType P = Particle>
     auto comptonScatter(P& particle, const Material<Nshells>& material, RandomState& state) noexcept
@@ -467,7 +467,7 @@ namespace interactions {
      * @param particle  The photon; energy is set to the fluorescence photon energy or zero.
      * @param material  The material providing shell cross sections and fluorescence data.
      * @param state     The PRNG state used for random sampling.
-     * @return Energy imparted to the medium in eV (weighted by particle weight).
+     * @return Energy imparted to the medium in keV (weighted by particle weight).
      */
     template <std::size_t Nshells>
     auto photoelectricEffectIA(const double totalPhotoCrossSection, ParticleType auto& particle, const Material<Nshells>& material, RandomState& state) noexcept
@@ -526,7 +526,7 @@ namespace interactions {
      * @param particle  The photon; energy is set to fluorescence photon energy or zero.
      * @param material  The material providing shell and fluorescence data.
      * @param state     The PRNG state used for random sampling.
-     * @return Energy imparted to the medium in eV (weighted by particle weight).
+     * @return Energy imparted to the medium in keV (weighted by particle weight).
      */
     template <int Nshells, int LOWENERGYCORRECTION = 2, ParticleType P = Particle>
     auto photoelectricEffect(const double totalPhotoCrossSection, P& particle, const Material<Nshells>& material, RandomState& state) noexcept
@@ -553,7 +553,7 @@ namespace interactions {
     struct InteractionResult {
         // the size of InteractionResult is 16 bytes anyway, why not throw in
         // type of interaction, even it's almost not used
-        double energyImparted = 0; ///< Energy deposited in the medium this step (eV, weighted).
+        double energyImparted = 0; ///< Energy deposited in the medium this step (keV, weighted).
         bool particleAlive = true; ///< False if the particle was absorbed or killed by Russian roulette.
         bool particleEnergyChanged = false; ///< True if the photon energy changed (photoelectric or Compton).
         bool particleDirectionChanged = false; ///< True if the photon direction changed (any interaction).
