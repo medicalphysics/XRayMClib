@@ -38,7 +38,7 @@ struct VisualizationIntersectionResult {
     const U* item = nullptr;                      ///< Pointer to the intersected item, or nullptr on miss.
     bool rayOriginIsInsideItem = false;           ///< True if the ray origin is inside the intersected item.
     bool intersectionValid = false;               ///< True when a valid intersection was found.
-    double value = 0;                             ///< Scalar item value (e.g. dose in eV/g) used for color mapping.
+    double value = 0;                             ///< Scalar item value (e.g. dose in keV/g) used for color mapping.
 
     /// @brief Returns true if a valid intersection was found.
     inline bool valid() const
