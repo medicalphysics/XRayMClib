@@ -35,8 +35,6 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
-
-    
 /**
  * @brief An axis-aligned rectilinear voxel grid for Monte Carlo particle transport.
  *
@@ -989,21 +987,24 @@ protected:
         }
     }
 
+    /**
+     * @brief Per-voxel storage for energy scoring, density, and material assignment.
+     */
     struct DataElement {
-        EnergyScore energyScored;
-        double density = 0;
-        std::uint8_t materialIndex = 0;
+        EnergyScore energyScored; ///< Thread-safe energy imparted accumulator for this voxel.
+        double density = 0; ///< Mass density of this voxel [g/cm³].
+        std::uint8_t materialIndex = 0; ///< Index into `m_materials`; TRANSPARENTVOXELS means void.
         bool operator==(const DataElement&) const = default;
     };
 
 private:
-    std::array<std::size_t, 3> m_dim = { 1, 1, 1 };
-    std::array<double, 3> m_invSpacing = { 1, 1, 1 };
-    std::array<double, 3> m_spacing = { 1, 1, 1 };
-    std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
-    std::vector<std::pair<double, double>> m_woodcockStepTableLin;
-    std::vector<DataElement> m_data;
-    std::vector<DoseScore> m_dose;
-    std::vector<Material<NMaterialShells>> m_materials;
+    std::array<std::size_t, 3> m_dim = { 1, 1, 1 }; ///< Grid dimensions {nx, ny, nz}.
+    std::array<double, 3> m_invSpacing = { 1, 1, 1 }; ///< Reciprocal voxel size {1/dx, 1/dy, 1/dz} [1/cm]; cached to avoid division in index().
+    std::array<double, 3> m_spacing = { 1, 1, 1 }; ///< Voxel size {dx, dy, dz} [cm].
+    std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 }; ///< Axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax} [cm].
+    std::vector<std::pair<double, double>> m_woodcockStepTableLin; ///< Woodcock majorant table: {energy [keV], max(μρ) [1/cm]} pairs over the transport energy range.
+    std::vector<DataElement> m_data; ///< Flat (row-major, x-fastest) array of per-voxel data; size = nx·ny·nz.
+    std::vector<DoseScore> m_dose; ///< Per-voxel absorbed dose accumulators; parallel to m_data.
+    std::vector<Material<NMaterialShells>> m_materials; ///< Material definitions indexed by DataElement::materialIndex.
 };
 }

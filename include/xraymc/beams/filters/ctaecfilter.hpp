@@ -320,10 +320,10 @@ protected:
     /**
      * @brief Projects a world-space position onto the AEC axis and returns the axis distance.
      *
-     * Computes the dot product of (pos − m_start) with the unit axis direction,
+     * Computes the dot product of (start − m_start) with the unit axis direction,
      * clamped to [0, m_length].
      *
-     * @param pos  3-D world position [cm].
+     * @param start  3-D world position [cm].
      * @return Distance along the axis from the start point [cm], in [0, length].
      */
     double positionToIndex(const std::array<double, 3>& start) const

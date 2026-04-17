@@ -523,13 +523,13 @@ protected:
     }
 
 private:
-    std::array<double, 6> m_aabb;
-    xraymc::basicshape::cylinder::Cylinder m_cylinder;
-    double m_materialDensity = 1;
-    Material<NMaterialShells> m_material;
-    ParticleTracker m_tracker;
-    std::vector<EnergyScore> m_energyScored;
-    std::vector<DoseScore> m_dose;
+    std::array<double, 6> m_aabb;                  ///< Axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax} [cm]; recomputed whenever geometry changes.
+    xraymc::basicshape::cylinder::Cylinder m_cylinder; ///< Cylinder geometry (center, direction, radius, half-height) defining the scorer volume.
+    double m_materialDensity = 1;                  ///< Mass density of the fill material [g/cm³].
+    Material<NMaterialShells> m_material;          ///< Cross-section data for the fill material; defaults to dry air at sea level.
+    ParticleTracker m_tracker;                     ///< Accumulates particle track segments when transporting ParticleTrack particles.
+    std::vector<EnergyScore> m_energyScored;       ///< Per-bin energy imparted accumulators; size = resolution (one entry per axial slab).
+    std::vector<DoseScore> m_dose;                 ///< Per-bin absorbed dose accumulators; parallel to m_energyScored.
 };
 
 }

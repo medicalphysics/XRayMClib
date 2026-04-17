@@ -405,9 +405,12 @@ public:
     }
 
 protected:
+    /**
+     * @brief Represents one of the five cylindrical air-filled measurement holes.
+     */
     struct CTDIAirHole {
-        basicshape::cylinder::Cylinder cylinder;
-        std::uint8_t index = 0;
+        basicshape::cylinder::Cylinder cylinder; ///< Geometry of the hole cylinder (center, direction, radius, half-height).
+        std::uint8_t index = 0;                  ///< Hole index: 0 = center, 1–4 = peripheral (0°/90°/180°/270°).
 
         /// @brief Translates the hole cylinder center by @p d.
         void translate(const std::array<double, 3>& d) noexcept
@@ -439,13 +442,13 @@ protected:
     }
 
 private:
-    basicshape::cylinder::Cylinder m_cylinder;
-    double m_pmma_density = 0;
-    double m_air_density = 0;
-    std::array<EnergyScore, 5> m_energyScore;
-    std::array<DoseScore, 5> m_dose;
-    StaticKDTree<CTDIAirHole> m_kdtree;
-    Material<NMaterialShells> m_pmma;
-    Material<NMaterialShells> m_air;
+    basicshape::cylinder::Cylinder m_cylinder;       ///< Outer PMMA cylinder geometry (center, direction, radius, half-height).
+    double m_pmma_density = 0;                       ///< Mass density of the PMMA body [g/cm³].
+    double m_air_density = 0;                        ///< Mass density of the hole-filling material [g/cm³]; defaults to dry air at sea level.
+    std::array<EnergyScore, 5> m_energyScore;        ///< Per-hole energy imparted accumulators; index 0 = center, 1–4 = peripheral.
+    std::array<DoseScore, 5> m_dose;                 ///< Per-hole absorbed dose accumulators; parallel to m_energyScore.
+    StaticKDTree<CTDIAirHole> m_kdtree;              ///< KD-tree over the five air holes for fast ray–hole intersection queries.
+    Material<NMaterialShells> m_pmma;                ///< Cross-section data for the PMMA phantom body (Lucite/Perspex).
+    Material<NMaterialShells> m_air;                 ///< Cross-section data for the hole-filling material (default: dry air).
 };
 }
