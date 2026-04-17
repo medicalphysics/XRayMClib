@@ -65,7 +65,7 @@ xraymclib_add_physics_list(your_executable)
 
 Set one of these CMake variables during configure:
 
-- `XRAYMCLIB_EPICS_DATA_DIRPATH` — path to a folder containing `EPDL2023.ALL` and `EADL2023.ALL` in ENDL format
+- `XRAYMCLIB_EPICS_DATA_DIRPATH` — path to a folder containing `EPDL2025.ALL` and `EADL2025.ALL` in ENDL format
 - `XRAYMCLIB_EPICS_DOWNLOAD=ON` — download EPICS data from IAEA automatically during configure
 
 ## CMake build options
@@ -77,63 +77,15 @@ Set one of these CMake variables during configure:
 | `XRAYMCLIB_EPICS_DOWNLOAD` | `OFF` | Download EPICS data during configure |
 | `XRAYMCLIB_EPICS_DATA_DIRPATH` | _(empty)_ | Path to local EPICS data files |
 
-## Quick start example
+## Quick start examples
 
-Simulates a 60 keV pencil beam through an aluminium cylinder and prints the depth–dose profile:
+Examples can be explored at 
 
-```cpp
-#include "xraymc/beams/pencilbeam.hpp"
-#include "xraymc/material/material.hpp"
-#include "xraymc/transport.hpp"
-#include "xraymc/world/world.hpp"
-#include "xraymc/world/worlditems/depthdose.hpp"
-#include "xraymc/world/worlditems/enclosedroom.hpp"
+- [XrayMC example 1](github.com/medicalphysics/xraymcExample1): Depth dose simulation of a pencil beam onto a slab of aluminum
+- [XrayMC example 2](github.com/medicalphysics/xraymcExample2): Simple beam onto a tetrahedral mesh water sphere with an internal aluminum tourus.
+- [XrayMC example 3](github.com/medicalphysics/xraymcExample3): Simulation of scattered radiation in an interventional X-ray image guided laboratory. 
 
-#include <algorithm>
-#include <iostream>
-#include <thread>
 
-int main()
-{
-    constexpr int N_SHELLS = 5;
-    constexpr int LOW_ENERGY_CORRECTION = 1; // Livermore
-
-    using Cylinder = xraymc::DepthDose<N_SHELLS, LOW_ENERGY_CORRECTION>;
-    using Room     = xraymc::EnclosedRoom<N_SHELLS, LOW_ENERGY_CORRECTION>;
-
-    xraymc::World<Cylinder, Room> world;
-    world.reserveNumberOfItems(2);
-
-    auto& cylinder = world.addItem<Cylinder>({ 1.0 /* cm radius */, 10.0 /* cm length */ }, "Cylinder");
-    auto aluminium = xraymc::Material<N_SHELLS>::byZ(13).value();
-    cylinder.setMaterial(aluminium, 2.27 /* g/cm3 */);
-
-    auto& room = world.addItem<Room>({ 2.0 /* wall cm */, 200.0 /* inner size cm */ }, "Room");
-    auto concrete = xraymc::Material<N_SHELLS>::byNistName("Concrete, Ordinary").value();
-    room.setMaterial(concrete, xraymc::NISTMaterials::density("Concrete, Ordinary"));
-
-    world.build();
-
-    xraymc::PencilBeam<> beam({ 0, 0, -10 }, { 0, 0, 1 });
-    beam.setNumberOfExposures(64);
-    beam.setNumberOfParticlesPerExposure(1'000'000);
-    beam.setEnergy(60.0 /* keV */);
-
-    auto nThreads = std::max(std::thread::hardware_concurrency(), 1u);
-    xraymc::Transport::runConsole(world, beam, nThreads, true);
-
-    std::cout << "Depth [cm], Dose/AirKerma [mGy/mGy], Uncertainty [%], Events\n";
-    for (std::size_t i = 0; i < cylinder.resolution(); ++i) {
-        auto d = cylinder.doseScored(i);
-        std::cout << (cylinder.length() * (i + 0.5)) / cylinder.resolution() << ", "
-                  << d.dose() << ", "
-                  << d.relativeUncertainty() * 100 << ", "
-                  << d.numberOfEvents() << "\n";
-    }
-}
-```
-
-More examples are in the [examples/](examples/) directory.
 
 ## Documentation
 
