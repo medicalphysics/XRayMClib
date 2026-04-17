@@ -328,7 +328,7 @@ public:
         if (!air_cand)
             return 0;
         const auto& air = air_cand.value();
-        const double kerma = numberOfParticles() * air.massEnergyTransferAttenuation(m_energy);
+        const double kerma = m_energy * numberOfParticles() * air.massEnergyTransferAttenuation(m_energy);
         return m_airKerma / kerma;
     }
 
