@@ -42,13 +42,13 @@ namespace xraymc {
  * to a named subset of collections.
  */
 struct TetrahedalMeshData {
-    std::vector<std::array<double, 3>> nodes;                            ///< Vertex positions in cm.
-    std::vector<std::array<std::uint32_t, 4>> elements;                  ///< Tetrahedron vertex index quads.
-    std::vector<std::uint32_t> collectionIndices;                        ///< Per-element collection index; same size as elements.
+    std::vector<std::array<double, 3>> nodes; ///< Vertex positions in cm.
+    std::vector<std::array<std::uint32_t, 4>> elements; ///< Tetrahedron vertex index quads.
+    std::vector<std::uint32_t> collectionIndices; ///< Per-element collection index; same size as elements.
 
-    std::vector<double> collectionDensities;                             ///< Mass density in g/cm³ for each collection.
+    std::vector<double> collectionDensities; ///< Mass density in g/cm³ for each collection.
     std::vector<std::map<std::uint8_t, double>> collectionMaterialComposition; ///< Elemental weight fractions for each collection.
-    std::vector<std::string> collectionNames;                            ///< Human-readable name for each collection.
+    std::vector<std::string> collectionNames; ///< Human-readable name for each collection.
 
     /**
      * @brief Returns the largest collection index present in collectionIndices.
@@ -95,7 +95,7 @@ struct TetrahedalMeshData {
      * @param newComposition  New elemental weight fractions keyed by atomic number.
      * @throws std::out_of_range if @p collectionIndex is out of bounds.
      */
-    void changeMaterialComposition(std::uint32_t collectionIndex, const std::map<std::uint8_t, double>& newComposition)
+    void changeMaterialComposition(std::uint8_t collectionIndex, const std::map<std::uint8_t, double>& newComposition)
     {
         auto& comp = collectionMaterialComposition.at(collectionIndex);
         comp.clear();
