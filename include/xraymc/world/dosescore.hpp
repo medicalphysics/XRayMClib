@@ -31,8 +31,8 @@ namespace xraymc {
  * fraction of the mean dose.
  *
  * Units:
- * - Dose:     eV/g  (energy in eV divided by mass in g)
- * - Variance: (eV/g)²
+ * - Dose:     keV/g  (energy in keV divided by mass in g)
+ * - Variance: (keV/g)²
  */
 class DoseScore {
 public:
@@ -61,19 +61,19 @@ public:
         m_nEvents += energy.numberOfEvents();
     }
 
-    /// @brief Returns the accumulated mean dose in eV/g.
+    /// @brief Returns the accumulated mean dose in keV/g.
     auto dose() const
     {
         return m_dose;
     }
 
-    /// @brief Returns the accumulated dose variance in (eV/g)².
+    /// @brief Returns the accumulated dose variance in (keV/g)².
     auto variance() const
     {
         return m_doseVariance;
     }
 
-    /// @brief Returns the standard deviation of the dose in eV/g.
+    /// @brief Returns the standard deviation of the dose in keV/g.
     auto standardDeviation() const
     {
         return std::sqrt(variance());
@@ -105,8 +105,8 @@ public:
 
     /**
      * @brief Directly sets the dose, variance, and event count (used during deserialization).
-     * @param dose      Mean dose in eV/g.
-     * @param variance  Dose variance in (eV/g)².
+     * @param dose      Mean dose in keV/g.
+     * @param variance  Dose variance in (keV/g)².
      * @param n_events  Number of scored events.
      */
     void set(double dose, double variance, std::uint64_t n_events)

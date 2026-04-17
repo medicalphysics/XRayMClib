@@ -31,7 +31,7 @@ namespace xraymc {
  * variance of the total energy via the law of total variance, assuming that the
  * number of interaction events follows a Poisson distribution.
  *
- * Units: all energies in eV.
+ * Units: all energies in keV.
  */
 class EnergyScore {
 public:
@@ -47,7 +47,7 @@ public:
      * Adds @p energy to the running sum and @p energy² to the sum-of-squares,
      * and increments the event counter. Values ≤ 0 are silently ignored.
      * All three updates are performed with relaxed memory order via `std::atomic_ref`.
-     * @param energy Energy deposited in this event in eV; must be > 0 to be recorded.
+     * @param energy Energy deposited in this event in keV; must be > 0 to be recorded.
      */
     void scoreEnergy(double energy)
     {
@@ -68,20 +68,20 @@ public:
         }
     }
 
-    /// @brief Returns the total energy imparted (sum of all scored energies) in eV.
+    /// @brief Returns the total energy imparted (sum of all scored energies) in keV.
     double energyImparted() const
     {
         return m_energyImparted;
     }
 
-    /// @brief Returns the sum of squared scored energies in eV².
+    /// @brief Returns the sum of squared scored energies in keV².
     double energyImpartedSquared() const
     {
         return m_energyImpartedSquared;
     }
 
     /**
-     * @brief Estimates the variance of the total energy imparted in eV².
+     * @brief Estimates the variance of the total energy imparted in keV².
      *
      * Applies the law of total variance for a random sum Sₙ = X₁ + … + Xₙ where
      * the number of events N is Poisson-distributed with mean and variance equal to
@@ -130,7 +130,7 @@ public:
         return 0;
     }
 
-    /// @brief Returns the standard deviation of the total energy imparted in eV.
+    /// @brief Returns the standard deviation of the total energy imparted in keV.
     double standardDeviation() const
     {
         return std::sqrt(variance());
@@ -154,8 +154,8 @@ public:
 
     /**
      * @brief Directly sets all accumulators (used during deserialization).
-     * @param energy        Total energy imparted in eV.
-     * @param energySquared Sum of squared energies in eV².
+     * @param energy        Total energy imparted in keV.
+     * @param energySquared Sum of squared energies in keV².
      * @param n_events      Number of scored events.
      */
     void set(double energy, double energySquared, std::uint64_t n_events)
