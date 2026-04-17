@@ -95,7 +95,7 @@ struct TetrahedalMeshData {
      * @param newComposition  New elemental weight fractions keyed by atomic number.
      * @throws std::out_of_range if @p collectionIndex is out of bounds.
      */
-    void changeMaterialComposition(std::uint8_t collectionIndex, const std::map<std::uint8_t, double>& newComposition)
+    void changeMaterialComposition(std::uint32_t collectionIndex, const std::map<std::uint8_t, double>& newComposition)
     {
         auto& comp = collectionMaterialComposition.at(collectionIndex);
         comp.clear();
