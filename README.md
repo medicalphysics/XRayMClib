@@ -19,15 +19,15 @@ XRayMClib is the primary simulation engine of [OpenXRayMC](https://github.com/me
 
 ## Physics overview
 
-XRayMClib uses Woodcock (delta) tracking for photon transport in voxelized volumes and accelerated Siddons path tracing for tetrahedral mesh traversal. The three binding energy corrections are:
+XRayMClib uses Woodcock (delta) tracking for photon transport in voxelized volumes and accelerated Siddons path tracing for tetrahedral mesh traversal. Three binding energy corrections can be set at compile time, they are:
 
-| Interaction | None | Livermore | Impulse Approx. |
+| Interaction | None | Livermore | Impulse Approximation (IA) |
 |---|---|---|---|
 | Photoelectric | Full energy deposit | Same as None | Characteristic x-ray emission from selected shell |
-| Compton | Klein–Nishina (free electron) | + Hartree–Fock scatter function correction | + Shell-specific momentum sampling (Doppler broadening) |
+| Compton | Klein–Nishina (free electron) | + Livermore scatter function correction | Relativistic impulse approximation sampling|
 | Rayleigh | Thomson free-electron | + Hubbell atomic form factor | Same as Livermore |
 
-Secondary electrons are assumed to deposit their energy locally (valid for diagnostic energies ≤ 150 keV).
+Secondary electrons are assumed to deposit their energy locally (valid for photon energies ≤ 150 keV).
 
 
 ## Dependencies
@@ -35,7 +35,6 @@ Secondary electrons are assumed to deposit their energy locally (valid for diagn
 | Dependency | Purpose |
 |---|---|
 | [EPICS 2025](https://www-nds.iaea.org/epics/) | Cross sections, atomic form factors, electron shell binding energies, atomic data |
-| [xraylib](https://github.com/tschoonj/xraylib) | Hartree–Fock Compton profiles from the [DABAX](https://www.esrf.fr/Instrumentation/software/data-analysis/Resources) library |
 | CMake ≥ 3.20 | Build system |
 
 **Compiler requirements:** MSVC ≥ 16.8 or Clang ≥ 13.0 (C++20 required, C++23 recommended).
@@ -66,7 +65,7 @@ xraymclib_add_physics_list(your_executable)
 Set one of these CMake variables during configure:
 
 - `XRAYMCLIB_EPICS_DATA_DIRPATH` — path to a folder containing `EPDL2025.ALL` and `EADL2025.ALL` in ENDL format
-- `XRAYMCLIB_EPICS_DOWNLOAD=ON` — download EPICS data from IAEA automatically during configure
+- `XRAYMCLIB_EPICS_DOWNLOAD=ON` — download EPICS data from IAEA automatically during configure step
 
 ## CMake build options
 
@@ -96,7 +95,6 @@ Full API reference and physics model description: [xraymclib.readthedocs.io](htt
 - G. Poludniowski & P. Evans, [Calculation of x-ray spectra emerging from an x-ray tube. Part I](https://aapm.onlinelibrary.wiley.com/doi/abs/10.1118/1.2734725), *Med. Phys.* 34, 2164–2174 (2007)
 - G. Poludniowski, [Calculation of x-ray spectra emerging from an x-ray tube. Part II](https://aapm.onlinelibrary.wiley.com/doi/abs/10.1118/1.2734726), *Med. Phys.* 34, 2175–2186 (2007)
 - T. Schoonjans et al., [xraylib](https://github.com/tschoonj/xraylib)
-- European Synchrotron Radiation Facility, [DABAX: A Database of Atomic X-ray Parameters](https://www.esrf.fr/Instrumentation/software/data-analysis/Resources), ESRF
 - J.H. Hubbell et al., *Atomic form factors, incoherent scattering functions, and photon scattering cross sections*, J. Phys. Chem. Ref. Data 4(3) (1975)
 - I. Kawrakow et al., [The EGSnrc Code System](https://nrc-cnrc.github.io/EGSnrc/), Technical Report PIRS-701, NRC Canada (2020)
 - [EPICS 2025 database](https://www-nds.iaea.org/epics/), IAEA Nuclear Data Section
