@@ -31,6 +31,7 @@ Copyright 2026 Erlend Andersen
 
 namespace xraymc {
 
+template <bool USEDIRECTIONALDEPENDENCE = true>
 class PersonalDosimeter {
 public:
     PersonalDosimeter()
@@ -91,6 +92,57 @@ public:
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
+        return basicshape::AABB::intersectVisualization<U>(p, m_aabb);
+    }
+
+    template <ParticleType P>
+    void transport(P& p, RandomState& state) noexcept
+    {
+        if constexpr (std::is_same<P, ParticleTrack>::value) {
+            m_tracker.registerParticle(p);
+        }
+
+        if constexpr (USEDIRECTIONALDEPENDENCE) {
+            const auto weight = angularResponseWeight(p);
+            const auto energyToScore = p.energy * p.weight * weight;
+            m_energyScored.scoreEnergy(energyToScore);
+            TODO
+            // calculate Hp10????
+        } else {
+            const auto energyToScore = p.energy * p.weight;
+            m_energyScored.scoreEnergy(energyToScore);
+            // calculate Hp10????
+        }
+        p.energy = 0; // we kill the particle, it is absorbed by the dosimeter
+    }
+
+    const EnergyScore& energyScored(std::size_t index = 0) const
+    {
+        return m_energyScored;
+    }
+
+    void clearEnergyScored()
+    {
+        m_energyScored.clear();
+    }
+
+    void addEnergyScoredToDoseScore(double calibration_factor = 1)
+    {
+        constexpr double volume = 1.0;
+        constexpr double density = 1.0;
+
+        // We have already calculated the dose in energy score.
+        m_dose.addScoredEnergy(m_energyScored, volume, density, calibration_factor);
+    }
+
+    const DoseScore& doseScored(std::size_t index = 0) const
+    {
+        return m_dose;
+    }
+
+    void clearDoseScored()
+    {
+        m_dose.clear();
     }
 
     constexpr static std::array<char, 32> magicID()
@@ -121,7 +173,9 @@ public:
         const auto angX = std::clamp(std::atan2(dx, -dz), -max_angle, max_angle);
         const auto angY = std::clamp(std::atan2(dy, -dz), -max_angle + Y_corr, max_angle + Y_corr);
 
-        // The model is a simple cosine to the power of 0.2, determined by cognitive fit to data from the RaySafe i3 personal dosimeter.
+        // The model is a simple cosine to the power of 0.2
+        // determined by cognitive fit (aka eyeballing) to data
+        // from the RaySafe i3 personal dosimeter.
         const auto weightX = std::pow(std::cos(angX), 0.2);
 
         // 15 degrees pointed downwards for y weight at unity
@@ -184,5 +238,7 @@ private:
     std::array<std::array<double, 3>, 2> m_direction_cosines = { 1, 0, 0, 0, 1, 0 };
     std::array<double, 6> m_aabb = { 0, 0, 0 };
     ParticleTracker m_tracker;
+    EnergyScore m_energyScored;
+    DoseScore m_dose;
 };
 }
