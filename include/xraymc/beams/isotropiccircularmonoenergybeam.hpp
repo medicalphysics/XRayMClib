@@ -57,9 +57,9 @@ public:
      */
     IsotropicCircularMonoEnergyBeamExposure(const std::array<double, 3>& pos, double energy, double radius = 0, std::uint64_t N = 1E6)
         : m_pos(pos)
-        , m_energy(energy)
-        , m_radius(radius)
         , m_NParticles(N)
+        , m_radius(radius)
+        , m_energy(energy)
     {
     }
 
@@ -151,11 +151,11 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularField m_directionSampler;  ///< Samples directions within the rectangular collimation field.
-    std::array<double, 3> m_pos = { 0, 0, 0 };          ///< Centre of the source ring [cm].
-    std::uint64_t m_NParticles = 100;                    ///< Number of photon histories.
-    double m_radius = 0;                                  ///< Radius of the source ring [cm].
-    double m_energy = 60;                                 ///< Fixed photon energy [keV].
+    SphereSamplingRectangularField m_directionSampler; ///< Samples directions within the rectangular collimation field.
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Centre of the source ring [cm].
+    std::uint64_t m_NParticles = 100; ///< Number of photon histories.
+    double m_radius = 0; ///< Radius of the source ring [cm].
+    double m_energy = 60; ///< Fixed photon energy [keV].
 };
 
 /**
@@ -360,11 +360,11 @@ public:
     }
 
 private:
-    std::array<double, 3> m_pos = { 0, 0, 0 };                      ///< Centre of the source ring [cm].
-    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };  ///< Rectangular collimation half-angles {minX, minY, maxX, maxY} [rad].
-    double m_radius = 0;                                               ///< Ring radius [cm].
-    std::uint64_t m_Nexposures = 100;                                 ///< Number of exposures.
-    std::uint64_t m_particlesPerExposure = 100;                       ///< Photon histories per exposure.
-    double m_energy = 60;                                              ///< Fixed photon energy [keV].
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Centre of the source ring [cm].
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Rectangular collimation half-angles {minX, minY, maxX, maxY} [rad].
+    double m_radius = 0; ///< Ring radius [cm].
+    std::uint64_t m_Nexposures = 100; ///< Number of exposures.
+    std::uint64_t m_particlesPerExposure = 100; ///< Photon histories per exposure.
+    double m_energy = 60; ///< Fixed photon energy [keV].
 };
 }

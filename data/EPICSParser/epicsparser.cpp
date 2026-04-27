@@ -257,7 +257,6 @@ void EPICSparser::readHartreeFockProfiles(const std::string& path)
 
     if (stream.is_open()) {
         std::string line;
-        std::size_t linenumber = 0;
         std::size_t Z = 0;
         while (std::getline(stream, line)) {
             if (line.size() > 2) {
@@ -282,7 +281,6 @@ void EPICSparser::readHartreeFockProfiles(const std::string& path)
                     }
                 }
             }
-            linenumber++;
         }
     }
 
@@ -330,9 +328,9 @@ void EPICSparser::readStandardDensities(const std::string& path)
                 double dens = 0;
 
                 auto [ptrZ, errZ] = std::from_chars(start, end, Z);
-                if (errZ == std::errc {}) {
+                if (errZ == std::errc { }) {
                     auto [ptrD, errD] = std::from_chars(ptrZ + 1, end, dens);
-                    if (errD == std::errc {}) {
+                    if (errD == std::errc { }) {
                         m_elements[Z].setStandardDensity(dens);
                     }
                 }
