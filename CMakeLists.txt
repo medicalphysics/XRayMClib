@@ -111,6 +111,7 @@ set(HEADER_LIST
     "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctsequentialbeam.hpp" 
     "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctspiraldualenergybeam.hpp" 
     "${xraymclib_SOURCE_DIR}/include/xraymc/beams/ctdibeam.hpp" 
+    "${xraymclib_SOURCE_DIR}/include/xraymc/beams/flatmonoenergyfield.hpp" 
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/world.hpp" 
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/dosescore.hpp" 
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/energyscore.hpp" 

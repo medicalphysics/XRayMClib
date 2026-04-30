@@ -1253,6 +1253,15 @@ public:
         setup(data);
     }
 
+    CubicSplineInterpolatorStatic()
+    {
+        m_coefficients.fill(0.0);
+        std::iota(m_x.begin(), m_x.end(), 0);
+        m_step = 1;
+        m_start = 0;
+        m_stop = m_x.back();
+    }
+
     /**
      * @brief Constructs the static spline by sampling a callable on [start, stop].
      *
