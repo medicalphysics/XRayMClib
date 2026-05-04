@@ -695,7 +695,7 @@ namespace interactions {
             } else {
                 // real photoelectric effect event
                 // we don't score energy since it's already done, else do as usual to prevent bias.
-                const auto Ei = interactions::photoelectricEffect<NMaterialShells, LOWENERGYCORRECTION>(attenuation.photoelectric, particle, material, state);
+                [[maybe_unused]] const auto Ei = interactions::photoelectricEffect<NMaterialShells, LOWENERGYCORRECTION>(attenuation.photoelectric, particle, material, state);
                 // In case of characteristic radiation
                 intRes.particleEnergyChanged = true;
                 intRes.particleDirectionChanged = true;

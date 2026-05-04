@@ -675,7 +675,6 @@ protected:
             const auto& v1 = m_vertices[vIdx[1]];
             const auto& v2 = m_vertices[vIdx[2]];
             const auto& v3 = m_vertices[vIdx[3]];
-            std::uint32_t hit_counter = 0;
             const std::array<std::optional<double>, 4> hits = {
                 basicshape::tetrahedron::intersectTriangle(v0, v1, v2, particle),
                 basicshape::tetrahedron::intersectTriangle(v1, v0, v3, particle),

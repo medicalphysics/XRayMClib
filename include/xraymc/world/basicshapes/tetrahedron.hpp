@@ -259,7 +259,7 @@ namespace basicshape {
          * @param v3 Fourth vertex.
          * @return Volume of the tetrahedron (always non-negative).
          */
-        static double volume(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3)
+        static inline double volume(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3)
         {
             const auto a = vectormath::subtract(v1, v0);
             const auto b = vectormath::subtract(v2, v0);
@@ -277,7 +277,7 @@ namespace basicshape {
          * @param p The query point.
          * @return Unit normal of the face nearest to @p p.
          */
-        static std::array<double, 3> closestNormalToPoint(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& p)
+        static inline std::array<double, 3> closestNormalToPoint(const std::array<double, 3>& v0, const std::array<double, 3>& v1, const std::array<double, 3>& v2, const std::array<double, 3>& v3, const std::array<double, 3>& p)
         {
             const std::array<std::array<double, 3>, 4> normals = {
                 normalVector<true>(v0, v1, v2),
