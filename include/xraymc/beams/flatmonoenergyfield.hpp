@@ -41,7 +41,7 @@ public:
         , m_pos(pos)
         , m_NParticles(N)
     {
-        m_dir = vectormath::cross(m_dirCosines);
+        m_dir = vectormath::cross(cosines);
         m_dirXY[0] = vectormath::scale(cosines[0], lenghtX);
         m_dirXY[1] = vectormath::scale(cosines[1], lenghtY);
     }
@@ -53,19 +53,20 @@ public:
     auto sampleParticle(RandomState& state) const noexcept
     {
 
-        const auto r1 = 2 * state.randomUniform() - 1;
-        const auto r2 = 2 * state.randomUniform() - 1;
+        const auto r1 = state.randomUniform(-1.0, 1.0);
+        const auto r2 = state.randomUniform(-1.0, 1.0);
 
         const auto pos = vectormath::add(vectormath::scale(m_dirXY[0], r1), vectormath::scale(m_dirXY[1], r2));
+
         if constexpr (ENABLETRACKING) {
-            ParticleTrack p = { .pos = pos,
+            ParticleTrack p = { .pos = vectormath::add(pos, m_pos),
                 .dir = m_dir,
                 .energy = m_energy,
                 .weight = m_weight };
             p.registerPosition();
             return p;
         } else {
-            Particle p = { .pos = pos,
+            Particle p = { .pos = vectormath::add(pos, m_pos),
                 .dir = m_dir,
                 .energy = m_energy,
                 .weight = m_weight };
@@ -86,8 +87,8 @@ template <bool ENABLETRACKING = false>
 class FlatMonoEnergyField {
 public:
     FlatMonoEnergyField(const std::array<double, 3>& pos = { 0, 0, 0 }, double energy = 60)
-        : m_pos(pos)
-        , m_energy(energy)
+        : m_energy(energy)
+        , m_pos(pos)
     {
     }
 
@@ -118,12 +119,12 @@ public:
         return m_pos;
     }
 
-    const std::array<double, 3>& direction() const
+    const std::array<double, 3> direction() const
     {
-        return m_dir;
+        return vectormath::cross(m_dirCosines[0], m_dirCosines[1]);
     }
 
-    std::array<std::array<double, 3>, 2>& directionCosines() const
+    const std::array<std::array<double, 3>, 2>& directionCosines() const
     {
         return m_dirCosines;
     }
@@ -137,8 +138,8 @@ public:
 
     void setDirectionCosines(const std::array<double, 3>& xdir, const std::array<double, 3>& ydir)
     {
-        m_dir = vectormath::cross(xdir, ydir);
-        vectormath::normalize(m_dir);
+        m_dirCosines[0] = vectormath::normalized(xdir);
+        m_dirCosines[1] = vectormath::normalized(ydir);
     }
 
     void setLenghtX(double x)
@@ -156,7 +157,7 @@ public:
         setLenghtX(l);
         setLenghtY(l);
     }
-    void setLenght(double x.double y)
+    void setLenght(double x, double y)
     {
         setLenghtX(x);
         setLenghtY(y);
@@ -178,7 +179,7 @@ public:
 
     FlatMonoEnergyFieldExposure<ENABLETRACKING> exposure(std::size_t i) const noexcept
     {
-        FlatMonoEnergyFieldExposure<ENABLETRACKING> exp(m_pos, m_dir, m_energy, m_weight, m_particlesPerExposure);
+        FlatMonoEnergyFieldExposure<ENABLETRACKING> exp(m_pos, m_dirCosines, m_lenghtX, m_lenghtY, m_energy, m_weight, m_particlesPerExposure);
         return exp;
     }
 
@@ -210,8 +211,9 @@ public:
         if (!air_cand)
             return 0;
         const auto& air = air_cand.value();
-        const double kerma = m_energy * numberOfParticles() * air.massEnergyTransferAttenuation(m_energy); // keV/g
-        return m_airKerma / kerma; //(mGy/kg)(g/keV)
+        const auto area = m_lenghtX * m_lenghtY;
+        const double kerma = m_energy * numberOfParticles() * air.massEnergyTransferAttenuation(m_energy) / area; // keV/g/cm2
+        return m_airKerma / kerma; //(mGy/kg)(g/keV/cm2)
     }
 
     /**
@@ -297,8 +299,8 @@ private:
     double m_airKerma = 1; ///< Prescribed air KERMA for dose calibration.
     std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< In-plane direction cosines {cos_x, cos_y}, normalised.
-    double lenghtX = 1;
-    double lenghtY = 1;
+    double m_lenghtX = 1;
+    double m_lenghtY = 1;
     std::uint64_t m_Nexposures = 100; ///< Number of exposures.
     std::uint64_t m_particlesPerExposure = 100; ///< Particles emitted per exposure.
 };

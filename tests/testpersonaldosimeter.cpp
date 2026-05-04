@@ -67,27 +67,73 @@ bool test_angles()
     return true;
 }
 
+template <bool DS=false>
 bool geo_test_angles()
 {
 
-    using D = xraymc::PersonalDosimeter<false>;
+    using D = xraymc::PersonalDosimeter<DS>;
     using World = xraymc::World<D>;
 
     World world(1);
     auto& dos = world.addItem<D>("Dosimeter");
+    dos.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
 
-    
-    auto dir = dos.normalVector();
-    auto s_vec = xraymc::vectormath::scale(dir, -1.0);
-    beam.setDirection(s_vec);
-    beam.setPosition(xraymc::vectormath::add(dos.center(), dir));
+    xraymc::FlatMonoEnergyField<false> beam;
     beam.setEnergy(60);
-    auto kerma = 1;
-    beam.setAirKerma(kerma);
+    beam.setAirKerma(1.0);
     beam.setNumberOfExposures(30);
     beam.setNumberOfParticlesPerExposure(1E6);
+    beam.setLenght(10, 10);
+    constexpr std::array<double, 3> dirX = { 0, -1, 0 };
+    constexpr std::array<double, 3> dirY = { 0, 0, 1 };
+    constexpr std::array<double, 3> pos = { 10, 0, 0 };
+    beam.setPosition(pos);
+    beam.setDirectionCosines(dirX, dirY);
+    
+    for (std::size_t i = 0; i < 90; i = i + 5) {
+        const double angle = i * xraymc::DEG_TO_RAD();
+        dos.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
+        dos.rotate(angle, { 0, 0, 1 });
+        world.build();
+        dos.clearDoseScored();
+        xraymc::Transport::runConsole(world, beam, 0);
 
+        std::cout << "Angle," << i;
+        std::cout << ",AirKerma," << dos.doseScored(1).dose() << "," << dos.doseScored(1).numberOfEvents();
+        std::cout << ",Hp10," << dos.doseScored(0).dose() << std::endl;
+        dos.clearDoseScored();
 
+        xraymc::VisualizeWorld viz(world);
+        auto buffer = viz.createBuffer(512, 512);
+
+        auto corner1 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], -0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], 0.5 * beam.lenghtX())));
+        auto corner2 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], -0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], -0.5 * beam.lenghtX())));
+        auto corner3 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], 0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], 0.5 * beam.lenghtX())));
+        auto corner4 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], 0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], -0.5 * beam.lenghtX())));
+
+        viz.addLineSegment(corner1, xraymc::vectormath::add(corner1, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
+        viz.addLineSegment(corner2, xraymc::vectormath::add(corner2, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
+        viz.addLineSegment(corner3, xraymc::vectormath::add(corner3, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
+        viz.addLineSegment(corner4, xraymc::vectormath::add(corner4, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
+
+        viz.addAABBoutline(dos.AABB(), 0.1);
+
+        viz.setAzimuthalAngleDeg(60);
+        viz.setPolarAngleDeg(60);
+        viz.suggestFOV(1);
+        viz.generate(world, buffer);
+        std::string name = std::to_string(i) + ".png";
+        viz.savePNG(name, buffer);
+    }
+    /* xraymc::VisualizeWorld viz(world);
+     auto buffer = viz.createBuffer(512, 512);
+     viz.setAzimuthalAngleDeg(45);
+     viz.setPolarAngleDeg(45);
+     viz.suggestFOV(1);
+     viz.generate(world, buffer);
+     viz.savePNG("test.png", buffer);
+ */
+    return true;
 }
 
 void testAtt()
@@ -130,8 +176,8 @@ int main()
     // testAtt();
 
     bool success = true;
-    success = success && test_angles();
-    // success = success && test_dose();
+    // success = success && test_angles();
+    success = success && geo_test_angles<true>();
 
     if (success)
         return EXIT_SUCCESS;

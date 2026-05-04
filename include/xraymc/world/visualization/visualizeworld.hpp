@@ -56,10 +56,10 @@ namespace xraymc {
 template <typename T>
     requires(std::same_as<T, double> || std::same_as<T, std::uint8_t>)
 struct VisualizationBuffer {
-    std::vector<T> buffer;                                   ///< Flat RGBA pixel data; size = width × height × 4.
-    std::size_t width = 512;                                 ///< Image width in pixels.
-    std::size_t height = 512;                                ///< Image height in pixels.
-    std::chrono::duration<double, std::milli> renderTime;    ///< Wall-clock time of the last generate() call.
+    std::vector<T> buffer; ///< Flat RGBA pixel data; size = width × height × 4.
+    std::size_t width = 512; ///< Image width in pixels.
+    std::size_t height = 512; ///< Image height in pixels.
+    std::chrono::duration<double, std::milli> renderTime; ///< Wall-clock time of the last generate() call.
 
     /**
      * @brief Constructs a square buffer of @p size × @p size pixels.
@@ -364,6 +364,24 @@ public:
         const auto length = vectormath::length(dir);
         const auto ndir = vectormath::normalized(dir);
         addLineProp(start, ndir, length, radii);
+    }
+
+    void addAABBoutline(const std::array<double, 6>& aabb, double radii = 1)
+    {
+        const auto [ll, ur] = vectormath::splice(aabb);
+        for (std::size_t i = 0; i < 3; ++i) {
+            auto s = ll;
+            s[i] = ur[i];
+            addLineSegment(ll, s, radii);
+            s = ur;
+            s[i] = ll[i];
+            addLineSegment(ur, s, radii);
+        }
+        addLineSegment({ ur[0], ur[1], ll[2] }, { ur[0], ll[1], ll[2] }, radii);
+        addLineSegment({ ur[0], ur[1], ll[2] }, { ll[0], ur[1], ll[2] }, radii);
+
+        addLineSegment({ ll[0], ll[1], ur[2] }, { ll[0], ur[1], ur[2] }, radii);
+        addLineSegment({ ll[0], ll[1], ur[2] }, { ur[0], ll[1], ur[2] }, radii);
     }
 
     /**

@@ -69,10 +69,8 @@ public:
 
     void setDirectionCosines(const std::array<double, 3>& dir_cosX, const std::array<double, 3>& dir_cosY)
     {
-        if (vectormath::dot(dir_cosX, dir_cosY) < 2 * GEOMETRIC_ERROR<>()) {
-            m_direction_cosines[0] = vectormath::normalized(dir_cosX);
-            m_direction_cosines[1] = vectormath::normalized(dir_cosY);
-        }
+        m_direction_cosines[0] = vectormath::normalized(dir_cosX);
+        m_direction_cosines[1] = vectormath::normalized(dir_cosY);
         m_aabb = calculateAABB();
     }
 
@@ -86,15 +84,44 @@ public:
         return vectormath::cross(m_direction_cosines[0], m_direction_cosines[1]);
     }
 
+    void rotate(double angle, const std::array<double, 3>& axis)
+    {
+        m_direction_cosines[0] = vectormath::rotate(m_direction_cosines[0], axis, angle);
+        m_direction_cosines[1] = vectormath::rotate(m_direction_cosines[1], axis, angle);
+        m_aabb = calculateAABB();
+    }
+
     WorldIntersectionResult intersect(const ParticleType auto& p) const
     {
-        return basicshape::AABB::intersect(p, m_aabb);
+        auto res = basicshape::AABB::intersect(p, m_aabb);
+        if (res.valid()) {
+            const auto t = intersectPlane(p);
+            if (t) {
+                res.intersection = t.value();
+                res.rayOriginIsInsideItem = false;
+            } else {
+                res.intersectionValid = false;
+            }
+        }
+        return res;
     }
 
     template <typename U>
     VisualizationIntersectionResult<U> intersectVisualization(const ParticleType auto& p) const
     {
-        return basicshape::AABB::intersectVisualization<U>(p, m_aabb);
+        auto res = basicshape::AABB::intersectVisualization<U>(p, m_aabb);
+        if (res.valid()) {
+            const auto t = intersectPlane(p);
+            if (t) {
+                res.intersection = t.value();
+                res.rayOriginIsInsideItem = false;
+                res.normal = normalVector();
+                res.value = m_dose_airKermaScored.dose();
+            } else {
+                res.intersectionValid = false;
+            }
+        }
+        return res;
     }
 
     template <ParticleType P>
@@ -109,12 +136,17 @@ public:
 
         if constexpr (USEDIRECTIONALDEPENDENCE) {
             const auto angular_weight = angularResponseWeight(p);
-            m_energyScored.scoreEnergy(hp10 * p.weight * angular_weight);
-            m_energy_airKermaScored.scoreEnergy(airKerma * p.weight * angular_weight);
+
+            // If we correct for the detector model we must cancel the area effect
+            const auto areaScaling = -1.0 / vectormath::dot(normalVector(), p.dir);
+
+            m_energyScored.scoreEnergy(hp10 * p.weight * angular_weight * areaScaling);
+            m_energy_airKermaScored.scoreEnergy(airKerma * p.weight * angular_weight * areaScaling);
         } else {
             m_energyScored.scoreEnergy(hp10 * p.weight);
             m_energy_airKermaScored.scoreEnergy(airKerma * p.weight);
         }
+
         p.energy = 0; // we kill the particle, it is absorbed by the dosimeter
     }
 
@@ -151,7 +183,7 @@ public:
 
         // We have already calculated the dose in energy score.
         m_dose.addScoredEnergy(m_energyScored, area, density, calibration_factor);
-        m_dose_airKermaScored.addScoredEnergy(m_energy_airKermaScored, 1.0, 1.0, calibration_factor);
+        m_dose_airKermaScored.addScoredEnergy(m_energy_airKermaScored, area, density, calibration_factor);
     }
 
     const DoseScore& doseScored(std::size_t index = 0) const
@@ -165,6 +197,16 @@ public:
     void clearDoseScored()
     {
         m_dose.clear();
+        m_dose_airKermaScored.clear();
+    }
+
+    const DoseScore& airKermaScored() const
+    {
+        return doseScored(1);
+    }
+    const DoseScore& hp10DoseScored() const
+    {
+        return doseScored(0);
     }
 
     constexpr static std::array<char, 32> magicID()
@@ -216,7 +258,8 @@ public:
     }
     constexpr static double depth()
     {
-        return 17.0 / 10.0; // cm
+        return 1.0E-3;
+        // return 17.0 / 10.0; // cm
     }
 
 protected:
@@ -313,6 +356,32 @@ protected:
         return a < b ? std::pair { a, b } : std::pair { b, a };
     }
 
+    std::optional<double> intersectPlane(const ParticleType auto& p) const
+    {
+        const auto n = normalVector();
+        const auto dn = vectormath::dot(n, p.dir);
+        if (std::abs(dn) < GEOMETRIC_ERROR())
+            return std::nullopt;
+
+        auto t = vectormath::dot(n, vectormath::subtract(m_center, p.pos)) / dn;
+        if (t < 0.0)
+            return std::nullopt;
+
+        auto hitpos = vectormath::add(p.pos, vectormath::scale(p.dir, t));
+
+        auto dist = vectormath::subtract(hitpos, m_center);
+
+        // X
+        const auto x = vectormath::dot(dist, m_direction_cosines[0]);
+        if (std::abs(x) * 2 > width())
+            return std::nullopt;
+        // y
+        const auto y = vectormath::dot(dist, m_direction_cosines[1]);
+        if (std::abs(y) * 2 > height())
+            return std::nullopt;
+        return t;
+    }
+
     std::array<double, 6> calculateAABB() const
     {
         const auto normal_vec = normalVector();
@@ -345,7 +414,7 @@ private:
     std::array<double, 3> m_center = { 0, 0, 0 };
     // cosines = {v_x, v_y}, v_x is startboard to port and v_y is bottom to top, normal is back to front
     std::array<std::array<double, 3>, 2> m_direction_cosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
-    std::array<double, 6> m_aabb = { 0, 0, 0 };
+    std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
     Material<12> m_air;
     ParticleTracker m_tracker;
     EnergyScore m_energyScored;
