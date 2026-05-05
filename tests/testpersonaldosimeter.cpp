@@ -18,16 +18,12 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2026 Erlend Andersen
 */
 
-#include "xraymc/beams/pencilbeam.hpp"
-#include "xraymc/vectormath.hpp"
-#include "xraymc/world/worlditems/personaldosimeter.hpp"
-
 #include "xraymc/xraymc.hpp"
-
-#include "xraymc/beams/flatmonoenergyfield.hpp"
 
 #include <iostream>
 
+// Simple sanity functions for development
+/*
 bool test_dose()
 {
     xraymc::PersonalDosimeter<false> dos;
@@ -52,22 +48,9 @@ bool test_dose()
     return false;
 }
 
-bool test_angles()
-{
-    xraymc::PersonalDosimeter dos;
-    xraymc::Particle p;
-    for (std::size_t i = 1; i < 100; ++i) {
 
-        double ang = -std::numbers::pi_v<double> / 2 + i * std::numbers::pi_v<double> / 100.0;
-        p.dir = xraymc::vectormath::rotate({ 0, 0, -1 }, { 1, 0, 0 }, ang);
 
-        auto w = dos.angularResponseWeight(p);
-        std::cout << ang << "," << w << std::endl;
-    }
-    return true;
-}
-
-template <bool DS=false>
+template <bool DS = false>
 bool geo_test_angles()
 {
 
@@ -75,7 +58,7 @@ bool geo_test_angles()
     using World = xraymc::World<D>;
 
     World world(1);
-    auto& dos = world.addItem<D>("Dosimeter");
+    auto& dos = world.template addItem<D>("Dosimeter");
     dos.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
 
     xraymc::FlatMonoEnergyField<false> beam;
@@ -89,7 +72,7 @@ bool geo_test_angles()
     constexpr std::array<double, 3> pos = { 10, 0, 0 };
     beam.setPosition(pos);
     beam.setDirectionCosines(dirX, dirY);
-    
+
     for (std::size_t i = 0; i < 90; i = i + 5) {
         const double angle = i * xraymc::DEG_TO_RAD();
         dos.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
@@ -125,14 +108,14 @@ bool geo_test_angles()
         std::string name = std::to_string(i) + ".png";
         viz.savePNG(name, buffer);
     }
-    /* xraymc::VisualizeWorld viz(world);
+     xraymc::VisualizeWorld viz(world);
      auto buffer = viz.createBuffer(512, 512);
      viz.setAzimuthalAngleDeg(45);
      viz.setPolarAngleDeg(45);
      viz.suggestFOV(1);
      viz.generate(world, buffer);
      viz.savePNG("test.png", buffer);
- */
+
     return true;
 }
 
@@ -169,15 +152,35 @@ void testAtt()
             std::cout << e << ", " << e * mat.massEnergyTransferAttenuation(e) << std::endl;
     }
 }
+*/
+
+template <bool OPTIONS>
+bool test_angles(bool print = false)
+{
+    // Simple compile test
+    xraymc::PersonalDosimeter<OPTIONS> dos;
+    xraymc::Particle p;
+    for (std::size_t i = 1; i < 100; ++i) {
+
+        double ang = -std::numbers::pi_v<double> / 2 + i * std::numbers::pi_v<double> / 100.0;
+        p.dir = xraymc::vectormath::rotate({ 0, 0, -1 }, { 1, 0, 0 }, ang);
+
+        auto w = dos.angularResponseWeight(p);
+        if (print)
+            std::cout << ang << "," << w << std::endl;
+    }
+    return true;
+}
 
 int main()
-
 {
-    // testAtt();
-
     bool success = true;
+    success = success && test_angles<false>(false);
+    success = success && test_angles<true>(false);
+
+    // testAtt();
     // success = success && test_angles();
-    success = success && geo_test_angles<true>();
+    // success = success && geo_test_angles<true>();
 
     if (success)
         return EXIT_SUCCESS;

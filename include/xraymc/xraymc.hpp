@@ -90,6 +90,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/worlditems/enclosedroom.hpp"
 #include "xraymc/world/worlditems/flatdetector.hpp"
 #include "xraymc/world/worlditems/fluencescore.hpp"
+#include "xraymc/world/worlditems/personaldosimeter.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
 #include "xraymc/world/worlditems/triangulatedmesh.hpp"
