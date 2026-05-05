@@ -73,6 +73,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/beams/ctspiralbeam.hpp"
 #include "xraymc/beams/ctspiraldualenergybeam.hpp"
 #include "xraymc/beams/dxbeam.hpp"
+#include "xraymc/beams/flatMonoenergyfield.hpp"
 #include "xraymc/beams/isotropicbeam.hpp"
 #include "xraymc/beams/isotropicbeamcircle.hpp"
 #include "xraymc/beams/isotropicmonoenergybeam.hpp"

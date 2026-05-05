@@ -366,6 +366,14 @@ public:
         addLineProp(start, ndir, length, radii);
     }
 
+    /**
+     * @brief Adds a wireframe outline of an axis-aligned bounding box (AABB).
+     *
+     * Draws the 12 edges of the box defined by @p aabb as individual line segments.
+     *
+     * @param aabb   Bounding box in the form {xmin, ymin, zmin, xmax, ymax, zmax} [cm].
+     * @param radii  Visual radius of each edge segment [cm] (default 1).
+     */
     void addAABBoutline(const std::array<double, 6>& aabb, double radii = 1)
     {
         const auto [ll, ur] = vectormath::splice(aabb);
