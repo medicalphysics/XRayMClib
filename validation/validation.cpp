@@ -16,6 +16,24 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2023 Erlend Andersen
 */
 
+/**
+ * @file validation.cpp
+ * @brief AAPM TG-195 Monte Carlo validation suite for XRayMClib.
+ *
+ * Implements all five TG-195 benchmark cases for diagnostic X-ray Monte Carlo simulations:
+ *   Case 1   – Air-kerma and HVL/QVL for pencil-beam geometry (fluence scoring).
+ *   Case 2   – Absorbed energy in a soft-tissue box phantom (radiography and tomosynthesis).
+ *   Case 3   – Mean glandular dose in a compressed-breast phantom (radiography and tomosynthesis).
+ *   Case 4.1 – Depth-dose in a PMMA cylinder (CT geometry, fan beam).
+ *   Case 4.2 – Absorbed energy in a PMMA cylinder with central and peripheral scoring volumes (CT).
+ *   Case 5   – Organ doses in a voxel-based anthropomorphic phantom (CT).
+ *
+ * Results are written to a CSV file (default: validationTable.txt) and printed to stdout
+ * alongside TG-195 reference values for immediate comparison.
+ *
+ * Usage: validation [-j N_threads] [-b None|Livermore|IA|All] [-f output.txt]
+ */
+
 #include "xraymc/beams/isotropicbeam.hpp"
 #include "xraymc/beams/isotropicbeamcircle.hpp"
 #include "xraymc/beams/isotropiccircularbeam.hpp"
@@ -41,38 +59,48 @@ Copyright 2023 Erlend Andersen
 
 using namespace xraymc;
 
-// Set this to true for a reduced number of photons (for testing)
-constexpr bool SAMPLE_RUN = false;
-constexpr std::size_t NShells = 12;
-constexpr std::size_t NShellsCase3and5 = 36;
-constexpr double Sigma = 3.0;
+constexpr bool SAMPLE_RUN = false;         ///< Set true for quick test runs with fewer photons.
+constexpr std::size_t NShells = 12;        ///< Material shell count for Cases 1, 2, 4.1, 4.2.
+constexpr std::size_t NShellsCase3and5 = 36; ///< Higher shell count needed for low-energy breast/organ cases.
+constexpr double Sigma = 3.0;              ///< Coverage factor for uncertainty reporting (3σ ≈ 99.7%).
 
+/// Holds metadata and results for a single simulation scoring region, used for CSV output.
 struct ResultKeys {
-    std::string rCase = "unknown";
-    std::string volume = "unknown";
-    std::string specter = "unknown";
-    std::string modus = "unknown";
-    std::string model = "unknown";
-    double TG195Result = 0;
-    double result = 0;
-    double result_std = 0;
-    std::uint64_t nEvents = 0;
-    std::uint64_t nMilliseconds = 0;
-    std::uint64_t nHistories = 0;
+    std::string rCase = "unknown";    ///< TG-195 case label (e.g. "Case 1").
+    std::string volume = "unknown";   ///< Scoring-region label (e.g. "VOI 3").
+    std::string specter = "unknown";  ///< Beam spectrum label (e.g. "120 kVp").
+    std::string modus = "unknown";    ///< Acquisition mode (e.g. "radiography", "tomosynthesis").
+    std::string model = "unknown";    ///< Low-energy correction model ("None", "Livermore", "IA").
+    double TG195Result = 0;           ///< Published TG-195 reference value for comparison.
+    double result = 0;                ///< Simulated result (units depend on case).
+    double result_std = 0;            ///< Statistical uncertainty (Sigma * σ / mean).
+    std::uint64_t nEvents = 0;        ///< Number of scored interaction events.
+    std::uint64_t nMilliseconds = 0;  ///< Wall-clock simulation time in milliseconds.
+    std::uint64_t nHistories = 0;     ///< Total number of photon histories simulated.
 };
 
+/**
+ * @brief Appends simulation results to a CSV file and optionally prints a comparison to stdout.
+ *
+ * The output file is shared across all cases via a static filename, so the first constructor
+ * call that specifies a filename sets it for the entire run. Subsequent default-constructed
+ * instances reuse the same file and append to it.
+ */
 class ResultPrint {
 private:
     std::ofstream m_myfile;
-    static std::string m_filename;
+    static std::string m_filename; ///< Shared output filename across all instances.
 
 public:
+    /// Opens the output file for appending, using the previously set filename or the default.
     ResultPrint()
     {
         if (m_filename.empty())
             m_filename = "validationTable.txt";
         m_myfile.open(m_filename, std::ios::out | std::ios::app);
     }
+
+    /// Opens the output file for appending and sets the shared filename for future instances.
     ResultPrint(std::string_view fname)
     {
         if (fname.empty())
@@ -81,10 +109,16 @@ public:
             m_filename = std::string(fname);
         m_myfile.open(m_filename, std::ios::out | std::ios::app);
     }
+
     ~ResultPrint()
     {
         m_myfile.close();
     }
+
+    /**
+     * @brief Writes the CSV header row.
+     * @param print_only_if_empty  If true (default), skips writing if the file already has content.
+     */
     void header(bool print_only_if_empty = true)
     {
         if (print_only_if_empty) {
@@ -99,11 +133,18 @@ public:
         m_myfile << "Case,Volume,Specter,Model,Mode,Result,Uncertainty,nEvents,SimulationTime,Histories\n";
     }
 
+    /// Convenience call operator forwarding to print().
     void operator()(const ResultKeys& r, bool terminal = true, const std::string& units = "ev/hist")
     {
         print(r, terminal, units);
     }
 
+    /**
+     * @brief Appends one result row to the CSV file.
+     * @param r        Result data to record.
+     * @param terminal If true, also prints a summary line to stdout with % difference from TG-195.
+     * @param units    Unit label shown in the stdout line (e.g. "ev/hist", "Kerma/mm").
+     */
     void print(const ResultKeys& r, bool terminal = true, const std::string& units = "ev/hist")
     {
         m_myfile << r.rCase << ",";
@@ -126,9 +167,24 @@ public:
         }
     }
 };
-// static initialization
-std::string ResultPrint::m_filename;
+std::string ResultPrint::m_filename; // static member definition
 
+/**
+ * @brief Renders a PNG visualization of the simulation world with the beam drawn as line props.
+ *
+ * For circular-collimation beams the cone boundary is approximated by 12 lines spaced 30° apart.
+ * World items are colour-coded by name ("Tissue", "Filter", "Water", "PMMA", etc.) if present.
+ *
+ * @param name          Output PNG filename.
+ * @param world         Simulation world to visualize.
+ * @param beam          Beam source; position and direction are extracted to draw ray lines.
+ * @param polarAngle    Camera polar angle in degrees (default 90 = equatorial view).
+ * @param azimuthAngle  Camera azimuthal angle in degrees (default 90).
+ * @param dist          Camera distance from the scene origin (default 100).
+ * @param zoom          FOV zoom factor passed to suggestFOV (default 1).
+ * @param linelenght    Length of the beam ray lines drawn in the scene (default 250).
+ * @param linethick     Thickness of the beam ray lines (default 0.2).
+ */
 template <typename W, typename B>
 void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAngle = 90, double azimuthAngle = 90, double dist = 100, double zoom = 1, double linelenght = 250, double linethick = 0.2)
 {
@@ -175,7 +231,11 @@ void saveImageOfWorld(const std::string& name, W& world, B& beam, double polarAn
     return;
 }
 
-// energy weighs pair for spectre
+// ── TG-195 X-ray spectra ─────────────────────────────────────────────────────
+// Raw data format: interleaved (energy_keV, fluence_weight) pairs.
+// Energy values are bin centres; TG195_specter() shifts each by -0.25 keV to
+// convert to bin lower bounds as expected by the beam spectrum API.
+
 /*RQR-8
 W/Al
 100 kVp
@@ -212,6 +272,15 @@ QVL: 0.7663 mm Al
 */
 const std::vector<double> TG195_30KV_raw({ 7.25, 1.551E-04, 7.75, 4.691E-04, 8.25, 1.199E-03, 8.75, 2.405E-03, 9.25, 4.263E-03, 9.75, 6.797E-03, 10.25, 9.761E-03, 10.75, 1.314E-02, 11.25, 1.666E-02, 11.75, 2.013E-02, 12.25, 2.349E-02, 12.75, 2.666E-02, 13.25, 2.933E-02, 13.75, 3.167E-02, 14.25, 3.365E-02, 14.75, 3.534E-02, 15.25, 3.644E-02, 15.75, 3.741E-02, 16.25, 3.796E-02, 16.75, 3.823E-02, 17.25, 3.445E-01, 17.75, 3.770E-02, 18.25, 3.704E-02, 18.75, 3.639E-02, 19.25, 9.200E-02, 19.75, 2.178E-03, 20.25, 2.048E-03, 20.75, 2.043E-03, 21.25, 2.098E-03, 21.75, 2.193E-03, 22.25, 2.327E-03, 22.75, 2.471E-03, 23.25, 2.625E-03, 23.75, 2.770E-03, 24.25, 2.907E-03, 24.75, 3.000E-03, 25.25, 3.062E-03, 25.75, 3.058E-03, 26.25, 2.988E-03, 26.75, 2.823E-03, 27.25, 2.575E-03, 27.75, 2.233E-03, 28.25, 1.815E-03, 28.75, 1.290E-03, 29.25, 6.696E-04, 29.75, 4.086E-05 });
 
+/**
+ * @brief Converts a flat interleaved raw spectrum array into a (energy, weight) pair vector.
+ *
+ * Each consecutive pair in @p raw is (bin_centre_keV, fluence_weight). The bin centre is
+ * shifted by -0.25 keV so that the returned energies represent bin lower bounds.
+ *
+ * @param raw  Interleaved {E_centre, weight, E_centre, weight, ...} vector.
+ * @return     Vector of (E_lower_bound_keV, fluence_weight) pairs.
+ */
 std::vector<std::pair<double, double>> TG195_specter(const std::vector<double>& raw)
 {
     std::vector<std::pair<double, double>> s;
@@ -222,22 +291,32 @@ std::vector<std::pair<double, double>> TG195_specter(const std::vector<double>& 
     return s;
 }
 
+/// Returns the RQR-9 120 kVp W/Al spectrum as (energy_keV, weight) pairs.
 auto TG195_120KV()
 {
     return TG195_specter(TG195_120KV_raw);
 }
 
+/// Returns the RQR-8 100 kVp W/Al spectrum as (energy_keV, weight) pairs.
 auto TG195_100KV()
 {
     return TG195_specter(TG195_100KV_raw);
 }
 
+/// Returns the RQR-M3 30 kVp Mo/Mo mammography spectrum as (energy_keV, weight) pairs.
 auto TG195_30KV()
 {
     return TG195_specter(TG195_30KV_raw);
 }
 
-// mass energy abs coeff for air
+/**
+ * @brief Returns the mass energy-absorption coefficient table for dry air.
+ *
+ * Data are (energy_keV, μ_en/ρ [cm²/g]) pairs at 0.5 keV intervals, used to convert
+ * fluence spectra to air kerma in Case 1.
+ *
+ * @return Vector of (energy_keV, μ_en/ρ) pairs.
+ */
 std::vector<std::pair<double, double>> TG195_mass_en_abs_air()
 {
     static std::vector<double> raw({ 0.25, 0.000E+00, 0.75, 0.000E+00, 1.25, 0.000E+00, 1.75, 0.000E+00, 2.25, 0.000E+00, 2.75, 0.000E+00, 3.25, 0.000E+00, 3.75, 3.815E+01, 4.25, 6.506E+01, 4.75, 4.657E+01, 5.25, 3.441E+01, 5.75, 2.609E+01, 6.25, 2.027E+01, 6.75, 1.606E+01, 7.25, 1.292E+01, 7.75, 1.050E+01, 8.25, 8.649E+00, 8.75, 7.219E+00, 9.25, 6.073E+00, 9.75, 5.154E+00, 10.25, 4.411E+00, 10.75, 3.804E+00, 11.25, 3.301E+00, 11.75, 2.880E+00, 12.25, 2.528E+00, 12.75, 2.230E+00, 13.25, 1.976E+00, 13.75, 1.759E+00, 14.25, 1.572E+00, 14.75, 1.410E+00, 15.25, 1.270E+00, 15.75, 1.146E+00, 16.25, 1.038E+00, 16.75, 9.434E-01, 17.25, 8.599E-01, 17.75, 7.864E-01, 18.25, 7.204E-01, 18.75, 6.611E-01, 19.25, 6.083E-01, 19.75, 5.612E-01, 20.25, 5.211E-01, 20.75, 4.845E-01, 21.25, 4.496E-01, 21.75, 4.177E-01, 22.25, 3.901E-01, 22.75, 3.650E-01, 23.25, 3.411E-01, 23.75, 3.181E-01, 24.25, 2.974E-01, 24.75, 2.788E-01, 25.25, 2.621E-01, 25.75, 2.469E-01, 26.25, 2.325E-01, 26.75, 2.193E-01, 27.25, 2.070E-01, 27.75, 1.956E-01, 28.25, 1.851E-01, 28.75, 1.753E-01, 29.25, 1.663E-01, 29.75, 1.579E-01, 30.25, 1.501E-01, 30.75, 1.428E-01, 31.25, 1.360E-01, 31.75, 1.298E-01, 32.25, 1.240E-01, 32.75, 1.185E-01, 33.25, 1.133E-01, 33.75, 1.086E-01, 34.25, 1.041E-01, 34.75, 9.979E-02, 35.25, 9.581E-02, 35.75, 9.211E-02, 36.25, 8.868E-02, 36.75, 8.544E-02, 37.25, 8.236E-02, 37.75, 7.945E-02, 38.25, 7.670E-02, 38.75, 7.410E-02, 39.25, 7.165E-02, 39.75, 6.933E-02, 40.25, 6.715E-02, 40.75, 6.510E-02, 41.25, 6.310E-02, 41.75, 6.122E-02, 42.25, 5.947E-02, 42.75, 5.782E-02, 43.25, 5.629E-02, 43.75, 5.479E-02, 44.25, 5.332E-02, 44.75, 5.196E-02, 45.25, 5.069E-02, 45.75, 4.946E-02, 46.25, 4.832E-02, 46.75, 4.720E-02, 47.25, 4.610E-02, 47.75, 4.510E-02, 48.25, 4.411E-02, 48.75, 4.321E-02, 49.25, 4.233E-02, 49.75, 4.147E-02, 50.25, 4.068E-02, 50.75, 3.991E-02, 51.25, 3.916E-02, 51.75, 3.848E-02, 52.25, 3.781E-02, 52.75, 3.715E-02, 53.25, 3.657E-02, 53.75, 3.594E-02, 54.25, 3.532E-02, 54.75, 3.483E-02, 55.25, 3.434E-02, 55.75, 3.381E-02, 56.25, 3.334E-02, 56.75, 3.289E-02, 57.25, 3.243E-02, 57.75, 3.205E-02, 58.25, 3.166E-02, 58.75, 3.124E-02, 59.25, 3.081E-02, 59.75, 3.050E-02, 60.25, 3.020E-02, 60.75, 2.985E-02, 61.25, 2.950E-02, 61.75, 2.921E-02, 62.25, 2.893E-02, 62.75, 2.865E-02, 63.25, 2.842E-02, 63.75, 2.815E-02, 64.25, 2.788E-02, 64.75, 2.767E-02, 65.25, 2.745E-02, 65.75, 2.724E-02, 66.25, 2.704E-02, 66.75, 2.684E-02, 67.25, 2.664E-02, 67.75, 2.644E-02, 68.25, 2.629E-02, 68.75, 2.615E-02, 69.25, 2.596E-02, 69.75, 2.582E-02, 70.25, 2.568E-02, 70.75, 2.554E-02, 71.25, 2.545E-02, 71.75, 2.531E-02, 72.25, 2.518E-02, 72.75, 2.509E-02, 73.25, 2.501E-02, 73.75, 2.488E-02, 74.25, 2.476E-02, 74.75, 2.467E-02, 75.25, 2.459E-02, 75.75, 2.455E-02, 76.25, 2.452E-02, 76.75, 2.444E-02, 77.25, 2.436E-02, 77.75, 2.428E-02, 78.25, 2.425E-02, 78.75, 2.421E-02, 79.25, 2.418E-02, 79.75, 2.414E-02, 80.25, 2.407E-02, 80.75, 2.400E-02, 81.25, 2.397E-02, 81.75, 2.394E-02, 82.25, 2.390E-02, 82.75, 2.387E-02, 83.25, 2.384E-02, 83.75, 2.381E-02, 84.25, 2.378E-02, 84.75, 2.375E-02, 85.25, 2.372E-02, 85.75, 2.369E-02, 86.25, 2.366E-02, 86.75, 2.364E-02, 87.25, 2.361E-02, 87.75, 2.358E-02, 88.25, 2.355E-02, 88.75, 2.352E-02, 89.25, 2.350E-02, 89.75, 2.351E-02, 90.25, 2.348E-02, 90.75, 2.345E-02, 91.25, 2.343E-02, 91.75, 2.340E-02, 92.25, 2.341E-02, 92.75, 2.338E-02, 93.25, 2.336E-02, 93.75, 2.337E-02, 94.25, 2.334E-02, 94.75, 2.332E-02, 95.25, 2.333E-02, 95.75, 2.334E-02, 96.25, 2.331E-02, 96.75, 2.329E-02, 97.25, 2.330E-02, 97.75, 2.327E-02, 98.25, 2.325E-02, 98.75, 2.326E-02, 99.25, 2.327E-02, 99.75, 2.328E-02 });
@@ -250,6 +329,14 @@ std::vector<std::pair<double, double>> TG195_mass_en_abs_air()
     return r;
 }
 
+// ── TG-195 material definitions ──────────────────────────────────────────────
+// Each helper returns (density_g_per_cm3, {Z: weight_percent}) as specified in
+// TG-195 Appendix A. Keys are atomic numbers; values are weight fractions in %.
+
+/**
+ * @brief Returns the TG-195 soft tissue composition (density and elemental weight fractions).
+ * @return Pair of (density g/cm³, map of Z → weight %).
+ */
 std::pair<double, std::map<std::size_t, double>> TG195_soft_tissue()
 {
     std::map<std::size_t, double> Zs;
@@ -266,6 +353,7 @@ std::pair<double, std::map<std::size_t, double>> TG195_soft_tissue()
     return std::make_pair(1.03, Zs);
 }
 
+/// Returns the TG-195 PMMA composition (density 1.19 g/cm³, H/C/O by weight).
 std::pair<double, std::map<std::size_t, double>> TG195_pmma()
 {
     std::map<std::size_t, double> pmma_w;
@@ -276,6 +364,7 @@ std::pair<double, std::map<std::size_t, double>> TG195_pmma()
     return std::make_pair(1.19, pmma_w);
 }
 
+/// Returns the TG-195 skin composition (density 1.09 g/cm³).
 std::pair<double, std::map<std::size_t, double>> TG195_skin()
 {
     std::map<std::size_t, double> w;
@@ -291,6 +380,7 @@ std::pair<double, std::map<std::size_t, double>> TG195_skin()
     return std::make_pair(1.09, w);
 }
 
+/// Returns the TG-195 dry air composition (density 0.001205 g/cm³).
 std::pair<double, std::map<std::size_t, double>> TG195_air()
 {
     std::map<std::size_t, double> w;
@@ -302,6 +392,7 @@ std::pair<double, std::map<std::size_t, double>> TG195_air()
     return std::make_pair(0.001205, w);
 }
 
+/// Returns the TG-195 water composition (density 1.0 g/cm³).
 std::pair<double, std::map<std::size_t, double>> TG195_water()
 {
     std::map<std::size_t, double> w;
@@ -310,6 +401,14 @@ std::pair<double, std::map<std::size_t, double>> TG195_water()
     return std::make_pair(1.0, w);
 }
 
+/**
+ * @brief Returns the TG-195 breast tissue composition (80% adipose / 20% glandular by weight).
+ *
+ * Density and elemental fractions are computed as weighted averages of the adipose
+ * (ρ = 0.93 g/cm³) and glandular (ρ = 1.04 g/cm³) tissue definitions from TG-195.
+ *
+ * @return Pair of (density g/cm³, map of Z → weight %).
+ */
 std::pair<double, std::map<std::size_t, double>> TG195_breast_tissue()
 {
     std::map<std::size_t, double> adipose_w;
@@ -353,6 +452,17 @@ std::pair<double, std::map<std::size_t, double>> TG195_breast_tissue()
     return std::make_pair(d, w);
 }
 
+/**
+ * @brief Runs a transport simulation on a background thread and streams progress to stdout.
+ *
+ * Polls the TransportProgress object every 500 ms, printing and overwriting a single
+ * status line. Blocks until the simulation thread finishes, then returns the total elapsed time.
+ *
+ * @param transport  Transport engine (provides operator() and thread-count setting).
+ * @param world      Simulation world passed to the transport engine.
+ * @param beam       Beam source passed to the transport engine.
+ * @return           Total simulation wall-clock time as std::chrono::milliseconds.
+ */
 template <typename T, typename W, typename B>
 auto runDispatcher(T& transport, W& world, const B& beam)
 {
@@ -375,6 +485,20 @@ auto runDispatcher(T& transport, W& world, const B& beam)
     return progress.totalTime();
 }
 
+/**
+ * @brief TG-195 Case 1: Air-kerma and HVL/QVL for a pencil beam with circular collimation.
+ *
+ * Simulates a narrow beam directed along -Z onto a fluence-scoring plane 100 cm from the source.
+ * Three runs are performed sequentially: no filter, HVL Al filter, and QVL Al filter.
+ * Air kerma is computed from the scored fluence spectrum using TG-195 μ_en/ρ data for air.
+ * HVL and QVL ratios are written to the output CSV as separate rows.
+ *
+ * @tparam Beam               IsotropicBeamCircle (polyenergetic) or IsotropicMonoEnergyBeamCircle.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode (0=none, 1=Livermore, 2=IA).
+ * @param N_threads  Number of transport threads.
+ * @param mammo      If true, uses 30 kVp / 30 keV mammography settings; otherwise 100 kVp / 100 keV.
+ * @return           Always true.
+ */
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeamCircle<>> || std::same_as<Beam, IsotropicMonoEnergyBeamCircle<>>)
 bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
@@ -547,6 +671,19 @@ bool TG195Case1Fluence(std::uint32_t N_threads, bool mammo = false)
     return true;
 }
 
+/**
+ * @brief TG-195 Case 2: Absorbed energy in a soft-tissue box phantom.
+ *
+ * A 39×39×20 cm soft-tissue box (78×78×40 voxels) is irradiated by a broad isotropic beam
+ * aligned with the phantom face. Results are reported for the total phantom volume and nine
+ * 3×3×3 cm VOIs positioned at the phantom centre and ±15 cm offsets.
+ *
+ * @tparam Beam               IsotropicBeam (120 kVp) or IsotropicMonoEnergyBeam (56.4 keV).
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads  Number of transport threads.
+ * @param tomo       If true, tilts the beam source by 15° (tomosynthesis geometry).
+ * @return           Always true.
+ */
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
@@ -733,6 +870,20 @@ bool TG195Case2AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     return true;
 }
 
+/**
+ * @brief TG-195 Case 3: Mean glandular dose in a compressed-breast phantom.
+ *
+ * The phantom consists of a TG195World3Breast half-cylinder (breast tissue + skin), two PMMA
+ * compression plates, a water body block, and a transmission scoring plane. Results are
+ * reported for total energy imparted to the breast and for seven dose-scoring boxes inside
+ * the breast volume as defined by TG-195.
+ *
+ * @tparam Beam               IsotropicBeam (30 kVp) or IsotropicMonoEnergyBeam (16.8 keV).
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads  Number of transport threads.
+ * @param tomo       If true, tilts the source by 15° (tomosynthesis geometry).
+ * @return           Always true.
+ */
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
@@ -897,6 +1048,19 @@ bool TG195Case3AbsorbedEnergy(std::uint32_t N_threads, bool tomo = false)
     return true;
 }
 
+/**
+ * @brief TG-195 Case 4.1: Depth-dose in a PMMA cylinder (CT fan beam, DepthDose scorer).
+ *
+ * A 16 cm radius, 30 cm long PMMA cylinder is irradiated from the side (-X axis) by a
+ * fan beam 60 cm from the cylinder axis. Dose is accumulated in 1 cm depth-dose bins
+ * and four VOIs at depths 0, 1, 2, 3 cm are reported.
+ *
+ * @tparam LOWENERGYCORRECTION  Low-energy correction mode.
+ * @param N_threads         Number of transport threads.
+ * @param specter           If true, uses 120 kVp polyenergetic beam; otherwise 56.4 keV.
+ * @param large_collimation If true, uses 80 mm Z-collimation (±4 cm); otherwise 10 mm (±0.5 cm).
+ * @return                  Always true.
+ */
 template <int LOWENERGYCORRECTION = 2>
 bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bool large_collimation = false)
 {
@@ -1038,6 +1202,20 @@ bool TG195Case41AbsorbedEnergy(std::uint32_t N_threads, bool specter = false, bo
     return true;
 }
 
+/**
+ * @brief TG-195 Case 4.2: Absorbed energy in a PMMA cylinder with two scoring sub-cylinders
+ *        using a stepped (discrete-angle) beam orbit.
+ *
+ * The beam is rotated in 10° steps around the phantom (36 positions), simulating a CT scan.
+ * At each angle, energy is scored in the centre cylinder (on-axis) and the periphery cylinder
+ * (1 cm inside the outer wall at the beam entry side). Results are reported per angle.
+ *
+ * @tparam Beam               IsotropicBeam (120 kVp) or IsotropicMonoEnergyBeam (56.4 keV).
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads         Number of transport threads.
+ * @param large_collimation If true, uses 80 mm Z-collimation; otherwise 10 mm.
+ * @return                  Always true.
+ */
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicBeam<>> || std::same_as<Beam, IsotropicMonoEnergyBeam<>>)
 bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation = false)
@@ -1164,6 +1342,19 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     return true;
 }
 
+/**
+ * @brief TG-195 Case 4.2: Absorbed energy in a PMMA cylinder using a continuous circular orbit.
+ *
+ * Overload for circular-orbit beams (IsotropicCircularBeam / IsotropicCircularMonoEnergyBeam).
+ * A single simulation with the beam orbiting the full 360° is run instead of 36 discrete steps.
+ * Scores centre and periphery cylinders and reports angle-averaged results.
+ *
+ * @tparam Beam               IsotropicCircularBeam (120 kVp) or IsotropicCircularMonoEnergyBeam.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads         Number of transport threads.
+ * @param large_collimation If true, uses 80 mm Z-collimation; otherwise 10 mm.
+ * @return                  Always true.
+ */
 template <BeamType Beam, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<Beam, IsotropicCircularBeam<>> || std::same_as<Beam, IsotropicCircularMonoEnergyBeam<>>)
 bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation = false)
@@ -1280,6 +1471,18 @@ bool TG195Case42AbsorbedEnergy(std::uint32_t N_threads, bool large_collimation =
     return true;
 }
 
+/**
+ * @brief Reads a flat binary array of type T from a file.
+ *
+ * Returns an empty vector if the file cannot be opened, if the file size does not exactly
+ * match array_size * sizeof(T), or if the read fails. The empty-file case is handled
+ * explicitly to avoid undefined behaviour from a zero-size read.
+ *
+ * @tparam T         Element type (e.g. std::uint8_t for voxel material indices).
+ * @param path       Path to the binary file.
+ * @param array_size Expected number of elements.
+ * @return           Vector of T with @p array_size elements, or an empty vector on failure.
+ */
 template <typename T>
 std::vector<T> readBinaryArray(const std::string& path, std::size_t array_size)
 {
@@ -1310,6 +1513,19 @@ std::vector<T> readBinaryArray(const std::string& path, std::size_t array_size)
     return buffer;
 }
 
+/**
+ * @brief Constructs the TG-195 Case 5 voxel phantom (anthropomorphic CT geometry).
+ *
+ * Loads a 500×320×260 voxel grid (0.1 mm spacing) from the binary file "case5world.bin",
+ * where each byte is a material index into a 20-material table covering air, cushion foam,
+ * carbon fibre, soft tissue, and 17 organ materials (heart, lungs, liver, etc.).
+ * Voxels with index TRANSPARENTVOXEL are treated as transparent (no dose scoring).
+ *
+ * @tparam NMATSHELLS       Number of material electron shells.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @tparam TRANSPARENTVOXEL Material index used to flag transparent (air-gap) voxels.
+ * @return Pair of (AAVoxelGrid, vector of (density, material_name) for each material index).
+ */
 template <std::size_t NMATSHELLS = 5, int LOWENERGYCORRECTION = 2, int TRANSPARENTVOXEL = 255>
 std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::vector<std::pair<double, std::string>>> generateTG195World5()
 {
@@ -1588,6 +1804,21 @@ std::pair<AAVoxelGrid<NMATSHELLS, LOWENERGYCORRECTION, TRANSPARENTVOXEL>, std::v
     return res;
 }
 
+/**
+ * @brief TG-195 Case 5 worker: organ doses in the anthropomorphic phantom (stepped orbit).
+ *
+ * Runs 8 beam angles spaced 45° apart in the axial plane, accumulating organ-level absorbed
+ * energy for all 17 tissue types (material indices ≥ 3). Energy and variance are summed over
+ * all voxels of each material using parallel transform_reduce. Results are written per organ
+ * per angle, then accumulators are cleared before the next angle.
+ *
+ * @tparam B                  IsotropicBeam (120 kVp) or IsotropicMonoEnergyBeam (56.4 keV).
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads   Number of transport threads.
+ * @param N_EXPOSURES Number of beam exposures per angle.
+ * @param N_HISTORIES Number of photon histories per exposure.
+ * @return            Always true.
+ */
 template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
 bool TG195Case5AbsorbedEnergyWorker(std::uint32_t N_threads, const std::uint64_t N_EXPOSURES, const std::uint64_t N_HISTORIES)
@@ -1714,6 +1945,20 @@ bool TG195Case5AbsorbedEnergyWorker(std::uint32_t N_threads, const std::uint64_t
     return true;
 }
 
+/**
+ * @brief TG-195 Case 5 worker: organ doses in the anthropomorphic phantom (continuous orbit).
+ *
+ * Overload for circular-orbit beams. A single simulation with the beam orbiting the full 360°
+ * replaces the 8 discrete-angle stepped orbit. Results are reported per organ for the
+ * angle-averaged exposure.
+ *
+ * @tparam B                  IsotropicCircularBeam (120 kVp) or IsotropicCircularMonoEnergyBeam.
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads   Number of transport threads.
+ * @param N_EXPOSURES Number of beam exposures.
+ * @param N_HISTORIES Number of photon histories per exposure.
+ * @return            Always true.
+ */
 template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicCircularMonoEnergyBeam<>> || std::same_as<B, IsotropicCircularBeam<>>)
 bool TG195Case5AbsorbedEnergyWorker(std::uint32_t N_threads, const std::uint64_t N_EXPOSURES, const std::uint64_t N_HISTORIES)
@@ -1812,6 +2057,13 @@ bool TG195Case5AbsorbedEnergyWorker(std::uint32_t N_threads, const std::uint64_t
     return true;
 }
 
+/**
+ * @brief TG-195 Case 5 dispatcher: selects history counts and delegates to the appropriate worker.
+ * @tparam B                  Any supported beam type (stepped or circular, poly or mono).
+ * @tparam LOWENERGYCORRECTION Low-energy correction mode.
+ * @param N_threads  Number of transport threads.
+ * @return           Always true.
+ */
 template <BeamType B, int LOWENERGYCORRECTION = 2>
     requires(std::same_as<B, IsotropicCircularMonoEnergyBeam<>> || std::same_as<B, IsotropicCircularBeam<>> || std::same_as<B, IsotropicBeam<>> || std::same_as<B, IsotropicMonoEnergyBeam<>>)
 bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
@@ -1821,6 +2073,16 @@ bool TG195Case5AbsorbedEnergy(std::uint32_t N_threads)
     return TG195Case5AbsorbedEnergyWorker<B, LOWENERGYCORRECTION>(N_threads, N_EXPOSURES, N_HISTORIES);
 }
 
+/**
+ * @brief Runs the complete TG-195 validation suite for a single low-energy correction model.
+ *
+ * Executes all case functions (Cases 1–5) for both polyenergetic and monoenergetic beams,
+ * and for all geometry variants (radiography/tomosynthesis, collimation sizes, orbit types).
+ *
+ * @tparam LOWENERGYCORRECTION  Low-energy correction mode (0=none, 1=Livermore, 2=IA).
+ * @param N_threads  Number of transport threads.
+ * @return           True if all cases succeed.
+ */
 template <int LOWENERGYCORRECTION>
 bool runAll(std::uint32_t N_threads)
 {
@@ -1863,18 +2125,21 @@ bool runAll(std::uint32_t N_threads)
     return success;
 }
 
+/// Parsed command-line options for the validation executable.
 struct Arguments {
-    std::uint32_t N_threads = 0;
+    std::uint32_t N_threads = 0;  ///< Thread count; 0 means use hardware_concurrency().
+    /// Low-energy correction model to run.
     enum class LECorrection {
-        All,
-        None,
-        Livermore,
-        IA
+        All,       ///< Run all three correction modes sequentially.
+        None,      ///< No low-energy correction (fastest, least accurate).
+        Livermore, ///< Livermore/EPDL low-energy correction.
+        IA         ///< Impulse approximation correction (default, most accurate).
     };
-    LECorrection correction = LECorrection::All;
-    bool exit = false;
-    std::string filename = "validationTable.txt";
+    LECorrection correction = LECorrection::All; ///< Selected correction mode(s).
+    bool exit = false;                           ///< Set true if the program should exit immediately (e.g. after --help).
+    std::string filename = "validationTable.txt"; ///< CSV output file path.
 
+    /// Returns a human-readable string for the selected correction mode.
     std::string correctionString() const
     {
         switch (correction) {
@@ -1890,6 +2155,21 @@ struct Arguments {
     }
 };
 
+/**
+ * @brief Parses command-line arguments into an Arguments struct.
+ *
+ * Recognised flags:
+ *   -h / --help      Print usage and set exit=true.
+ *   -j / --jobs N    Set thread count to N.
+ *   -b / --binding   Set low-energy correction: All | None | Livermore | IA (case-insensitive).
+ *   -f / --filename  Set output CSV filename.
+ *
+ * On parse error, sets exit=true and prints a diagnostic message.
+ *
+ * @param argc  Argument count from main().
+ * @param argv  Argument vector from main().
+ * @return      Populated Arguments struct.
+ */
 Arguments argparse(int argc, char* argv[])
 {
     Arguments args;
@@ -1948,6 +2228,10 @@ Arguments argparse(int argc, char* argv[])
     return args;
 }
 
+/**
+ * @brief Prints a run-start summary and writes the CSV header row (if the file is empty).
+ * @param args  Parsed command-line arguments describing the run configuration.
+ */
 void printStart(const Arguments& args)
 {
     std::cout << "Validation run of XRayMClib\n";
@@ -1959,6 +2243,15 @@ void printStart(const Arguments& args)
     resPrint.header();
 }
 
+/**
+ * @brief Entry point: parses arguments, selects the correction model(s), and runs the suite.
+ *
+ * When correction == All, the three models are run in order: IA → Livermore → None so that
+ * the most accurate results appear first in the output file.
+ * N_threads defaults to hardware_concurrency() when not specified on the command line.
+ *
+ * @return EXIT_SUCCESS if all cases complete, EXIT_FAILURE otherwise.
+ */
 int main(int argc, char* argv[])
 {
     auto args = argparse(argc, argv);
@@ -1980,6 +2273,7 @@ int main(int argc, char* argv[])
     } else if (args.correction == Arguments::LECorrection::IA) {
         success = runAll<2>(args.N_threads);
     } else {
+        // Run all three models: IA first (most accurate), then Livermore, then None.
         success = runAll<2>(args.N_threads);
         success = runAll<1>(args.N_threads);
         success = runAll<0>(args.N_threads);

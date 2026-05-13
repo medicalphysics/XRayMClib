@@ -162,7 +162,7 @@ consteval T MJ_TO_KEV()
 /**
  * @brief Rest mass energy of the electron in keV.
  *
- * mₑc² = 510.9989461 keV. Used in Compton and pair-production kinematics.
+ * mₑc² = 510.9989461 keV. Used in Compton kinematics.
  *
  * @tparam T Floating-point type (default: double).
  * @return The electron rest mass energy in keV/c².
