@@ -98,7 +98,7 @@ Full API reference and physics model description: [xraymclib.readthedocs.io](htt
 - T. Schoonjans et al., [xraylib](https://github.com/tschoonj/xraylib)
 - J.H. Hubbell et al., *Atomic form factors, incoherent scattering functions, and photon scattering cross sections*, J. Phys. Chem. Ref. Data 4(3) (1975)
 - I. Kawrakow et al., [The EGSnrc Code System](https://nrc-cnrc.github.io/EGSnrc/), Technical Report PIRS-701, NRC Canada (2020)
-- [EPICS 2025 database](https://www-nds.iaea.org/epics/), IAEA Nuclear Data Section
+- [EPICS 2025 database](https://www-nds.iaea.org/epics/), IAEA Nuclear Data Section. In the future the EPICS library will be available from the [Lawrence Livermore National Laboratory](https://nuclear.llnl.gov/EPICS/)
 
 ## License
 
