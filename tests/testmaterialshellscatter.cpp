@@ -24,12 +24,13 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/worlditems/fluencescore.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
 template <std::size_t N = 15, int L = 2>
-void testfluencescore()
+bool testfluencescore()
 {
     using Sphere = xraymc::WorldSphere<N, L, false>;
     using FluenceScore = xraymc::FluenceScore;
@@ -55,11 +56,11 @@ void testfluencescore()
     world.build();
 
     xraymc::PencilBeam<false> beam({ -2, 0, 0 }, { 1, 0, 0 }, 135);
-    beam.setNumberOfExposures(500);
+    beam.setNumberOfExposures(50);
     beam.setNumberOfParticlesPerExposure(1E6);
 
     xraymc::Transport transport;
-    // transport.runConsole(world, beam);
+    transport.runConsole(world, beam);
 
     xraymc::VisualizeWorld viz(world);
 
@@ -83,6 +84,146 @@ void testfluencescore()
         if (energy < beam.energy() + 1)
             std::cout << energy << "," << I << std::endl;
     }
+    return true;
+}
+
+struct Transmission {
+    std::uint64_t from = 0;
+    std::uint64_t to = 0;
+    double energy = 0;
+    double totalProbability = 0;
+};
+
+void radTransWorker(std::vector<Transmission>& trans, const xraymc::AtomicElement& atom, double probability, std::uint64_t shell)
+{
+    for (const auto& [shIdx, sh] : atom.shells) {
+        if (sh.shell == shell) {
+            for (const auto& rad_em : sh.radiativeEmissions) {
+                Transmission t;
+                t.from = shell;
+                t.to = rad_em.vacancy;
+                t.energy = rad_em.energy;
+                t.totalProbability = probability * rad_em.probability;
+                trans.push_back(t);
+
+                // adding next cascade
+                radTransWorker(trans, atom, rad_em.probability, rad_em.vacancy);
+            }
+        }
+    }
+}
+
+template <int N = 32>
+bool testRadiativeTransitionsApproximation(std::size_t Z = 53, double photonEnergy = 60, bool add = false)
+{
+    // iodine: 53
+    const auto atom = xraymc::AtomHandler::Atom(Z);
+
+    std::vector<Transmission> transmissions;
+
+    std::map<std::uint64_t, double> shellpeatt;
+    double cum_shellpeatt = 0;
+    for (const auto& [shIdx, sh] : atom.shells) {
+        if (sh.photoel.front().first < photonEnergy) {
+            std::pair<double, double> pe_int = std::make_pair(photonEnergy, 0.0);
+            auto f1 = std::upper_bound(sh.photoel.cbegin(), sh.photoel.cend(), pe_int, [](const auto& lh, const auto& rh) {
+                return lh.first < rh.first;
+            });
+            if (f1 != sh.photoel.cend()) {
+                // linear interpolation
+                auto f0 = f1 - 1;
+                double att = xraymc::interp(*f0, *f1, photonEnergy);
+                shellpeatt[sh.shell] = att;
+                cum_shellpeatt += att;
+            }
+        }
+    }
+
+    for (const auto& [shIdx, sh] : atom.shells) {
+        if (shellpeatt.contains(sh.shell)) {
+            radTransWorker(transmissions, atom, shellpeatt.at(sh.shell) / cum_shellpeatt, sh.shell);
+        }
+    }
+
+    std::ofstream file2;
+
+    if (add) {
+        file2.open("shell_transmission.txt", std::ios::app);
+        if (!file2.is_open())
+            file2.open("shell_transmission.txt");
+    } else {
+        file2.open("shell_transmission.txt");
+        file2 << "From,To,Energy,Probability,Z,IncomingEnergy\n";
+    }
+
+    for (const auto& t : transmissions) {
+        file2 << t.from << ',' << t.to << ',' << t.energy << ',' << t.totalProbability;
+        file2 << ',' << Z << ',' << photonEnergy << std::endl;
+    }
+    file2.close();
+
+    std::map<double, double> enp;
+    for (const auto& t : transmissions) {
+        if (enp.contains(t.energy)) {
+            enp[t.energy] += t.totalProbability;
+        } else {
+            enp[t.energy] = t.totalProbability;
+        }
+    }
+
+    std::ofstream file;
+    if (add) {
+        file.open("transmissions.txt", std::ios::app);
+        if (!file.is_open())
+            file.open("transmissions.txt");
+    } else {
+        file.open("transmissions.txt");
+    }
+
+    if (!add) {
+        file << "IncomingEnergy [keV],Energy [keV],Probability,Type,Z\n";
+    }
+    for (const auto& [key, value] : enp) {
+        file << photonEnergy << ',';
+        file << key << "," << value;
+        file << "," << "Cascade," << Z << std::endl;
+    }
+
+    // xraymc probs
+    constexpr std::size_t samples = 1E7;
+    const auto mat = xraymc::Material<N>::byZ(Z).value();
+    const double xraymcTotPEcross = mat.attenuationValues(photonEnergy).photoelectric;
+    xraymc::RandomState state;
+    std::map<double, double> xraymcprobs;
+
+    for (std::size_t i = 0; i < samples; ++i) {
+        xraymc::Particle p;
+        p.energy = photonEnergy;
+        p.weight = 1;
+        double absorbed_energy = xraymc::interactions::photoelectricEffectIA(xraymcTotPEcross, p, mat, state);
+        if (p.energy > 0) {
+            if (xraymcprobs.contains(p.energy)) {
+                xraymcprobs[p.energy] += p.weight;
+            } else {
+                xraymcprobs[p.energy] = p.weight;
+            }
+        }
+    }
+    for (const auto& [key, value] : xraymcprobs) {
+        file << photonEnergy << ',';
+        file << key << "," << value / samples;
+        file << "," << "XrayMCsampled," << Z << std::endl;
+    }
+
+    for (const auto& [shIdx, sh] : atom.shells) {
+        if (sh.energyOfPhotonsPerInitVacancy > 0) {
+            file << photonEnergy << ',';
+            file << sh.energyOfPhotonsPerInitVacancy << ',' << sh.numberOfPhotonsPerInitVacancy * shellpeatt[sh.shell] / cum_shellpeatt;
+            file << "," << "XrayMCmodel," << Z << std::endl;
+        }
+    }
+    file.close();
+    return true;
 }
 
 int main()
@@ -90,7 +231,11 @@ int main()
     std::cout << "Testing high Z material scatter\n";
     bool success = true;
 
-    testfluencescore<63, 2>();
+    testRadiativeTransitionsApproximation<31>(82, 100);
+    testRadiativeTransitionsApproximation<31>(53, 100, true);
+
+    return 0;
+    success = success && testfluencescore<63, 2>();
     if (success)
         std::cout << "SUCCESS ";
     else

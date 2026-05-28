@@ -80,9 +80,10 @@ Set one of these CMake variables during configure:
 
 Examples can be explored at 
 
-- [XrayMC example 1](github.com/medicalphysics/xraymcExample1): Depth dose simulation of a pencil beam onto a slab of aluminum
-- [XrayMC example 2](github.com/medicalphysics/xraymcExample2): Simple beam onto a tetrahedral mesh water sphere with an internal aluminum tourus.
-- [XrayMC example 3](github.com/medicalphysics/xraymcExample3): Simulation of scattered radiation in an interventional X-ray image guided laboratory. 
+- [XrayMC example 1](https://github.com/medicalphysics/xraymcExample1): Depth dose simulation of a pencil beam onto a slab of aluminum
+- [XrayMC example 2](https://github.com/medicalphysics/xraymcExample2): Simple beam onto a tetrahedral mesh water sphere with an internal aluminum tourus.
+- [XrayMC example 3](https://github.com/medicalphysics/xraymcExample3): Simulation of scattered radiation in an interventional X-ray image guided laboratory. 
+- [XrayMC example 4](https://github.com/medicalphysics/xraymcExample4): Minimal example on how to implement a spherical shell as a user defined world object in XrayMC. 
 
 
 

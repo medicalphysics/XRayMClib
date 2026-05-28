@@ -174,11 +174,11 @@ Histogram photoElectricEnergyIA(const xraymc::Material<NSHELLS>& material, doubl
     }
     Histogram h(1000, 0, max_en + 0.1);
 
-    const auto att = material.attenuationPhotoeletric(energy);
+    // const auto att = material.attenuationPhotoeletric(energy);
 
     for (std::size_t i = 0; i < N; ++i) {
         xraymc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        const auto E = xraymc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
+        // const auto E = xraymc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
         if (p.energy > 0)
             h(p.energy);
     }
@@ -235,8 +235,6 @@ auto TG195_breast_tissue()
     adipose_w[19] = 0.025;
     adipose_w[20] = 0.025;
 
-    const double adipose_d = 0.93;
-
     std::map<std::size_t, double> gland_w;
     gland_w[1] = 10.2;
     gland_w[6] = 18.4;
@@ -246,8 +244,6 @@ auto TG195_breast_tissue()
     gland_w[16] = 0.125;
     gland_w[19] = 0.125;
     gland_w[20] = 0.125;
-
-    const double gland_d = 1.04;
 
     // weighted 20% gland 80% adipose
     std::map<std::size_t, double> w;
@@ -261,7 +257,6 @@ auto TG195_breast_tissue()
             w[Z] = 0;
         w[Z] += n * 0.2;
     }
-    const auto d = adipose_d * 0.8 + gland_d * 0.2;
 
     return xraymc::Material<NSHELLS>::byWeight(w).value();
 }

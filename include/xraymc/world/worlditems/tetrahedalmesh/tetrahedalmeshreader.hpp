@@ -223,11 +223,11 @@ protected:
      * reference ICRP 145 material entries with organ entries.
      */
     struct ICRPCollection {
-        std::uint32_t index = 1;                         ///< Collection index as read from the element file.
-        std::uint32_t material_index = 0;                ///< Internal material cross-reference index (ICRP 145).
-        double density = -1;                             ///< Mass density in g/cm³; -1 means not yet assigned.
+        std::uint32_t index = 1; ///< Collection index as read from the element file.
+        std::uint32_t material_index = 0; ///< Internal material cross-reference index (ICRP 145).
+        double density = -1; ///< Mass density in g/cm³; -1 means not yet assigned.
         std::map<std::uint8_t, double> material_weights; ///< Elemental weight fractions keyed by atomic number.
-        std::string name;                                ///< Human-readable collection name.
+        std::string name; ///< Human-readable collection name.
     };
 
     /**
@@ -291,7 +291,7 @@ protected:
         // matching collection with collection indices;
         // unique collection from elements
 
-        const auto lut = [&collection](const std::vector<std::uint32_t>& collIdx) {
+        const auto lut = [](const std::vector<std::uint32_t>& collIdx) {
             auto coll = collIdx;
             std::sort(std::execution::par_unseq, coll.begin(), coll.end());
             coll.erase(std::unique(coll.begin(), coll.end()), coll.end());

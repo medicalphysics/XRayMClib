@@ -423,7 +423,7 @@ private:
     std::array<double, 3> m_center = { 0, 0, 0 };
     std::array<double, 2> m_pixel_spacing = { 0.1, 0.1 };
     std::array<std::size_t, 2> m_detector_dimensions = { 128, 128 };
-    std::array<std::array<double, 3>, 2> m_direction_cosines = { 1, 0, 0, 0, 1, 0 };
+    std::array<std::array<double, 3>, 2> m_direction_cosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };
     std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
     std::vector<EnergyScore> m_energyScore;
     std::vector<DoseScore> m_doseScore;

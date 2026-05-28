@@ -23,6 +23,7 @@ set(TEST_SOURCES
     "testflatdetector.cpp"
     "testvoxelgrid.cpp"
     "testserializer.cpp"
+    "testpersonaldosimeter.cpp"
 )
 
 

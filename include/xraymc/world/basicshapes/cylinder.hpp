@@ -45,10 +45,10 @@ namespace basicshape {
          * The axis direction is always normalised at construction time.
          */
         struct Cylinder {
-            std::array<double, 3> center = { 0, 0, 0 };    ///< Centre point of the cylinder [cm].
-            std::array<double, 3> direction = { 0, 0, 1 };  ///< Unit vector along the cylinder axis.
-            double radius = 1;                               ///< Cylinder radius [cm].
-            double half_height = 1;                          ///< Half-length along the axis [cm].
+            std::array<double, 3> center = { 0, 0, 0 }; ///< Centre point of the cylinder [cm].
+            std::array<double, 3> direction = { 0, 0, 1 }; ///< Unit vector along the cylinder axis.
+            double radius = 1; ///< Cylinder radius [cm].
+            double half_height = 1; ///< Half-length along the axis [cm].
 
             /// @brief Default-constructs a unit cylinder centred at the origin, aligned with the z-axis.
             Cylinder() = default;
@@ -93,7 +93,7 @@ namespace basicshape {
          * @param cyl  The cylinder to bound.
          * @return AABB as `{x_min, y_min, z_min, x_max, y_max, z_max}` [cm].
          */
-        static std::array<double, 6> cylinderAABB(const Cylinder& cyl)
+        static inline std::array<double, 6> cylinderAABB(const Cylinder& cyl)
         {
             // calculating disc extents
             const std::array<double, 3> e = {

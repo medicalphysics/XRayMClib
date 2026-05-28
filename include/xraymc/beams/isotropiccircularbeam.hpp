@@ -58,8 +58,8 @@ public:
      */
     IsotropicCircularBeamExposure(const std::array<double, 3>& pos, double radius = 0, std::uint64_t N = 1E6)
         : m_pos(pos)
-        , m_radius(radius)
         , m_NParticles(N)
+        , m_radius(radius)
     {
     }
 
@@ -160,11 +160,11 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularField m_directionSampler;        ///< Samples directions within the rectangular collimation field.
-    std::array<double, 3> m_pos = { 0, 0, 0 };               ///< Centre of the source ring [cm].
-    std::uint64_t m_NParticles = 100;                         ///< Number of photon histories.
-    double m_radius = 0;                                       ///< Radius of the source ring [cm].
-    SpecterDistribution<double> m_specterDist;                 ///< Energy spectrum sampler.
+    SphereSamplingRectangularField m_directionSampler; ///< Samples directions within the rectangular collimation field.
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Centre of the source ring [cm].
+    std::uint64_t m_NParticles = 100; ///< Number of photon histories.
+    double m_radius = 0; ///< Radius of the source ring [cm].
+    SpecterDistribution<double> m_specterDist; ///< Energy spectrum sampler.
 };
 
 /**
@@ -383,11 +383,11 @@ public:
     }
 
 private:
-    std::array<double, 3> m_pos = { 0, 0, 0 };                   ///< Centre of the source ring [cm].
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Centre of the source ring [cm].
     std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Rectangular collimation half-angles {minX, minY, maxX, maxY} [rad].
-    double m_radius = 0;                                           ///< Ring radius [cm].
-    std::uint64_t m_Nexposures = 100;                             ///< Number of exposures.
-    std::uint64_t m_particlesPerExposure = 100;                   ///< Photon histories per exposure.
-    SpecterDistribution<double> m_specter;                         ///< Energy spectrum sampler (owned copy).
+    double m_radius = 0; ///< Ring radius [cm].
+    std::uint64_t m_Nexposures = 100; ///< Number of exposures.
+    std::uint64_t m_particlesPerExposure = 100; ///< Photon histories per exposure.
+    SpecterDistribution<double> m_specter; ///< Energy spectrum sampler (owned copy).
 };
 }
