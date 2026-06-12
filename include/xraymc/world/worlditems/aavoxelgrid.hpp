@@ -35,6 +35,12 @@ Copyright 2022 Erlend Andersen
 
 namespace xraymc {
 
+#ifdef XRAYMCLIB_CUDA_ENABLED
+// Forward declaration — full definition in include/xraymc/cuda/cuda_transport.hpp,
+// included at the bottom of this file after AAVoxelGrid is complete.
+class CudaTransport;
+#endif
+
 /**
  * @brief An axis-aligned rectilinear voxel grid for Monte Carlo particle transport.
  *
@@ -998,6 +1004,12 @@ protected:
     };
 
 private:
+#ifdef XRAYMCLIB_CUDA_ENABLED
+    // Grants CudaTransport access to m_dim, m_data, m_materials, and
+    // m_woodcockStepTableLin for uploadGrid() and downloadScores().
+    friend class CudaTransport;
+#endif
+
     std::array<std::size_t, 3> m_dim = { 1, 1, 1 }; ///< Grid dimensions {nx, ny, nz}.
     std::array<double, 3> m_invSpacing = { 1, 1, 1 }; ///< Reciprocal voxel size {1/dx, 1/dy, 1/dz} [1/cm]; cached to avoid division in index().
     std::array<double, 3> m_spacing = { 1, 1, 1 }; ///< Voxel size {dx, dy, dz} [cm].
@@ -1007,4 +1019,12 @@ private:
     std::vector<DoseScore> m_dose; ///< Per-voxel absorbed dose accumulators; parallel to m_data.
     std::vector<Material<NMaterialShells>> m_materials; ///< Material definitions indexed by DataElement::materialIndex.
 };
-}
+
+} // namespace xraymc
+
+#ifdef XRAYMCLIB_CUDA_ENABLED
+// CudaTransport depends on the complete AAVoxelGrid definition above and on
+// Material<16>. Both are available at this point. The include provides the
+// CudaTransport class for consumers that link against libxraymc_cuda.
+#include "xraymc/cuda/cuda_transport.hpp"
+#endif

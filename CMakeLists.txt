@@ -73,6 +73,8 @@ endif()
 # Find packages go here.
 find_package(Threads REQUIRED) # for threading support
 
+
+
 ## setting up material library since we use same headers for both xraymclib and EPICSparser
 set(MATERIAL_HEADER_LIST 
     "${xraymclib_SOURCE_DIR}/include/xraymc/material/atomicelement.hpp"
@@ -184,6 +186,74 @@ target_include_directories(
 target_link_libraries(libxraymc INTERFACE 
     Threads::Threads # Not needed on all platforms, but doesn't hurt
     )
+
+
+# ── Optional CUDA support ─────────────────────────────────────────────────────
+option(XRAYMCLIB_ENABLE_CUDA
+    "Enable CUDA GPU-accelerated Woodcock transport for AAVoxelGrid<16,3,255>" OFF)
+
+if(XRAYMCLIB_ENABLE_CUDA)
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+
+    # nvcc's C++23 support is incomplete; the .cu file uses C++17.
+    # The host-side cuda_transport.hpp is pure C++, so it inherits C++23 from libxraymc.
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+    # Detect the installed GPU's SM version at configure time.
+    # Override with -DCMAKE_CUDA_ARCHITECTURES=<sm> when cross-compiling.
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES native)
+    endif()
+
+    # atomicAdd(double*) has hardware support on SM >= 6.0 (Pascal).
+    # Older devices fall back to a CAS-loop emulation — warn the user.
+    foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
+        if(arch LESS 60)
+            message(WARNING
+                "XRAYMCLIB_ENABLE_CUDA: target architecture ${arch} < 60 — "
+                "double-precision atomicAdd will use CAS emulation (slower).")
+        endif()
+    endforeach()
+
+    add_library(libxraymc_cuda STATIC
+        "${xraymclib_SOURCE_DIR}/src/cuda/aavoxelgrid_cuda.cu"
+    )
+    target_include_directories(libxraymc_cuda PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    )
+    target_link_libraries(libxraymc_cuda PUBLIC
+        libxraymc
+        CUDA::cudart
+    )
+    # Allow __host__ constexpr functions from xraymc headers inside .cu files.
+    target_compile_options(libxraymc_cuda PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    )
+    # Propagate the CUDA-enabled flag so that #ifdef guards in aavoxelgrid.hpp
+    # activate the CudaTransport class for any consumer of libxraymc_cuda.
+    target_compile_definitions(libxraymc_cuda PUBLIC  XRAYMCLIB_CUDA_ENABLED)
+    target_compile_definitions(libxraymc    INTERFACE
+        $<$<BOOL:${XRAYMCLIB_ENABLE_CUDA}>:XRAYMCLIB_CUDA_ENABLED>)
+
+    install(TARGETS libxraymc_cuda EXPORT libxraymc)
+    message(STATUS
+        "CUDA transport enabled — architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+endif()
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Must use GNUInstallDirs to install libraries into correct
 # locations on all platforms.
