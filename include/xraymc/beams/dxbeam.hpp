@@ -135,14 +135,14 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularField m_directionSampler;                                        ///< Samples directions within the symmetric rectangular collimation field.
-    std::array<double, 3> m_pos = { 0, 0, 0 };                                               ///< Source position [cm].
-    std::array<double, 3> m_dir = { 0, 0, 1 };                                               ///< Central beam direction (derived from direction cosines).
-    std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };   ///< Orthonormal basis perpendicular to m_dir.
-    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };                                ///< Symmetric collimation half-angles {half_x, half_y} [rad].
-    std::uint64_t m_NParticles = 100;                                                          ///< Number of photon histories.
-    double m_weight = 1;                                                                       ///< Statistical weight of each photon.
-    SpecterDistribution<double> m_specter;                                                     ///< Owned copy of the energy spectrum sampler.
+    SphereSamplingRectangularField m_directionSampler; ///< Samples directions within the symmetric rectangular collimation field.
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
+    std::array<double, 3> m_dir = { 0, 0, 1 }; ///< Central beam direction (derived from direction cosines).
+    std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< Orthonormal basis perpendicular to m_dir.
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 }; ///< Symmetric collimation half-angles {half_x, half_y} [rad].
+    std::uint64_t m_NParticles = 100; ///< Number of photon histories.
+    double m_weight = 1; ///< Statistical weight of each photon.
+    SpecterDistribution<double> m_specter; ///< Owned copy of the energy spectrum sampler.
 };
 
 /**
@@ -585,6 +585,19 @@ public:
         return std::make_optional(item);
     }
 
+    /**
+     * @brief Rebuilds the `SpecterDistribution` cache from the current `Tube` state.
+     *
+     * Will be called automatically after any tube parameter change. Queries the tube for its
+     * energy bins and unnormalised weights, then constructs a new `SpecterDistribution`
+     * for use in `exposure()`. Call this method to force recalculation of `SpecterDistribution`
+     * cache from the current `Tube` state if state has been updated with `updateSpecter` flag set to false.
+     */
+    void updateSpecter()
+    {
+        tubeChanged();
+    }
+
 protected:
     /**
      * @brief Rebuilds the `SpecterDistribution` cache from the current `Tube` state.
@@ -601,14 +614,14 @@ protected:
     }
 
 private:
-    std::array<double, 3> m_pos = { 0, 0, 0 };                                               ///< Source position [cm].
-    std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } };   ///< Normalised direction cosines {cos_x, cos_y} perpendicular to the beam axis.
-    std::array<double, 2> m_collimationHalfAngles = { 0, 0 };                                ///< Symmetric collimation half-angles {half_x, half_y} [rad].
-    std::uint64_t m_Nexposures = 100;                                                          ///< Number of exposures.
-    std::uint64_t m_particlesPerExposure = 100;                                                ///< Photon histories per exposure.
-    double m_weight = 1;                                                                       ///< Base photon weight.
-    double m_measuredDAP = 1;                                                                  ///< Measured dose-area product for calibration [Gy·cm²].
-    Tube m_tube;                                                                               ///< X-ray tube model (owned copy).
-    SpecterDistribution<double> m_specter;                                                     ///< Spectrum cache rebuilt on tube changes.
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
+    std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< Normalised direction cosines {cos_x, cos_y} perpendicular to the beam axis.
+    std::array<double, 2> m_collimationHalfAngles = { 0, 0 }; ///< Symmetric collimation half-angles {half_x, half_y} [rad].
+    std::uint64_t m_Nexposures = 100; ///< Number of exposures.
+    std::uint64_t m_particlesPerExposure = 100; ///< Photon histories per exposure.
+    double m_weight = 1; ///< Base photon weight.
+    double m_measuredDAP = 1; ///< Measured dose-area product for calibration [Gy·cm²].
+    Tube m_tube; ///< X-ray tube model (owned copy).
+    SpecterDistribution<double> m_specter; ///< Spectrum cache rebuilt on tube changes.
 };
 }
