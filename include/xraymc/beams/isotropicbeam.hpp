@@ -258,6 +258,22 @@ public:
         m_specter = SpecterDistribution(specter);
     }
 
+    /**
+     * @brief Sets the dose calibration factor.
+     *
+     * Ignored if @p factor is not strictly positive.
+     *
+     * @param factor  Calibration factor to apply to scored dose for this source.
+     */
+    void setCalibrationFactor(double factor)
+    {
+        if (factor > 0.0)
+            m_calibrationFactor = factor;
+    }
+
+    /// @brief Returns the dose calibration factor.
+    double calibrationFactor() const { return m_calibrationFactor; }
+
     /// @brief Returns the current collimation half-angles `{x_min, y_min, x_max, y_max}` [rad].
     const std::array<double, 4>& collimationHalfAngles() const { return m_collimationHalfAngles; }
 
@@ -346,7 +362,7 @@ public:
      */
     double calibrationFactor(TransportProgress* progress = nullptr) const noexcept
     {
-        return 1;
+        return m_calibrationFactor;
     }
 
     /**
@@ -438,6 +454,7 @@ private:
     std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Collimation bounds {x_min, y_min, x_max, y_max} [rad].
     std::uint64_t m_Nexposures = 100; ///< Number of exposures.
     std::uint64_t m_particlesPerExposure = 100; ///< Photon histories per exposure.
+    double m_calibrationFactor = 1.0;
     SpecterDistribution<double> m_specter; ///< Energy spectrum sampler (owned copy).
 };
 }
