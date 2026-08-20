@@ -78,18 +78,18 @@ public:
     /**
      * @brief Reads node and element files with a combined material+organ file.
      *
-     * Uses ICRP pregnant-woman format by default; pass the three-argument readData()
-     * overload with @p ietr_format = true for IETR CSV format.
      * @param nodeFile         Path to the TetGen .node file.
      * @param elementFile      Path to the TetGen .ele file.
      * @param matorganfilePath Path to the combined material/organ file.
+     * @param IETR_format      When true, parses @p matorganfilePath as IETR CSV format;
+     *                         otherwise as ICRP pregnant-woman combined format. Default: false.
      */
     TetrahedalMeshReader(
         const std::string& nodeFile,
         const std::string& elementFile,
-        const std::string& matorganfilePath)
+        const std::string& matorganfilePath, bool IETR_format=false)
     {
-        readData(nodeFile, elementFile, matorganfilePath);
+        readData(nodeFile, elementFile, matorganfilePath, IETR_format);
     }
 
     /**
