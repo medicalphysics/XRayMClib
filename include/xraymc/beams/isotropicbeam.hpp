@@ -139,13 +139,13 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularField m_directionSampler;                              ///< Samples directions within the collimated field.
-    std::array<double, 3> m_pos = { 0, 0, 0 };                                     ///< Source position [cm].
-    std::array<double, 3> m_dir = { 0, 0, 1 };                                     ///< Central beam direction (cos_x × cos_y).
+    SphereSamplingRectangularField m_directionSampler; ///< Samples directions within the collimated field.
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
+    std::array<double, 3> m_dir = { 0, 0, 1 }; ///< Central beam direction (cos_x × cos_y).
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< In-plane direction cosines {cos_x, cos_y}.
-    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };                ///< Asymmetric collimation bounds {x_min, y_min, x_max, y_max} [rad].
-    std::uint64_t m_NParticles = 100;                                               ///< Number of photon histories.
-    SpecterDistribution<double> m_specterDist;                                      ///< Energy spectrum sampler.
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Asymmetric collimation bounds {x_min, y_min, x_max, y_max} [rad].
+    std::uint64_t m_NParticles = 100; ///< Number of photon histories.
+    SpecterDistribution<double> m_specterDist; ///< Energy spectrum sampler.
 };
 
 /**
@@ -283,6 +283,41 @@ public:
     }
 
     /**
+     * @brief Sets symmetric collimation half-angles from a single scalar value [rad].
+     *
+     * Applies `|ang|` as both the x and y half-angle on the positive side, and its
+     * negation on the negative side, i.e. `{-|ang|, -|ang|, |ang|, |ang|}`.
+     *
+     * @param ang  Half-angle magnitude [rad]; sign is ignored.
+     */
+    void setCollimationHalfAngles(double ang)
+    {
+        const auto aang = std::abs(ang);
+        m_collimationHalfAngles[0] = -aang;
+        m_collimationHalfAngles[1] = -aang;
+        m_collimationHalfAngles[2] = aang;
+        m_collimationHalfAngles[3] = aang;
+    }
+
+    /**
+     * @brief Sets symmetric collimation half-angles from a single scalar value [degrees].
+     *
+     * Converts `|ang|` to radians and applies it as both the x and y half-angle on the
+     * positive side, and its negation on the negative side, i.e.
+     * `{-|ang|, -|ang|, |ang|, |ang|}` (in radians).
+     *
+     * @param ang  Half-angle magnitude [degrees]; sign is ignored.
+     */
+    void setCollimationHalfAnglesDeg(double ang)
+    {
+        const auto aang = std::abs(ang) * DEG_TO_RAD();
+        m_collimationHalfAngles[0] = -aang;
+        m_collimationHalfAngles[1] = -aang;
+        m_collimationHalfAngles[2] = aang;
+        m_collimationHalfAngles[3] = aang;
+    }
+
+    /**
      * @brief Returns an `IsotropicBeamExposure` for the given index.
      *
      * All exposures are identical — position, orientation, collimation, and spectrum
@@ -398,11 +433,11 @@ public:
     }
 
 private:
-    std::array<double, 3> m_pos = { 0, 0, 0 };                                      ///< Source position [cm].
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< In-plane direction cosines {cos_x, cos_y}, normalised.
-    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };                 ///< Collimation bounds {x_min, y_min, x_max, y_max} [rad].
-    std::uint64_t m_Nexposures = 100;                                                ///< Number of exposures.
-    std::uint64_t m_particlesPerExposure = 100;                                      ///< Photon histories per exposure.
-    SpecterDistribution<double> m_specter;                                           ///< Energy spectrum sampler (owned copy).
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Collimation bounds {x_min, y_min, x_max, y_max} [rad].
+    std::uint64_t m_Nexposures = 100; ///< Number of exposures.
+    std::uint64_t m_particlesPerExposure = 100; ///< Photon histories per exposure.
+    SpecterDistribution<double> m_specter; ///< Energy spectrum sampler (owned copy).
 };
 }
