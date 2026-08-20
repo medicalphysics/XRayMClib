@@ -84,6 +84,12 @@ public:
         m_items.reserve(reserveNumberOfWorldItems);
     }
 
+    /// @brief Copy construction is disabled.
+    World(const World&) = delete;
+
+    /// @brief Copy assignment is disabled.
+    World& operator=(const World&) = delete;
+
     /**
      * @brief Sets the fill material between world items.
      * @param mat Material cross-section data.
