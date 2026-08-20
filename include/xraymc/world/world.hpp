@@ -84,9 +84,6 @@ public:
         m_items.reserve(reserveNumberOfWorldItems);
     }
 
-    /// @brief Copy construction is disabled.
-    World(const World&) = delete;
-
     /// @brief Copy assignment is disabled.
     World& operator=(const World&) = delete;
 
