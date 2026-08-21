@@ -418,20 +418,24 @@ public:
                             cont = false;
                         } else {
                             const auto [lenght, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
-                            if (nextTetIdx == currentTetIdx) {
-                                // we hit the end, are there others behind the bondary?
-                                std::array<double, 2> interseg = { lenght + GEOMETRIC_ERROR<>() * 2, (*inter)[1] };
-                                auto kdseg = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, interseg);
-                                if (kdseg.valid()) {
-                                    const auto segfaceIdx = std::distance(&(m_outer_triangles[0]), kdseg.item);
-                                    currentTetIdx = m_outerTriangleTetMembership[segfaceIdx];
-                                    intersection = kdseg.intersection;
+                            if (lenght > intersection) {
+                                if (nextTetIdx == currentTetIdx) {
+                                    // we hit the end, are there others behind the bondary?
+                                    std::array<double, 2> interseg = { lenght + GEOMETRIC_ERROR<>() * 2, (*inter)[1] };
+                                    auto kdseg = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, interseg);
+                                    if (kdseg.valid()) {
+                                        const auto segfaceIdx = std::distance(&(m_outer_triangles[0]), kdseg.item);
+                                        currentTetIdx = m_outerTriangleTetMembership[segfaceIdx];
+                                        intersection = kdseg.intersection;
+                                    } else {
+                                        cont = false;
+                                    }
                                 } else {
-                                    cont = false;
+                                    intersection = lenght;
+                                    currentTetIdx = nextTetIdx;
                                 }
                             } else {
-                                intersection = lenght;
-                                currentTetIdx = nextTetIdx;
+                                cont = false;
                             }
                         }
 
