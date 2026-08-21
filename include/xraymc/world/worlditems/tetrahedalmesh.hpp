@@ -302,6 +302,67 @@ public:
     }
 
     /**
+     * @brief Returns the axis-aligned bounding box of the collection with the given name.
+     *
+     * Looks up the collection index by name and delegates to `collectionAABB(std::uint32_t)`.
+     * @param collectionName Name of the collection to look up.
+     * @return `{x_min, y_min, z_min, x_max, y_max, z_max}` bounds [cm]. If no collection
+     *         matches @p collectionName, returns a degenerate box with min set to
+     *         `std::numeric_limits<double>::max()` and max set to `lowest()` in all axes.
+     */
+    std::array<double, 6> collectionAABB(const std::string& collectionName) const
+    {
+        for (std::uint32_t i = 0; i < m_collectionNames.size(); ++i) {
+            const auto& cname = collectionNames()[i];
+            if (collectionName.compare(cname) == 0) {
+                return collectionAABB(i);
+            }
+        }
+        constexpr std::array<double, 6> dummy = {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest()
+        };
+        return dummy;
+    }
+
+    /**
+     * @brief Returns the axis-aligned bounding box of the collection with the given index.
+     * @param collectionIdx Collection index.
+     * @return `{x_min, y_min, z_min, x_max, y_max, z_max}` bounds [cm], computed over the
+     *         vertices of all matching tetrahedrons. If no tetrahedron matches
+     *         @p collectionIdx, returns a degenerate box with min set to
+     *         `std::numeric_limits<double>::max()` and max set to `lowest()` in all axes.
+     */
+    std::array<double, 6> collectionAABB(std::uint32_t collectionIdx) const
+    {
+        std::array<double, 6> res = {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest()
+        };
+        for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
+            if (collectionIdx == m_collectionIdx[i]) {
+                const auto& tet = m_tetrahedrons[i];
+                for (const auto vIdx : tet.verticeIdx) {
+                    const auto& vert = m_vertices[vIdx];
+                    for (std::size_t j = 0; j < 3; ++j) {
+                        res[j] = std::min(res[j], vert[j]);
+                        res[j + 3] = std::max(res[j + 3], vert[j]);
+                    }
+                }
+            }
+        }
+        return res;
+    }
+
+    /**
      * @brief Tests a particle ray against the mesh outer surface (AABB pre-filter + KD-tree).
      * @param particle Particle whose position and direction define the ray.
      * @return Intersection result with the distance to the outer surface, or invalid if missed.
