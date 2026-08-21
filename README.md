@@ -1,10 +1,10 @@
-# XRayMClib
+# XrayMClib
 
 A C++ library for Monte Carlo simulation of x-ray dose scoring, supporting voxel geometries, triangulated and tetrahedral mesh geometries, and basic shapes (spheres, boxes, cylinders). Designed for energy levels used in diagnostic radiology. 
 
 XrayMC is benchmarked against EGSnrc, Geant4, MCNP, and PENELOPE in the research paper [Development and validation of XrayMC: a dedicated Monte Carlo tool for X-ray imaging and radiation protection](https://iopscience.iop.org/article/10.1088/1361-6560/ae8353).
 
-XRayMClib is the primary simulation engine of [OpenXRayMC](https://github.com/medicalphysics/Openxraymc), a GUI application for Monte Carlo patient dose simulation of CT scans, conventional x-rays, and CBCT scans.
+XrayMClib is the primary simulation engine of [OpenXrayMC](https://github.com/medicalphysics/Openxraymc), a GUI application for Monte Carlo patient dose simulation of CT scans, conventional x-rays, and CBCT scans.
 
 ---
 
@@ -21,7 +21,7 @@ XRayMClib is the primary simulation engine of [OpenXRayMC](https://github.com/me
 
 ## Physics overview
 
-XRayMClib uses Woodcock (delta) tracking for photon transport in voxelized volumes and accelerated Siddons path tracing for tetrahedral mesh traversal. Three binding energy corrections can be set at compile time, they are:
+XrayMC uses Woodcock (delta) tracking for photon transport in voxelized volumes and accelerated Siddons path tracing for tetrahedral mesh traversal. Three binding energy corrections can be set at compile time, they are:
 
 | Interaction | None | Livermore | Impulse Approximation (IA) |
 |---|---|---|---|
@@ -43,7 +43,7 @@ Secondary electrons are assumed to deposit their energy locally (valid for photo
 
 ## Installation
 
-XRayMClib uses CMake. The recommended approach is `FetchContent`:
+XrayMClib uses CMake. The recommended approach is `FetchContent`:
 
 ```cmake
 include(FetchContent)
