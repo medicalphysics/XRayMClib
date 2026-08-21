@@ -146,12 +146,11 @@ public:
      */
     bool setDisplayCollectionIndexFilter(const std::string& collectionName)
     {
-        std::uint32_t teller = 0;
-        bool found = false;
-        while (teller < m_collectionNames.size() && !found) {
-            found = collectionName.compare(m_collectionNames[teller]) == 0;
-        }
-        return setDisplayCollectionIndexFilter(teller);
+        auto index = tetrahedronCollectionIndex(collectionName);
+        if (index)
+            return setDisplayCollectionIndexFilter(index.value());
+        else
+            return false;
     }
 
     /**
