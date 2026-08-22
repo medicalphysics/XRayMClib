@@ -312,7 +312,7 @@ public:
     std::array<double, 6> collectionAABB(const std::string& collectionName) const
     {
         for (std::uint32_t i = 0; i < m_collectionNames.size(); ++i) {
-            const auto& cname = collectionNames()[i];
+            const auto& cname = m_collectionNames[i];
             if (collectionName.compare(cname) == 0) {
                 return collectionAABB(i);
             }
