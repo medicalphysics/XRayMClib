@@ -605,8 +605,8 @@ public:
      *
      * Reads the item count, then deserializes each item by matching its stored magic
      * ID against the supported types (`F, Us...`) using their `validMagicID()` methods.
-     * After all items are restored, the fill material and density are read, and
-     * `build()` is called to rebuild the KD-tree acceleration structure.
+     * After all items are restored, the fill material and density are read.
+     * `build()` muste be called to rebuild the KD-tree acceleration structure when the world is reconstructed from a buffer.
      *
      * Returns `std::nullopt` if any item cannot be matched to a known type or if the
      * fill material cannot be reconstructed from the stored composition weights.
@@ -659,10 +659,7 @@ public:
         buffer = Serializer::deserialize(world.m_fillMaterialDensity, buffer);
         buffer = Serializer::deserialize(world.m_item_names, buffer);
 
-        world.build();
         return world;
-
-        // return buffer;
     }
 
 private:
