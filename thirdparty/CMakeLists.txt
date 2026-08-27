@@ -18,15 +18,35 @@ if(XRAYMCLIB_USE_LOADPNG)
     message(STATUS "Using loadpng thirdparty library for png files")
 endif(XRAYMCLIB_USE_LOADPNG)
 
-## Use smallz4 thirdparty library for LZ4 buffer compression (used by Serializer)
-set(SMALLZ4_FILES
-    "${xraymclib_SOURCE_DIR}/thirdparty/include/smallz4/smallz4.h"
-    "${xraymclib_SOURCE_DIR}/thirdparty/include/smallz4/xraymclz4wrapper.hpp"
-)
 
-add_library(smallz4wrapper INTERFACE ${SMALLZ4_FILES})
-target_include_directories(smallz4wrapper INTERFACE ${xraymclib_SOURCE_DIR}/thirdparty/include)
-target_link_libraries(libxraymc INTERFACE smallz4wrapper)
-message(STATUS "Using smallz4 thirdparty library for buffer compression")
+# Use zlib thirdparty library for buffer compression
+option(XRAYMCLIB_USE_ZLIB "Use zlib thirdparty library, if found, for buffer compression" ON)
+if(XRAYMCLIB_USE_ZLIB)
+    ## Use zlib for buffer compression (used by Serializer)
+    find_package(ZLIB QUIET)
+    if(ZLIB_FOUND)
+        message(STATUS "Found zlib library, can be used for buffer compression")            
+        set(ZLIBWRAPPER_FILES
+            "${xraymclib_SOURCE_DIR}/thirdparty/include/zlib/xraymczlibwrapper.hpp"
+            "${xraymclib_SOURCE_DIR}/thirdparty/src/zlib/xraymczlibwrapper.cpp"
+        )
+
+        add_library(zlibwrapper STATIC ${ZLIBWRAPPER_FILES})
+        target_include_directories(zlibwrapper PUBLIC ${xraymclib_SOURCE_DIR}/thirdparty/include)
+        target_link_libraries(zlibwrapper PUBLIC ZLIB::ZLIB)
+        target_link_libraries(libxraymc INTERFACE zlibwrapper)
+        target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_ZLIB=1)    
+
+    else()
+        message(STATUS "zlib NOT FOUND. Not using zlib library for buffer compression")
+    endif(ZLIB_FOUND)
+endif(XRAYMCLIB_USE_ZLIB)
+
+
+ #   target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_LOADPNG=1)
+ #   add_compile_definitions(XRAYMCLIB_USE_ZLIB=1)
+ #   message(STATUS "Using zlib thirdparty library for buffer compression")
+
+
 
 ## Add other thirdparty libraries here...
