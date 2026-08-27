@@ -171,11 +171,11 @@ public:
      *                 tags the file with `compressedVersion()` instead of `version()`.
      * @return True on success, false if the file cannot be opened or compression fails.
      */
-    static bool write(const std::string& filename, const std::vector<char>& buffer, bool compress = false)
+    static bool write(const std::string& filename, const std::vector<char>& buffer, bool compress = false, int level=1)
     {
 #ifdef XRAYMCLIB_USE_ZLIB
         if (compress) {
-            const auto packed = xraymczlib::compress(buffer);
+            const auto packed = xraymczlib::compress(buffer, level);
             if (!packed)
                 return false;
 
