@@ -174,7 +174,7 @@ public:
         of.open(filename, std::ios::binary);
         if (of.is_open()) {
             if (compress) {
-                const auto packed = xraymclz4::compress(buffer);
+                const auto packed = xraymclz4::compress(buffer, 1);
                 auto ver = compressedVersion();
                 of.write(ver.data(), ver.size());
                 of.write(packed.data(), packed.size());
