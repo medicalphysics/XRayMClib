@@ -33,7 +33,7 @@ if(XRAYMCLIB_USE_ZLIB)
 
         add_library(zlibwrapper STATIC ${ZLIBWRAPPER_FILES})
         target_include_directories(zlibwrapper PUBLIC ${xraymclib_SOURCE_DIR}/thirdparty/include)
-        target_link_libraries(zlibwrapper PUBLIC ZLIB::ZLIB)
+        target_link_libraries(zlibwrapper PRIVATE ZLIB::ZLIB)
         target_link_libraries(libxraymc INTERFACE zlibwrapper)
         target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_ZLIB=1)    
 
