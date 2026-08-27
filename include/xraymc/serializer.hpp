@@ -241,7 +241,7 @@ public:
                 auto unpacked = xraymczlib::decompress(payload, uncompressedSize);
                 if (!unpacked)
                     return std::unexpected(parse_error::buffer_decompression_error);
-                return std::move(unpacked.value());
+                return unpacked.value();
 #else
                 return std::unexpected(parse_error::buffer_decompression_error);
 #endif
