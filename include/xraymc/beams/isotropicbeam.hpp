@@ -271,9 +271,6 @@ public:
             m_calibrationFactor = factor;
     }
 
-    /// @brief Returns the dose calibration factor.
-    double calibrationFactor() const { return m_calibrationFactor; }
-
     /// @brief Returns the current collimation half-angles `{x_min, y_min, x_max, y_max}` [rad].
     const std::array<double, 4>& collimationHalfAngles() const { return m_collimationHalfAngles; }
 
@@ -358,7 +355,7 @@ public:
      * for `BeamType` interface compatibility but is not used.
      *
      * @param progress  Unused.
-     * @return 1.0.
+     * @return stored calibration factor, default = 1.
      */
     double calibrationFactor(TransportProgress* progress = nullptr) const noexcept
     {
