@@ -180,6 +180,32 @@ public:
         setDirectionCosines(dircosines);
     }
 
+    /**
+     * @brief Constructs an `IsotropicBeam` from one with a different tracking mode.
+     *
+     * Copies the full beam configuration — position, direction cosines, collimation
+     * half-angles, exposure count, particles per exposure, calibration factor, and
+     * energy spectrum. Used to convert between the tracking and non-tracking variants
+     * (`IsotropicBeam<true>` ↔ `IsotropicBeam<false>`). The same-mode copy constructor
+     * is still the implicitly generated one.
+     *
+     * @tparam OTHERTRACKING  Tracking mode of @p other.
+     * @param other  Beam to copy configuration from.
+     */
+    template <bool OTHERTRACKING>
+    IsotropicBeam(const IsotropicBeam<OTHERTRACKING>& other)
+        : m_pos(other.m_pos)
+        , m_dirCosines(other.m_dirCosines)
+        , m_collimationHalfAngles(other.m_collimationHalfAngles)
+        , m_Nexposures(other.m_Nexposures)
+        , m_particlesPerExposure(other.m_particlesPerExposure)
+        , m_calibrationFactor(other.m_calibrationFactor)
+        , m_specter(other.m_specter)
+    {
+    }
+    template <bool>
+    friend class IsotropicBeam;
+
     /// @brief Returns the number of exposures.
     std::uint64_t numberOfExposures() const { return m_Nexposures; }
 
