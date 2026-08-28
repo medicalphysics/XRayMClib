@@ -31,8 +31,11 @@ Copyright 2026 Erlend Andersen
 #include <string>
 #include <vector>
 
-#include "smallz4/xraymclz4wrapper.hpp"
 #include "xraymc/world/dosescore.hpp"
+
+#ifdef XRAYMCLIB_USE_ZLIB
+#include "zlib/xraymczlibwrapper.hpp"
+#endif
 
 namespace xraymc {
 
@@ -134,7 +137,7 @@ public:
     }
 
     /**
-     * @brief Returns the 16-byte file version tag written when the payload is LZ4-compressed.
+     * @brief Returns the 16-byte file version tag written when the payload is zlib-compressed.
      * @return Span over the literal string "xraymc1c       " (16 chars).
      */
     static std::span<const char, 16> compressedVersion()
@@ -148,7 +151,7 @@ public:
      * Prepends the 16-byte version tag before the payload.
      *
      * @param buffer   Serialized payload to write.
-     * @param compress If true, LZ4-compresses the payload (see `xraymclz4::compress`) and
+     * @param compress If true, zlib-compresses the payload (see `xraymczlib::compress`) and
      *                 tags the file with `compressedVersion()` instead of `version()`.
      * @return True on success, false if no filename was set or the file cannot be opened.
      */
@@ -164,28 +167,40 @@ public:
      * @brief Writes @p buffer to @p filename, prefixed by the version tag.
      * @param filename Destination file path.
      * @param buffer   Serialized payload to write.
-     * @param compress If true, LZ4-compresses the payload (see `xraymclz4::compress`) and
+     * @param compress If true, zlib-compresses the payload (see `xraymczlib::compress`) and
      *                 tags the file with `compressedVersion()` instead of `version()`.
-     * @return True on success, false if the file cannot be opened.
+     * @return True on success, false if the file cannot be opened or compression fails.
      */
-    static bool write(const std::string& filename, const std::vector<char>& buffer, bool compress = false)
+    static bool write(const std::string& filename, const std::vector<char>& buffer, bool compress = false, int level=1)
     {
-        std::ofstream of;
-        of.open(filename, std::ios::binary);
-        if (of.is_open()) {
-            if (compress) {
-                const auto packed = xraymclz4::compress(buffer);
-                auto ver = compressedVersion();
-                of.write(ver.data(), ver.size());
-                of.write(packed.data(), packed.size());
-            } else {
-                auto ver = version();
-                of.write(ver.data(), ver.size());
-                of.write(buffer.data(), buffer.size());
-            }
+#ifdef XRAYMCLIB_USE_ZLIB
+        if (compress) {
+            const auto packed = xraymczlib::compress(buffer, level);
+            if (!packed)
+                return false;
+
+            std::ofstream of;
+            of.open(filename, std::ios::binary);
+            if (!of.is_open())
+                return false;
+
+            auto ver = compressedVersion();
+            of.write(ver.data(), ver.size());
+            const std::uint64_t uncompressedSize = buffer.size();
+            of.write(reinterpret_cast<const char*>(&uncompressedSize), sizeof(uncompressedSize));
+            of.write(packed->data(), packed->size());
             return true;
         }
-        return false;
+#endif
+        std::ofstream of;
+        of.open(filename, std::ios::binary);
+        if (!of.is_open())
+            return false;
+
+        auto ver = version();
+        of.write(ver.data(), ver.size());
+        of.write(buffer.data(), buffer.size());
+        return true;
     }
 
     /**
@@ -193,7 +208,7 @@ public:
      *
      * Opens @p filename in binary mode, verifies the 16-byte version tag, strips it,
      * and returns the remaining bytes. If the file is tagged with `compressedVersion()`,
-     * the payload is LZ4-decompressed before being returned. Returns an unexpected value
+     * the payload is zlib-decompressed before being returned. Returns an unexpected value
      * on any failure.
      *
      * @param filename Source file path.
@@ -215,12 +230,21 @@ public:
                 return data;
             }
             if (std::equal(verc.cbegin(), verc.cend(), data.cbegin())) {
-                data.erase(data.cbegin(), data.cbegin() + verc.size());
+#ifdef XRAYMCLIB_USE_ZLIB
+                std::span<const char> payload(data.cbegin() + verc.size(), data.cend());
+                std::uint64_t uncompressedSize;
                 try {
-                    return xraymclz4::decompress(data);
-                } catch (const std::exception&) {
-                    return std::unexpected(parse_error::buffer_decompression_error);
+                    payload = deserialize(uncompressedSize, payload);
+                } catch (const std::length_error&) {
+                    return std::unexpected(parse_error::buffer_size_short);
                 }
+                auto unpacked = xraymczlib::decompress(payload, uncompressedSize);
+                if (!unpacked)
+                    return std::unexpected(parse_error::buffer_decompression_error);
+                return std::move(unpacked.value());
+#else
+                return std::unexpected(parse_error::buffer_decompression_error);
+#endif
             }
             return std::unexpected(parse_error::buffer_version_mismatch);
         }
