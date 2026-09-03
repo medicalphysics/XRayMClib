@@ -159,6 +159,80 @@ static void testTriangleCoplanar()
 }
 
 // ---------------------------------------------------------------------------
+// Triangle vs axis-aligned box tests
+// ---------------------------------------------------------------------------
+std::vector<xraymc::Triangle> getBox(double scale); // defined below
+
+static void testTriangleAABB()
+{
+    using AABB = std::array<double, 6>;
+    const AABB unit { -1, -1, -1, 1, 1, 1 }; // box centered at origin, half-size 1
+
+    // Triangle wholly inside the box.
+    {
+        auto t = tri({ -0.5, -0.5, 0 }, { 0.5, -0.5, 0 }, { 0, 0.5, 0 });
+        check(xraymc::collision::testCollision(t, unit), true, "TriBox: triangle inside box");
+        check(xraymc::collision::testCollision(unit, t), true, "TriBox: triangle inside box (swapped)");
+    }
+
+    // Triangle far away on +x -> separated on a box face axis (bullet 1).
+    {
+        auto t = tri({ 5, 0, 0 }, { 6, 1, 0 }, { 6, -1, 0 });
+        check(xraymc::collision::testCollision(t, unit), false, "TriBox: triangle separated on x");
+    }
+
+    // Big triangle slicing straight through the box.
+    {
+        auto t = tri({ -10, 0, 0 }, { 10, -10, 0 }, { 10, 10, 0 });
+        check(xraymc::collision::testCollision(t, unit), true, "TriBox: large triangle cuts through box");
+    }
+
+    // Triangle whose AABB overlaps the box, but whose supporting plane misses it
+    // (plane x+y+z = 4; the box's far corner sums to 3). Exercises bullet 2.
+    {
+        auto t = tri({ 4, 0, 0 }, { 0, 4, 0 }, { 0, 0, 4 });
+        check(xraymc::collision::testCollision(t, unit), false, "TriBox: triangle plane misses box (corner cut)");
+    }
+
+    // Same triangle shape but pulled in so the plane (sum = 1.5) does cross the box.
+    {
+        auto t = tri({ 1.5, 0, 0 }, { 0, 1.5, 0 }, { 0, 0, 1.5 });
+        check(xraymc::collision::testCollision(t, unit), true, "TriBox: triangle plane crosses box");
+    }
+
+    // Triangle sitting just outside the +z face (gap of 0.5), parallel to it.
+    {
+        auto t = tri({ -2, -2, 1.5 }, { 2, -2, 1.5 }, { 0, 2, 1.5 });
+        check(xraymc::collision::testCollision(t, unit), false, "TriBox: triangle parallel just above +z face");
+    }
+
+    // A thin diagonal triangle that pierces only one edge region of the box:
+    // its own AABB and plane both overlap the box, and it does clip a corner.
+    {
+        auto t = tri({ 0.9, 0.9, -5 }, { 0.9, 0.9, 5 }, { 3, 3, 0 });
+        check(xraymc::collision::testCollision(t, unit), true, "TriBox: edge-on triangle clips a box corner");
+    }
+
+    // Non-origin box: check the center/half-extent handling.
+    {
+        const AABB shifted { 10, 10, 10, 12, 12, 12 };
+        auto hit = tri({ 11, 11, 9 }, { 11, 11, 13 }, { 13, 11, 11 });
+        auto miss = tri({ 0, 0, 0 }, { 1, 0, 0 }, { 0, 1, 0 });
+        check(xraymc::collision::testCollision(hit, shifted), true, "TriBox: hits an offset box");
+        check(xraymc::collision::testCollision(miss, shifted), false, "TriBox: misses an offset box");
+    }
+
+    // Callable with TriangulatedMesh::AABB() (a const reference).
+    {
+        xraymc::TriangulatedMesh<5, 1> box(getBox(1.0));
+        auto inside = tri({ 0, 0, -0.5 }, { 0.5, 0, 0.5 }, { -0.5, 0, 0.5 });
+        auto outside = tri({ 100, 0, 0 }, { 101, 0, 0 }, { 100, 1, 0 });
+        check(xraymc::collision::testCollision(inside, box.AABB()), true, "TriBox: mesh AABB, triangle inside");
+        check(xraymc::collision::testCollision(outside, box.AABB()), false, "TriBox: mesh AABB, triangle outside");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Mesh-mesh tests
 // ---------------------------------------------------------------------------
 std::vector<xraymc::Triangle> getPyramid()
@@ -379,6 +453,7 @@ int main()
     testAABB();
     testTriangleNonCoplanar();
     testTriangleCoplanar();
+    testTriangleAABB();
     testMesh();
     testTetrahedral();
 

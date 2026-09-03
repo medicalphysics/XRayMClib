@@ -25,6 +25,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/worlditems/worldbox.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <optional>
@@ -166,6 +167,27 @@ namespace collision {
             return out;
         }
 
+        // Akenine-Möller plane/box overlap: does the plane through `vert` with the
+        // given `normal` cross the box centered at the origin with half-extents
+        // `half`? `vert` is given relative to the box center.
+        inline bool planeBoxOverlap(const std::array<double, 3>& normal, const std::array<double, 3>& vert, const std::array<double, 3>& half)
+        {
+            std::array<double, 3> vmin {};
+            std::array<double, 3> vmax {};
+            for (std::size_t q = 0; q < 3; ++q) {
+                if (normal[q] > 0.0) {
+                    vmin[q] = -half[q] - vert[q];
+                    vmax[q] = half[q] - vert[q];
+                } else {
+                    vmin[q] = half[q] - vert[q];
+                    vmax[q] = -half[q] - vert[q];
+                }
+            }
+            if (vectormath::dot(normal, vmin) > 0.0)
+                return false;
+            return vectormath::dot(normal, vmax) >= 0.0;
+        }
+
     } // namespace detail
 
     inline bool testCollision(const Triangle& a, const Triangle& b)
@@ -230,6 +252,75 @@ namespace collision {
 
         // The triangles intersect iff their intervals on the plane-plane line overlap.
         return !((*isectA)[1] < (*isectB)[0] || (*isectB)[1] < (*isectA)[0]);
+    }
+
+    // Triangle vs axis-aligned box (AABB layout {min_x, min_y, min_z, max_x, max_y, max_z}),
+    // via Akenine-Möller's "Fast 3D Triangle-Box Overlap Test" (separating-axis theorem).
+    inline bool testCollision(const Triangle& a, const std::array<double, 6>& AABB)
+    {
+        const std::array<double, 3> center {
+            (AABB[0] + AABB[3]) * 0.5,
+            (AABB[1] + AABB[4]) * 0.5,
+            (AABB[2] + AABB[5]) * 0.5
+        };
+        const std::array<double, 3> half {
+            (AABB[3] - AABB[0]) * 0.5,
+            (AABB[4] - AABB[1]) * 0.5,
+            (AABB[5] - AABB[2]) * 0.5
+        };
+
+        // Triangle vertices expressed relative to the box center.
+        const auto& V = a.vertices();
+        const std::array<std::array<double, 3>, 3> v {
+            vectormath::subtract(V[0], center),
+            vectormath::subtract(V[1], center),
+            vectormath::subtract(V[2], center)
+        };
+
+        // Bullet 1: the triangle's own AABB against the box (3 axis tests).
+        for (std::size_t i = 0; i < 3; ++i) {
+            const auto mn = std::min({ v[0][i], v[1][i], v[2][i] });
+            const auto mx = std::max({ v[0][i], v[1][i], v[2][i] });
+            if (mn > half[i] || mx < -half[i])
+                return false;
+        }
+
+        const std::array<std::array<double, 3>, 3> edges {
+            vectormath::subtract(v[1], v[0]),
+            vectormath::subtract(v[2], v[1]),
+            vectormath::subtract(v[0], v[2])
+        };
+
+        // Bullet 3: 9 axis tests, axis = boxAxis_k x edge_j.
+        const auto axisTest = [&](const std::array<double, 3>& axis) {
+            auto mn = vectormath::dot(axis, v[0]);
+            auto mx = mn;
+            for (std::size_t k = 1; k < 3; ++k) {
+                const auto d = vectormath::dot(axis, v[k]);
+                mn = std::min(mn, d);
+                mx = std::max(mx, d);
+            }
+            const auto rad = std::abs(axis[0]) * half[0] + std::abs(axis[1]) * half[1] + std::abs(axis[2]) * half[2];
+            return !(mn > rad || mx < -rad);
+        };
+
+        for (const auto& e : edges) {
+            if (!axisTest({ 0.0, -e[2], e[1] })) // boxAxis (1,0,0) x e
+                return false;
+            if (!axisTest({ e[2], 0.0, -e[0] })) // boxAxis (0,1,0) x e
+                return false;
+            if (!axisTest({ -e[1], e[0], 0.0 })) // boxAxis (0,0,1) x e
+                return false;
+        }
+
+        // Bullet 2: the triangle's plane against the box.
+        const auto normal = vectormath::cross(edges[0], edges[1]);
+        return detail::planeBoxOverlap(normal, v[0], half);
+    }
+
+    inline bool testCollision(const std::array<double, 6>& AABB, const Triangle& a)
+    {
+        return testCollision(a, AABB);
     }
 
     inline bool testCollision(const std::vector<Triangle>& trianglesA, const std::vector<Triangle>& trianglesB)
