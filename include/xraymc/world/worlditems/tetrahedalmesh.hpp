@@ -17,9 +17,12 @@ Copyright 2025 Erlend Andersen
 */
 
 #pragma once
+#include "xraymc/interactions.hpp"
+#include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
 #include "xraymc/particletracker.hpp"
 #include "xraymc/serializer.hpp"
+#include "xraymc/vectormath.hpp"
 #include "xraymc/world/dosescore.hpp"
 #include "xraymc/world/energyscore.hpp"
 #include "xraymc/world/visualizationintersectionresult.hpp"
@@ -256,6 +259,19 @@ public:
     const std::vector<std::uint32_t>& outerContourTetrahedronIndices() const
     {
         return m_outerTriangleTetMembership;
+    }
+
+    /// @brief Builds the world-space vertex triples of every outer-contour triangle.
+    std::vector<std::array<std::array<double, 3>, 3>> constructOuterContourTriangles() const
+    {
+        std::vector<std::array<std::array<double, 3>, 3>> tris(m_outer_triangles.size());
+        for (std::size_t i = 0; i < tris.size(); ++i) {
+            const auto& node_idx = m_outer_triangles[i];
+            for (std::size_t j = 0; j < 3; ++j) {
+                tris[i][j] = m_vertices[node_idx[j]];
+            }
+        }
+        return tris;
     }
 
     /// @brief Returns a read-only reference to the particle tracker.
