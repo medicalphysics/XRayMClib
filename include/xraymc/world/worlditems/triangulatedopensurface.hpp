@@ -159,7 +159,7 @@ public:
     }
 
     /// @brief Returns the list of triangles defining the open surface.
-    const std::vector<Triangle>& getTriangles() const
+    const std::vector<Triangle>& triangles() const
     {
         return m_triangles;
     }

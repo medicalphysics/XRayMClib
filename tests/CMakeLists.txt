@@ -24,6 +24,7 @@ set(TEST_SOURCES
     "testvoxelgrid.cpp"
     "testserializer.cpp"
     "testpersonaldosimeter.cpp"
+    "testcollision.cpp"
 )
 
 

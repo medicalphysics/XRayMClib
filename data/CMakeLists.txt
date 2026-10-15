@@ -28,7 +28,7 @@ if(XRAYMCLIB_EPICS_DATA_DIRPATH)
     endif()
 
     if(NOT EXISTS "${XRAYMCLIB_EPICS_DATA_EADLPATH}" OR NOT EXISTS "${XRAYMCLIB_EPICS_DATA_EPDLPATH}")
-        message(FATAL_ERROR "Could not find data files EPDL2025.ALL or EPDL2025.ALL in ${XRAYMCLIB_EPICS_DATA_DIRPATH}")
+        message(FATAL_ERROR "Could not find data files EPDL2025.ALL or EPDL2025.ALL in ${XRAYMCLIB_EPICS_DATA_DIRPATH}. Please set XRAYMCLIB_EPICS_DATA_DIRPATH to a directory containing these files or enable XRAYMCLIB_EPICS_DOWNLOAD to download them automatically.")
     endif()
 
     message(STATUS "Using EPDL file: ${XRAYMCLIB_EPICS_DATA_EPDLPATH}")

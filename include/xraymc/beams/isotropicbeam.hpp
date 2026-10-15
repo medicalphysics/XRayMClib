@@ -139,13 +139,13 @@ protected:
     }
 
 private:
-    SphereSamplingRectangularField m_directionSampler;                              ///< Samples directions within the collimated field.
-    std::array<double, 3> m_pos = { 0, 0, 0 };                                     ///< Source position [cm].
-    std::array<double, 3> m_dir = { 0, 0, 1 };                                     ///< Central beam direction (cos_x × cos_y).
+    SphereSamplingRectangularField m_directionSampler; ///< Samples directions within the collimated field.
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
+    std::array<double, 3> m_dir = { 0, 0, 1 }; ///< Central beam direction (cos_x × cos_y).
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< In-plane direction cosines {cos_x, cos_y}.
-    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };                ///< Asymmetric collimation bounds {x_min, y_min, x_max, y_max} [rad].
-    std::uint64_t m_NParticles = 100;                                               ///< Number of photon histories.
-    SpecterDistribution<double> m_specterDist;                                      ///< Energy spectrum sampler.
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Asymmetric collimation bounds {x_min, y_min, x_max, y_max} [rad].
+    std::uint64_t m_NParticles = 100; ///< Number of photon histories.
+    SpecterDistribution<double> m_specterDist; ///< Energy spectrum sampler.
 };
 
 /**
@@ -179,6 +179,32 @@ public:
     {
         setDirectionCosines(dircosines);
     }
+
+    /**
+     * @brief Constructs an `IsotropicBeam` from one with a different tracking mode.
+     *
+     * Copies the full beam configuration — position, direction cosines, collimation
+     * half-angles, exposure count, particles per exposure, calibration factor, and
+     * energy spectrum. Used to convert between the tracking and non-tracking variants
+     * (`IsotropicBeam<true>` ↔ `IsotropicBeam<false>`). The same-mode copy constructor
+     * is still the implicitly generated one.
+     *
+     * @tparam OTHERTRACKING  Tracking mode of @p other.
+     * @param other  Beam to copy configuration from.
+     */
+    template <bool OTHERTRACKING>
+    IsotropicBeam(const IsotropicBeam<OTHERTRACKING>& other)
+        : m_pos(other.m_pos)
+        , m_dirCosines(other.m_dirCosines)
+        , m_collimationHalfAngles(other.m_collimationHalfAngles)
+        , m_Nexposures(other.m_Nexposures)
+        , m_particlesPerExposure(other.m_particlesPerExposure)
+        , m_calibrationFactor(other.m_calibrationFactor)
+        , m_specter(other.m_specter)
+    {
+    }
+    template <bool>
+    friend class IsotropicBeam;
 
     /// @brief Returns the number of exposures.
     std::uint64_t numberOfExposures() const { return m_Nexposures; }
@@ -258,6 +284,19 @@ public:
         m_specter = SpecterDistribution(specter);
     }
 
+    /**
+     * @brief Sets the dose calibration factor.
+     *
+     * Ignored if @p factor is not strictly positive.
+     *
+     * @param factor  Calibration factor to apply to scored dose for this source.
+     */
+    void setCalibrationFactor(double factor)
+    {
+        if (factor > 0.0)
+            m_calibrationFactor = factor;
+    }
+
     /// @brief Returns the current collimation half-angles `{x_min, y_min, x_max, y_max}` [rad].
     const std::array<double, 4>& collimationHalfAngles() const { return m_collimationHalfAngles; }
 
@@ -280,6 +319,41 @@ public:
         m_collimationHalfAngles[1] = minY;
         m_collimationHalfAngles[2] = maxX;
         m_collimationHalfAngles[3] = maxY;
+    }
+
+    /**
+     * @brief Sets symmetric collimation half-angles from a single scalar value [rad].
+     *
+     * Applies `|ang|` as both the x and y half-angle on the positive side, and its
+     * negation on the negative side, i.e. `{-|ang|, -|ang|, |ang|, |ang|}`.
+     *
+     * @param ang  Half-angle magnitude [rad]; sign is ignored.
+     */
+    void setCollimationHalfAngles(double ang)
+    {
+        const auto aang = std::abs(ang);
+        m_collimationHalfAngles[0] = -aang;
+        m_collimationHalfAngles[1] = -aang;
+        m_collimationHalfAngles[2] = aang;
+        m_collimationHalfAngles[3] = aang;
+    }
+
+    /**
+     * @brief Sets symmetric collimation half-angles from a single scalar value [degrees].
+     *
+     * Converts `|ang|` to radians and applies it as both the x and y half-angle on the
+     * positive side, and its negation on the negative side, i.e.
+     * `{-|ang|, -|ang|, |ang|, |ang|}` (in radians).
+     *
+     * @param ang  Half-angle magnitude [degrees]; sign is ignored.
+     */
+    void setCollimationHalfAnglesDeg(double ang)
+    {
+        const auto aang = std::abs(ang) * DEG_TO_RAD();
+        m_collimationHalfAngles[0] = -aang;
+        m_collimationHalfAngles[1] = -aang;
+        m_collimationHalfAngles[2] = aang;
+        m_collimationHalfAngles[3] = aang;
     }
 
     /**
@@ -307,11 +381,11 @@ public:
      * for `BeamType` interface compatibility but is not used.
      *
      * @param progress  Unused.
-     * @return 1.0.
+     * @return stored calibration factor, default = 1.
      */
     double calibrationFactor(TransportProgress* progress = nullptr) const noexcept
     {
-        return 1;
+        return m_calibrationFactor;
     }
 
     /**
@@ -398,11 +472,12 @@ public:
     }
 
 private:
-    std::array<double, 3> m_pos = { 0, 0, 0 };                                      ///< Source position [cm].
+    std::array<double, 3> m_pos = { 0, 0, 0 }; ///< Source position [cm].
     std::array<std::array<double, 3>, 2> m_dirCosines = { { { 1, 0, 0 }, { 0, 1, 0 } } }; ///< In-plane direction cosines {cos_x, cos_y}, normalised.
-    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 };                 ///< Collimation bounds {x_min, y_min, x_max, y_max} [rad].
-    std::uint64_t m_Nexposures = 100;                                                ///< Number of exposures.
-    std::uint64_t m_particlesPerExposure = 100;                                      ///< Photon histories per exposure.
-    SpecterDistribution<double> m_specter;                                           ///< Energy spectrum sampler (owned copy).
+    std::array<double, 4> m_collimationHalfAngles = { 0, 0, 0, 0 }; ///< Collimation bounds {x_min, y_min, x_max, y_max} [rad].
+    std::uint64_t m_Nexposures = 100; ///< Number of exposures.
+    std::uint64_t m_particlesPerExposure = 100; ///< Photon histories per exposure.
+    double m_calibrationFactor = 1.0;
+    SpecterDistribution<double> m_specter; ///< Energy spectrum sampler (owned copy).
 };
 }

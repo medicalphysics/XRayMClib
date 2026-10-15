@@ -133,6 +133,12 @@ bool testCBCTBeam()
     return initiateBeam(beam);
 }
 
+bool testIsotropicBeam(){
+    xraymc::IsotropicBeam<false> b1;
+    xraymc::IsotropicBeam<true> b2(b1);
+    return true;
+}
+
 int main()
 {
     std::cout << "Testing beams ";
@@ -146,6 +152,7 @@ int main()
     success = success && testCTSpiralBeam();
     success = success && testCBCTBeam();
     success = success && testCTSpiralDEBeam();
+    success = success && testIsotropicBeam();
 
     if (success)
         std::cout << "SUCCESS\n";

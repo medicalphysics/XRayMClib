@@ -82,6 +82,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/material/material.hpp"
 #include "xraymc/material/nistmaterials.hpp"
 #include "xraymc/transport.hpp"
+#include "xraymc/world/collision.hpp"
 #include "xraymc/world/visualization/visualizeworld.hpp"
 #include "xraymc/world/world.hpp"
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"

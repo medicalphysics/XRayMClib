@@ -47,6 +47,32 @@ bool testItem(const T& item)
     return false;
 }
 
+bool testCompression()
+{
+    xraymc::Serializer s;
+
+    std::vector<std::string> ss;
+    for (int i = 0; i < 1000; ++i)
+        ss.push_back("Repeating test string number " + std::to_string(i % 10));
+
+    auto buffer = xraymc::Serializer::getEmptyBuffer();
+    xraymc::Serializer::serialize(ss, buffer);
+
+    if (!xraymc::Serializer::write("testcompressed.xr", buffer, true))
+        return false;
+
+    auto rbuffer_exp = xraymc::Serializer::read("testcompressed.xr");
+    if (!rbuffer_exp)
+        return false;
+    auto rbuffer = rbuffer_exp.value();
+    if (rbuffer != buffer)
+        return false;
+
+    std::vector<std::string> ss_out;
+    xraymc::Serializer::deserialize(ss_out, rbuffer);
+    return ss_out == ss;
+}
+
 bool testString()
 {
     xraymc::Serializer s;
@@ -82,6 +108,7 @@ bool testBeams()
 
 void example()
 {
+
     // Create a thin aluminium cylinder and print depth dose
     std::cout << "Example Pencilbeam\nTransport of monoenergetic photons in a thin long aluminium cylinder\n";
 
@@ -121,64 +148,61 @@ void example()
     // Building world
     world.build();
 
-    auto save_buffer = xraymc::Serializer::getEmptyBuffer();
-    const auto world_buffer = world.serialize();
-    xraymc::Serializer::serializeItem(world.magicID(), world_buffer, save_buffer);
-
-    auto dename = world.magicID();
-    std::vector<char> debuffer;
-    auto test = xraymc::Serializer::deserializeItem(dename, debuffer, save_buffer);
-
-    auto newWorld = world.deserialize(debuffer);
-
     // Define a radiation source
     xraymc::PencilBeam<> beam({ 0, 0, -10 } /* position */, { 0, 0, 1 } /* direction */);
     beam.setNumberOfExposures(64); // number of jobs
-    beam.setNumberOfParticlesPerExposure(1000000); // histories per job
+    beam.setNumberOfParticlesPerExposure(10000); // histories per job
     beam.setEnergy(60.0);
+
+    // saving
+    auto save_buffer = xraymc::Serializer::getEmptyBuffer();
+    const auto world_buffer = world.serialize();
+    xraymc::Serializer::serializeItem(world.magicID(), world_buffer, save_buffer);
+    const auto beam_buffer = beam.serialize();
+    xraymc::Serializer::serializeItem(beam.magicID(), beam_buffer, save_buffer);
+    xraymc::Serializer::write("test2.xrl", save_buffer, true);
+
+    // loading
+    const auto load_buffer = xraymc::Serializer::read("test2.xrl").value();
+    auto next = std::span { load_buffer };
+    auto current_name = xraymc::Serializer::getCurrentItemName(next);
+    auto buffer = xraymc::Serializer::getEmptyBuffer();
+    next = xraymc::Serializer::deserializeItem(current_name, buffer, next);
+    auto world_loaded_cand = xraymc::World<Cylinder, Room>::deserialize(buffer);    
+    next = xraymc::Serializer::deserializeItem(current_name, buffer, next);
+    auto beam_loaded_cand = xraymc::PencilBeam<>::deserialize(buffer);
+    //always rebuild loaded world
+    world_loaded_cand.value().build();
 
     // Run simulation
     auto nThreads = std::max(std::thread::hardware_concurrency(), std::uint32_t { 1 });
-    auto time_elapsed = xraymc::Transport::runConsole(world, beam, nThreads, true);
+    auto time_elapsed = xraymc::Transport::runConsole(world_loaded_cand.value(), beam_loaded_cand.value(), 1, true);
 
     // Get max dose and print some values
-    std::cout << "Depth dose in cylinder for " << beam.numberOfParticles() << " photons of " << beam.energy() << " keV\n";
-    std::cout << "Material: mass. att. coeff: " << aluminium.attenuationValues(beam.energy()).sum() << ", density: " << cylinder.density() << std::endl;
+    std::cout << "Depth dose in cylinder for " << beam_loaded_cand.value().numberOfParticles() << " photons of " << beam_loaded_cand.value().energy() << " keV\n";
     std::cout << "Simulation time: " << time_elapsed << std::endl;
-    std::cout << "Depth [cm], Dose per Air Kerma [mGy/mGy], Uncertainty [%], #Events\n";
-    double max_dose = 0;
-    for (std::size_t i = 0; i < cylinder.resolution(); ++i) {
-        auto dose_val = cylinder.doseScored(i).dose();
-        max_dose = std::max(max_dose, dose_val);
-        std::cout << (cylinder.length() * (i + 0.5)) / cylinder.resolution() << ", ";
-        std::cout << cylinder.doseScored(i).dose() << ", ";
-        std::cout << cylinder.doseScored(i).relativeUncertainty() * 100 << ", ";
-        std::cout << cylinder.doseScored(i).numberOfEvents() << std::endl;
-    }
 
     // Generate some images
-    xraymc::VisualizeWorld viz(world);
-    auto buffer = viz.template createBuffer<double>(1024, 1024);
+    xraymc::VisualizeWorld viz(world_loaded_cand.value());
+    auto buffer_viz = viz.template createBuffer<double>(1024, 1024);
     viz.setDistance(60);
     viz.setAzimuthalAngleDeg(90);
     viz.setPolarAngleDeg(30);
     viz.suggestFOV(4); // zoom = 2
-    viz.setColorOfItem<std::uint8_t>(world.getItemPointerFromName("Cylinder"), { 255, 192, 203 }); // making it pink
-    viz.generate(world, buffer);
-    viz.savePNG("cylinder.png", buffer);
-
-    viz.setColorByValueMinMax(0.0, max_dose); // color by dose value
-    viz.addColorByValueItem(world.getItemPointerFromName("Cylinder"));
-    viz.generate(world, buffer);
-    viz.savePNG("cylinder_dose.png", buffer);
+    viz.setColorOfItem<std::uint8_t>(world_loaded_cand.value().getItemPointerFromName("Cylinder"), { 255, 192, 203 }); // making it pink
+    viz.generate(world_loaded_cand.value(), buffer_viz);
+    viz.savePNG("cylinder.png", buffer_viz);
 }
 
 int main()
 {
 
-    // example();
+    example();
 
-    bool success = testString();
+    return EXIT_SUCCESS;
+
+    bool success = testCompression();
+    success = success && testString();
     success = success && testBeams<xraymc::PencilBeam<>>();
     success = success && testBeams<xraymc::IsotropicMonoEnergyBeamCircle<>>();
     success = success && testBeams<xraymc::IsotropicMonoEnergyBeam<>>();

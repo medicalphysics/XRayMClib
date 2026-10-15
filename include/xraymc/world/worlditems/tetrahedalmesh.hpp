@@ -17,9 +17,12 @@ Copyright 2025 Erlend Andersen
 */
 
 #pragma once
+#include "xraymc/interactions.hpp"
+#include "xraymc/material/material.hpp"
 #include "xraymc/particle.hpp"
 #include "xraymc/particletracker.hpp"
 #include "xraymc/serializer.hpp"
+#include "xraymc/vectormath.hpp"
 #include "xraymc/world/dosescore.hpp"
 #include "xraymc/world/energyscore.hpp"
 #include "xraymc/world/visualizationintersectionresult.hpp"
@@ -146,12 +149,11 @@ public:
      */
     bool setDisplayCollectionIndexFilter(const std::string& collectionName)
     {
-        std::uint32_t teller = 0;
-        bool found = false;
-        while (teller < m_collectionNames.size() && !found) {
-            found = collectionName.compare(m_collectionNames[teller]) == 0;
-        }
-        return setDisplayCollectionIndexFilter(teller);
+        auto index = tetrahedronCollectionIndex(collectionName);
+        if (index)
+            return setDisplayCollectionIndexFilter(index.value());
+        else
+            return false;
     }
 
     /**
@@ -259,6 +261,19 @@ public:
         return m_outerTriangleTetMembership;
     }
 
+    /// @brief Builds the world-space vertex triples of every outer-contour triangle.
+    std::vector<std::array<std::array<double, 3>, 3>> constructOuterContourTriangles() const
+    {
+        std::vector<std::array<std::array<double, 3>, 3>> tris(m_outer_triangles.size());
+        for (std::size_t i = 0; i < tris.size(); ++i) {
+            const auto& node_idx = m_outer_triangles[i];
+            for (std::size_t j = 0; j < 3; ++j) {
+                tris[i][j] = m_vertices[node_idx[j]];
+            }
+        }
+        return tris;
+    }
+
     /// @brief Returns a read-only reference to the particle tracker.
     const ParticleTracker& particleTracker() const
     {
@@ -299,6 +314,67 @@ public:
             data[i].name = m_collectionNames[i];
         }
         return data;
+    }
+
+    /**
+     * @brief Returns the axis-aligned bounding box of the collection with the given name.
+     *
+     * Looks up the collection index by name and delegates to `collectionAABB(std::uint32_t)`.
+     * @param collectionName Name of the collection to look up.
+     * @return `{x_min, y_min, z_min, x_max, y_max, z_max}` bounds [cm]. If no collection
+     *         matches @p collectionName, returns a degenerate box with min set to
+     *         `std::numeric_limits<double>::max()` and max set to `lowest()` in all axes.
+     */
+    std::array<double, 6> collectionAABB(const std::string& collectionName) const
+    {
+        for (std::uint32_t i = 0; i < m_collectionNames.size(); ++i) {
+            const auto& cname = m_collectionNames[i];
+            if (collectionName.compare(cname) == 0) {
+                return collectionAABB(i);
+            }
+        }
+        constexpr std::array<double, 6> dummy = {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest()
+        };
+        return dummy;
+    }
+
+    /**
+     * @brief Returns the axis-aligned bounding box of the collection with the given index.
+     * @param collectionIdx Collection index.
+     * @return `{x_min, y_min, z_min, x_max, y_max, z_max}` bounds [cm], computed over the
+     *         vertices of all matching tetrahedrons. If no tetrahedron matches
+     *         @p collectionIdx, returns a degenerate box with min set to
+     *         `std::numeric_limits<double>::max()` and max set to `lowest()` in all axes.
+     */
+    std::array<double, 6> collectionAABB(std::uint32_t collectionIdx) const
+    {
+        std::array<double, 6> res = {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest(),
+            std::numeric_limits<double>::lowest()
+        };
+        for (std::uint32_t i = 0; i < m_tetrahedrons.size(); ++i) {
+            if (collectionIdx == m_collectionIdx[i]) {
+                const auto& tet = m_tetrahedrons[i];
+                for (const auto vIdx : tet.verticeIdx) {
+                    const auto& vert = m_vertices[vIdx];
+                    for (std::size_t j = 0; j < 3; ++j) {
+                        res[j] = std::min(res[j], vert[j]);
+                        res[j + 3] = std::max(res[j + 3], vert[j]);
+                    }
+                }
+            }
+        }
+        return res;
     }
 
     /**
@@ -357,20 +433,24 @@ public:
                             cont = false;
                         } else {
                             const auto [lenght, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
-                            if (nextTetIdx == currentTetIdx) {
-                                // we hit the end, are there others behind the bondary?
-                                std::array<double, 2> interseg = { lenght + GEOMETRIC_ERROR<>() * 2, (*inter)[1] };
-                                auto kdseg = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, interseg);
-                                if (kdseg.valid()) {
-                                    const auto segfaceIdx = std::distance(&(m_outer_triangles[0]), kdseg.item);
-                                    currentTetIdx = m_outerTriangleTetMembership[segfaceIdx];
-                                    intersection = kdseg.intersection;
+                            if (lenght > intersection) {
+                                if (nextTetIdx == currentTetIdx) {
+                                    // we hit the end, are there others behind the bondary?
+                                    std::array<double, 2> interseg = { lenght + GEOMETRIC_ERROR<>() * 2, (*inter)[1] };
+                                    auto kdseg = m_kdtree.intersect(particle, m_vertices, m_outer_triangles, interseg);
+                                    if (kdseg.valid()) {
+                                        const auto segfaceIdx = std::distance(&(m_outer_triangles[0]), kdseg.item);
+                                        currentTetIdx = m_outerTriangleTetMembership[segfaceIdx];
+                                        intersection = kdseg.intersection;
+                                    } else {
+                                        cont = false;
+                                    }
                                 } else {
-                                    cont = false;
+                                    intersection = lenght;
+                                    currentTetIdx = nextTetIdx;
                                 }
                             } else {
-                                intersection = lenght;
-                                currentTetIdx = nextTetIdx;
+                                cont = false;
                             }
                         }
 

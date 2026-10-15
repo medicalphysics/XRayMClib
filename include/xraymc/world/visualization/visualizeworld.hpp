@@ -180,6 +180,25 @@ public:
     }
 
     /**
+     * @brief Sets the number of threads used for rendering.
+     * @param nthreads Requested number of rendering threads. Negative values are
+     *        clamped to zero; zero uses the available hardware concurrency.
+     */
+    void setNumberOfRenderingThreads(int nthreads = 0)
+    {
+        m_nThreads = std::max(0, nthreads);
+    }
+
+    /**
+     * @brief Returns the configured number of rendering threads.
+     * @return The configured thread count; zero selects the available hardware concurrency.
+     */
+    int numberOfRenderingThreads() const
+    {
+        return m_nThreads;
+    }
+
+    /**
      * @brief Overrides the render color of a specific world item.
      *
      * Both the uint8_t and double color tables are updated consistently.
@@ -601,11 +620,15 @@ public:
         else
             std::fill(buffer.begin(), buffer.end(), 1.0);
 
-        const auto n_threads = std::max(static_cast<int>(std::thread::hardware_concurrency()), 1);
+        auto nThreads = std::max(static_cast<int>(std::thread::hardware_concurrency()), 1);
+        if (m_nThreads > 0) {
+            nThreads = std::min(m_nThreads, nThreads);
+        }
+
         std::vector<std::jthread> threads;
-        threads.reserve(n_threads - 1);
+        threads.reserve(nThreads - 1);
         std::atomic<std::size_t> idx(0);
-        for (std::size_t i = 0; i < n_threads - 1; ++i) {
+        for (std::size_t i = 0; i < nThreads - 1; ++i) {
             threads.emplace_back(&VisualizeWorld::template generateWorker<U>, this, std::cref(world), std::ref(buffer), width, height, std::ref(idx));
         }
         generateWorker<U>(world, buffer, width, height, idx);
@@ -994,6 +1017,7 @@ private:
     std::set<const std::variant<Us...>*> m_colorByValue;
     std::array<double, 2> m_colorByValueClamp = { 0, 1 };
     std::array<double, 2> m_colorByValueClampLog = { -12, 0 };
+    int m_nThreads = 0;
     bool m_colorByValueLogScale = false;
     bool m_add_dose_colorbar = false;
     bool m_setlowest_dose_color_to_white = false;
