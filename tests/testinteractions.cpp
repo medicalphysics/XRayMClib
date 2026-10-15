@@ -170,20 +170,22 @@ double testS()
 
 bool longTestComptonIA()
 {
-    constexpr int NSHELLS = 12;
-    constexpr std::size_t N = 1E7;
-    const auto [air_dens, air_comp] = lead();
-    const auto m = xraymc::Material<NSHELLS>::byWeight(air_comp).value();
+    constexpr int NSHELLS = 32;
+    constexpr std::size_t N = 1E6;
+    const auto [m_dens, m_comp] = lead();
+    const auto m = xraymc::Material<NSHELLS>::byWeight(m_comp).value();
     xraymc::RandomState state;
+
+    constexpr double energy = 100;
 
     bool res = true;
     for (std::size_t i = 0; i < N; ++i) {
-        xraymc::Particle p = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = 56.4, .weight = 1 };
+        xraymc::Particle p = { .pos = { 0, 0, 0 }, .dir = { 0, 1, 0 }, .energy = energy, .weight = 1 };
         int teller = 50;
         while (p.energy > 1.0 && teller > 0 && res) {
             teller--;
             auto E = xraymc::interactions::comptonScatterIA<NSHELLS>(p, m, state);
-            if (p.energy < 0.0 || p.energy > 56.4) {
+            if (p.energy < 0.0 || p.energy > energy) {
                 std::cout << p.energy << " " << E << std::endl;
                 res = false;
             }

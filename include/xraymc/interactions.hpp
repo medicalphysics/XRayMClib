@@ -373,7 +373,7 @@ namespace interactions {
         }
 
         // calculating kbar
-        const auto bar_part = 1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta));
+        const auto bar_part = std::max(1 - 2 * e * cosTheta + e * e * (1 - pz * pz * (1 - cosTheta * cosTheta)), 0.0);
         const auto kbar = kc * (1 - pz * pz * e * cosTheta + pz * std::sqrt(bar_part)) / (1 - pz * pz * e * e);
 
         // For high Z materials and low energy photons, we can have |pz| > 1. This is not
