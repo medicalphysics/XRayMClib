@@ -685,6 +685,7 @@ namespace interactions {
                     if (particle.weight < interactions::russianRuletteWeightThreshold()) {
                         if (state.randomUniform() < interactions::russianRuletteProbability()) {
                             intRes.particleAlive = false;
+                            particle.energy = 0;
                         } else {
                             constexpr auto factor = 1 / (1 - interactions::russianRuletteProbability());
                             particle.weight *= factor;
@@ -709,6 +710,7 @@ namespace interactions {
                     if (particle.weight < interactions::russianRuletteWeightThreshold()) {
                         if (state.randomUniform() < interactions::russianRuletteProbability()) {
                             intRes.particleAlive = false;
+                            particle.energy = 0;
                         } else {
                             constexpr auto factor = 1 / (1 - interactions::russianRuletteProbability());
                             particle.weight *= factor;
