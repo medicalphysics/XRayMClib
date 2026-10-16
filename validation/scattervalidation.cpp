@@ -174,11 +174,11 @@ Histogram photoElectricEnergyIA(const xraymc::Material<NSHELLS>& material, doubl
     }
     Histogram h(1000, 0, max_en + 0.1);
 
-    // const auto att = material.attenuationPhotoeletric(energy);
+    const auto att = material.attenuationPhotoeletric(energy);
 
     for (std::size_t i = 0; i < N; ++i) {
         xraymc::Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, 1 }, .energy = energy, .weight = 1 };
-        // const auto E = xraymc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
+        const auto E = xraymc::interactions::photoelectricEffect<NSHELLS, Model>(att, p, material, state);
         if (p.energy > 0)
             h(p.energy);
     }
@@ -303,10 +303,10 @@ int main()
     std::vector<std::jthread> threads;
     threads.reserve(128);
 
-    runScatterTest<1, 35>(p, threads);
-    runScatterTest<2, 15>(p, threads);
+    runScatterTest<1, 15>(p, threads);
+    runScatterTest<2, 31>(p, threads);
     runScatterTest<2, 35>(p, threads);
-    runScatterTest<2, 127>(p, threads);
+    runScatterTest<2, 63>(p, threads);
 
     for (auto& t : threads)
         t.join();
