@@ -127,7 +127,16 @@ namespace basicshape {
         {
             // test for a triangle overlapping a AABB
             // https://michael-schwarz.com/research/publ/files/vox-siga10.pdf
-            const auto normal = normalVector(v0, v1, v2);
+            // The triangle overlaps the box if the bounding boxes overlap, the triangle plane
+            // overlaps the box and the projections of triangle and box overlap in all three
+            // coordinate planes.
+            const auto tri_aabb = triangleAABB(v0, v1, v2);
+            for (std::size_t i = 0; i < 3; ++i) {
+                if (tri_aabb[i] > aabb[i + 3] || tri_aabb[i + 3] < aabb[i])
+                    return false;
+            }
+
+            const auto normal = vectormath::cross(vectormath::subtract(v1, v0), vectormath::subtract(v2, v0));
 
             const auto& [p, pd] = vectormath::splice(aabb);
             const auto d_aabb = vectormath::subtract(pd, p);
@@ -142,68 +151,30 @@ namespace basicshape {
             const auto d2 = vectormath::dot(normal, vectormath::subtract(vectormath::subtract(d_aabb, c), v0));
 
             const auto np = vectormath::dot(normal, p);
-            const bool overlap = (np + d1) * (np + d2) <= 0;
-            if (overlap) {
-                const std::array<std::array<double, 3>, 3> edges = {
-                    vectormath::subtract(v1, v0),
-                    vectormath::subtract(v2, v1),
-                    vectormath::subtract(v0, v2)
-                };
-                const std::array<std::array<double, 3>, 3> vertices = {
-                    v0,
-                    v1,
-                    v2
-                };
+            if ((np + d1) * (np + d2) > 0)
+                return false;
 
-                // XY
-                bool overlap_xy = true;
+            const std::array<std::array<double, 3>, 3> edges = {
+                vectormath::subtract(v1, v0),
+                vectormath::subtract(v2, v1),
+                vectormath::subtract(v0, v2)
+            };
+            const std::array<std::array<double, 3>, 3> vertices = { v0, v1, v2 };
+
+            // projected 2D overlap test on coordinate plane (a, b) where the third axis is n
+            auto overlap2D = [&](std::size_t a, std::size_t b, std::size_t n) -> bool {
+                const double s = normal[n] > 0 ? 1.0 : (normal[n] < 0 ? -1.0 : 0.0);
                 for (std::size_t i = 0; i < 3; ++i) {
                     const auto& e = edges[i];
                     const auto& v = vertices[i];
-                    std::array n_e = { -e[1], e[0] };
-                    if (normal[2] < 0) {
-                        n_e[0] *= -1;
-                        n_e[1] *= -1;
-                    }
-
-                    const auto d_e = -(n_e[0] * v[0] + n_e[1] * v[1]) + std::max(0.0, d_aabb[0] * n_e[0]) + std::max(0.0, d_aabb[1] * n_e[1]);
-                    const auto res_xy = (n_e[0] * p[0] + n_e[1] * p[1] + d_e);
-                    overlap_xy = overlap_xy && res_xy >= 0;
+                    const std::array n_e = { -e[b] * s, e[a] * s };
+                    const auto d_e = -(n_e[0] * v[a] + n_e[1] * v[b]) + std::max(0.0, d_aabb[a] * n_e[0]) + std::max(0.0, d_aabb[b] * n_e[1]);
+                    if (n_e[0] * p[a] + n_e[1] * p[b] + d_e < 0)
+                        return false;
                 }
-
-                // XZ
-                bool overlap_xz = true;
-                for (std::size_t i = 0; i < 3; ++i) {
-                    const auto& e = edges[i];
-                    const auto& v = vertices[i];
-                    std::array n_e = { -e[2], e[0] };
-                    if (normal[1] < 0) {
-                        n_e[0] *= -1;
-                        n_e[1] *= -1;
-                    }
-
-                    const auto d_e = -(n_e[0] * v[0] + n_e[1] * v[2]) + std::max(0.0, d_aabb[0] * n_e[0]) + std::max(0.0, d_aabb[2] * n_e[1]);
-                    const auto res_xz = (n_e[0] * p[0] + n_e[1] * p[2] + d_e);
-                    overlap_xz = overlap_xz && res_xz >= 0;
-                }
-                // YZ
-                bool overlap_yz = true;
-                for (std::size_t i = 0; i < 3; ++i) {
-                    const auto& e = edges[i];
-                    const auto& v = vertices[i];
-                    std::array n_e = { -e[2], e[1] };
-                    if (normal[1] < 0) {
-                        n_e[0] *= -1;
-                        n_e[1] *= -1;
-                    }
-
-                    const auto d_e = -(n_e[0] * v[1] + n_e[1] * v[2]) + std::max(0.0, d_aabb[1] * n_e[0]) + std::max(0.0, d_aabb[2] * n_e[1]);
-                    const auto res_yz = (n_e[0] * p[1] + n_e[1] * p[2] + d_e);
-                    overlap_yz = overlap_yz && res_yz >= 0;
-                }
-                return overlap_xy || overlap_xz || overlap_yz;
-            }
-            return overlap;
+                return true;
+            };
+            return overlap2D(0, 1, 2) && overlap2D(1, 2, 0) && overlap2D(2, 0, 1);
         }
 
         /**

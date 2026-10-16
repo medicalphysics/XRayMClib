@@ -152,6 +152,7 @@ public:
             m_innerAABB[i] += dist[i];
             m_innerAABB[i + 3] += dist[i];
         }
+        m_outerAABB = outerAABfromInner(m_innerAABB, m_wallThickness);
     }
 
     /// @brief Returns the geometric center of the inner cavity.

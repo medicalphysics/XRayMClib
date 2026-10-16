@@ -100,6 +100,24 @@ public:
         build(indices, max_depth);
     };
 
+    /**
+     * @brief Translates the split planes of the tree by @p dist.
+     *
+     * The items are owned and translated by the caller, only the branch node split
+     * planes are moved here. Leaf nodes hold element counts in the split union and
+     * are left unchanged.
+     * @param dist Translation vector in cm.
+     */
+    void translate(const std::array<double, 3>& dist)
+    {
+        for (auto& node : m_nodes) {
+            if (!node.isLeaf()) {
+                const auto dim = node.dim();
+                node.split_nelements.split += static_cast<float>(dist[dim]);
+            }
+        }
+    }
+
     /// @brief Returns the axis-aligned bounding box of all items as {xmin,ymin,zmin,xmax,ymax,zmax} in cm.
     std::array<double, 6> AABB() const
     {

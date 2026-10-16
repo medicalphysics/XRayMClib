@@ -205,6 +205,8 @@ add_subdirectory(thirdparty)
 # Testing
 option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING OR CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    # enable_testing must be called from the top level directory for ctest to find the tests from the build root
+    enable_testing()
     add_subdirectory(tests)
 endif()
 

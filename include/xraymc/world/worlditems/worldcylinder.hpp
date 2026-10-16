@@ -64,6 +64,7 @@ public:
         m_cylinder.center = center;
         m_cylinder.direction = vectormath::normalized(dir);
         m_materialDensity = NISTMaterials::density("Polymethyl Methacralate (Lucite, Perspex)");
+        updateAABB();
     }
 
     /// @brief Defaulted equality comparison (compares all data members).

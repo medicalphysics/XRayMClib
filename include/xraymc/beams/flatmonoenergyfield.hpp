@@ -335,7 +335,8 @@ public:
         if (!air_cand)
             return 0;
         const auto& air = air_cand.value();
-        const auto area = m_lenghtX * m_lenghtY;
+        // lenght X and Y are half-widths of the field
+        const auto area = 4 * m_lenghtX * m_lenghtY;
         const double kerma = m_energy * numberOfParticles() * air.massEnergyTransferAttenuation(m_energy) / area; // keV/g/cm2
         return m_airKerma / kerma; //(mGy/kg)(g/keV/cm2)
     }
@@ -400,7 +401,7 @@ public:
      * @param buffer  Byte span produced by a prior `serialize()` call.
      * @return An engaged `optional<FlatMonoEnergyField>` containing the restored beam.
      */
-    static std::optional<FlatMonoEnergyField<ENABLETRACKING>> deserialize1(std::span<const char> buffer)
+    static std::optional<FlatMonoEnergyField<ENABLETRACKING>> deserialize(std::span<const char> buffer)
     {
         FlatMonoEnergyField<ENABLETRACKING> item;
         buffer = Serializer::deserialize(item.m_energy, buffer);

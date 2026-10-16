@@ -567,7 +567,7 @@ public:
     T operator()(T x) const
     {
         const Interval v { .x = x };
-        const auto i1 = std::upper_bound(m_data.cbegin() + 1, m_data.cend() - 1, v, [](const auto& lh, const auto& rh) {
+        const auto i1 = std::upper_bound(m_data.cbegin() + 1, m_data.cend(), v, [](const auto& lh, const auto& rh) {
             return lh.x < rh.x;
         });
         const auto i0 = i1 - 1;
@@ -883,7 +883,7 @@ public:
     T operator()(T x) const
     {
         const Interval v { .x = x };
-        const auto i1 = std::upper_bound(m_data.cbegin() + 1, m_data.cend() - 1, v, [](const auto& lh, const auto& rh) {
+        const auto i1 = std::upper_bound(m_data.cbegin() + 1, m_data.cend(), v, [](const auto& lh, const auto& rh) {
             return lh.x < rh.x;
         });
         const auto i0 = i1 - 1;

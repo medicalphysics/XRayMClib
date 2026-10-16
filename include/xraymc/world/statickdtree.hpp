@@ -113,9 +113,10 @@ public:
         for (auto& item : m_items)
             item.translate(dist);
         for (auto& node : m_nodes) {
-            if (node.isLeaf()) {
+            // only branch nodes have a split plane, for leafs the union holds the number of elements
+            if (!node.isLeaf()) {
                 const auto dim = node.dim();
-                node.split_nelements.split += dist[dim];
+                node.split_nelements.split += static_cast<float>(dist[dim]);
             }
         }
     }

@@ -129,6 +129,9 @@ namespace basicshape {
 
                     tm[0] = std::max(tm[0], std::min(t1, t2));
                     tm[1] = std::min(tm[1], std::max(t1, t2));
+                } else if (p.pos[i] < aabb[i] || p.pos[i] > aabb[i + 3]) {
+                    // ray is parallel to this slab and outside of it
+                    return std::nullopt;
                 }
             }
             if constexpr (FORWARD)

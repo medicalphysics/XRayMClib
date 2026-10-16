@@ -24,6 +24,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/worlditems/triangulatedmesh/triangle.hpp"
 #include "xraymc/world/worlditems/triangulatedopensurface.hpp"
 #include "xraymc/world/worlditems/worldbox.hpp"
+#include "xraymc/world/worlditems/worlditemtype.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
 #include <algorithm>

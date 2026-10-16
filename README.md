@@ -78,6 +78,20 @@ Set one of these CMake variables during configure:
 | `XRAYMCLIB_EPICS_DOWNLOAD` | `OFF` | Download EPICS data during configure |
 | `XRAYMCLIB_EPICS_DATA_DIRPATH` | _(empty)_ | Path to local EPICS data files |
 
+## Testing
+
+Tests are built when XrayMClib is the top level project (or with `BUILD_TESTING=ON`). Build all test executables with the `xraymclib_tests` target and run them from the build directory with CTest:
+
+```bash
+cmake --build build --config Release --target xraymclib_tests
+cd build
+ctest -C Release            # all tests
+ctest -C Release -L unit    # fast tests of math, geometry, materials, beams and world items
+ctest -C Release -L transport  # Monte Carlo transport tests compared against analytical results
+```
+
+Monte Carlo tests compare results statistically, build in Release mode since Debug builds are slow.
+
 ## Quick start examples
 
 Examples can be explored at 

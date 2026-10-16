@@ -20,6 +20,8 @@ Copyright 2023 Erlend Andersen
 
 #include "xraymc/world/worlditems/triangulatedmesh/triangle.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <fstream>
 #include <string>
@@ -81,8 +83,10 @@ public:
     /**
      * @brief Reads an STL file from @p path, auto-detecting ASCII vs binary format.
      *
-     * Opens the file, checks whether the first line contains "solid" to select the
-     * parser, then delegates to readSTLfileASCII() or readSTLfileBinary(). Sets the
+     * A file is read as binary if its size equals 84 + 50 × (triangle count in the
+     * header), since many exporters also write "solid" in the header of binary files.
+     * Otherwise the file is read as ASCII if the first line contains "solid", and as
+     * binary if not. Delegates to readSTLfileASCII() or readSTLfileBinary(). Sets the
      * internal file path to @p path.
      * @param path Path to the STL file.
      * @return Vector of triangles, or an empty vector if the file could not be opened.
@@ -92,13 +96,21 @@ public:
         m_filePath = path;
         std::vector<Triangle> data;
         // First we chech for binary or ascii file
-        std::ifstream f(path);
+        std::ifstream f(path, std::ios::binary | std::ios::ate);
         if (f.is_open()) {
-            std::string line;
-            std::getline(f, line);
-            const auto pos = line.find("solid", 0);
+            const auto filesize = static_cast<std::uint64_t>(f.tellg());
+            f.seekg(0, std::ios::beg);
+            std::array<char, 84> header {};
+            f.read(header.data(), header.size());
             f.close();
-            if (pos != std::string::npos) {
+            bool binary = false;
+            if (filesize >= header.size()) {
+                std::uint32_t n_triangles;
+                std::memcpy(&n_triangles, header.data() + 80, sizeof(n_triangles));
+                binary = filesize == 84 + 50 * static_cast<std::uint64_t>(n_triangles);
+            }
+            const std::string first_line(header.cbegin(), std::find(header.cbegin(), header.cend(), '\n'));
+            if (!binary && first_line.find("solid", 0) != std::string::npos) {
                 data = readSTLfileASCII(path);
             } else {
                 data = readSTLfileBinary(path);

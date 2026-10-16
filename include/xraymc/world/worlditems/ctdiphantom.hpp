@@ -267,6 +267,8 @@ public:
                         const auto airAtt = m_air.attenuationValues(p.energy);
                         const auto airStepLen = -std::log(state.randomUniform()) / (airAtt.sum() * m_air_density);
                         if (airStepLen < intHoles.intersection) {
+                            // interaction happens inside the hole
+                            p.translate(airStepLen);
                             const auto intRes = interactions::template interact<NMaterialShells, LOWENERGYCORRECTION>(airAtt, p, m_air, state);
                             m_energyScore[intHoles.item->index].scoreEnergy(intRes.energyImparted);
                             updateAtt = intRes.particleEnergyChanged;

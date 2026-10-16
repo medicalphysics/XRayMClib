@@ -686,9 +686,12 @@ protected:
         for (std::size_t i = 0; i < data.size(); ++i) {
             if (data[i] == '\n') {
                 lineIdx.push_back({ start, i });
-                start = i;
+                start = i + 1;
             }
         }
+        // last line without line ending
+        if (start < data.size())
+            lineIdx.push_back({ start, data.size() });
         auto begin = lineIdx.cbegin() + nHeaderLines;
         auto end = lineIdx.cend();
         if (end - begin < 4)
@@ -772,6 +775,9 @@ protected:
                 start = i + 1;
             }
         }
+        // last line without line ending
+        if (start < data.size())
+            lineIdx.push_back({ start, data.size() });
         auto begin = lineIdx.cbegin() + nHeaderLines;
         auto end = lineIdx.cend();
         if (end - begin < 4)

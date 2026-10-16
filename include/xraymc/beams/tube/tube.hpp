@@ -238,7 +238,9 @@ public:
         const auto n_elem = static_cast<std::size_t>(std::ceil(m_voltage / m_energyResolution));
         energies.reserve(n_elem);
         while (hv <= m_voltage) {
-            energies.push_back(hv);
+            if (hv > MIN_ENERGY()) {
+                energies.push_back(hv);
+            }
             hv = hv + m_energyResolution;
         }
         return energies;
@@ -447,7 +449,7 @@ protected:
      * @brief POD holding the two lazily computed spectrum summary statistics.
      */
     struct SpecterCalculatedValues {
-        double HVL;        ///< First half-value layer in aluminium [mm].
+        double HVL; ///< First half-value layer in aluminium [mm].
         double meanEnergy; ///< Fluence-weighted mean photon energy [keV].
     };
 

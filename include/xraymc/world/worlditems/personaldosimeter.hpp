@@ -245,7 +245,8 @@ public:
             // Unitless convertionfactor from air KERMA to Hp10 dose
             // Data is log-lin interpolated
             const auto energy_log = std::log(energy);
-            return m_hp10factor_interpolator(energy_log);
+            // the spline may undershoot slightly where the coefficients are close to zero
+            return std::max(m_hp10factor_interpolator(energy_log), 0.0);
         }
     }
 
@@ -276,14 +277,18 @@ public:
     /**
      * @brief Accumulates the current energy scores into the dose-score accumulators.
      *
-     * Uses an effective area and density of 1.0 (the dosimeter's dose has already been
-     * computed in the energy-score step). Optionally applies a beam calibration factor.
+     * The energy scores hold the KERMA contributions of all particles crossing the
+     * dosimeter face. These are divided by the face area (width × height) to obtain
+     * KERMA and Hp(10) per unit fluence, with a density of 1.0. Optionally applies a
+     * beam calibration factor.
      *
      * @param calibration_factor  Multiplicative calibration factor (default 1).
      */
     void addEnergyScoredToDoseScore(double calibration_factor = 1)
     {
-        constexpr double area = 1.0; // width() * height();
+        // The energy score holds the sum of KERMA contributions of all particles crossing
+        // the dosimeter face, dividing by the face area gives KERMA per unit fluence.
+        constexpr double area = width() * height();
         constexpr double density = 1.0;
 
         // We have already calculated the dose in energy score.

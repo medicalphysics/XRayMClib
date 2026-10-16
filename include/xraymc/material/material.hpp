@@ -98,7 +98,7 @@ public:
     static std::optional<Material<N>> byZ(std::integral auto Z)
     {
         auto a = AtomHandler::Atom(Z);
-        if (a.Z == static_cast<std::uint64_t>(Z)) {
+        if (Z > 0 && a.Z == static_cast<std::uint64_t>(Z)) {
             std::map<std::uint8_t, double> w;
             w[static_cast<std::uint8_t>(Z)] = 1;
             return byWeight(w);
@@ -501,7 +501,7 @@ public:
     static bool validCompoundString(const std::string& cmp)
     {
         const auto m = parseCompoundStr(cmp);
-        bool valid = true;
+        bool valid = !m.empty();
         for (const auto& [Z, w] : m) {
             valid = valid && Z > 0 && Z <= 99 && w > 0;
         }
@@ -558,6 +558,10 @@ public:
                     if (l1 == ')') {
                         std::string strP(startP, endP);
                         auto parseP = Material<N>::parseCompoundStr(strP);
+                        if (parseP.empty())
+                            return parseP; // invalid content in parenthesis
+                        // continue parsing after the parenthesis, also when there is no multiplier
+                        begin = endP;
                         auto endPdig = endP + 1;
                         double w = 1;
                         std::string str_w;
@@ -602,6 +606,9 @@ public:
                     parsed[Z] = 0;
                 }
                 parsed[Z] += w;
+            } else {
+                // unknown element symbol, the compound string is invalid
+                return std::map<std::uint8_t, double> { };
             }
         }
         return parsed;
@@ -867,6 +874,8 @@ protected:
 
         auto weight = compositionByWeight;
         const auto totalWeight = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& right) -> double { return right.second; });
+        if (!(totalWeight > 0))
+            return std::nullopt;
         std::for_each(weight.begin(), weight.end(), [=](auto& w) { w.second /= totalWeight; });
 
         std::array<CubicLSInterpolator<double>, 6> attenuation = {

@@ -509,6 +509,7 @@ public:
 
         buffer = Serializer::deserialize(item.m_materialDensity, buffer);
         buffer = Serializer::deserialize(item.m_thickness, buffer);
+        item.calculateAABB();
 
         std::map<std::uint8_t, double> mat_weights;
         buffer = Serializer::deserializeMaterialWeights(mat_weights, buffer);

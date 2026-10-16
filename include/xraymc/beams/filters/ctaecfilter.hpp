@@ -173,7 +173,8 @@ public:
         }
 
         m_data.resize(data.size());
-        const auto step = m_length / data.size();
+        // samples are distributed from start to stop, both included
+        const auto step = m_length / (data.size() - 1);
         for (std::size_t i = 0; i < data.size(); ++i) {
             m_data[i].first = step * i;
             m_data[i].second = data[i];
