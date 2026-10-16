@@ -104,6 +104,7 @@ namespace basicshape {
                 res.intersection = q;
             } else {
                 res.intersection = c / q;
+                res.rayOriginIsInsideItem = c < 0;
             }
             res.intersectionValid = true;
             return res;

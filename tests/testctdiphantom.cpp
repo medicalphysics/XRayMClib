@@ -60,7 +60,7 @@ HoleEnergy irradiate(const std::array<double, 3>& translation, bool pmmaHoles = 
     const auto a = std::atan(17.0 / 60);
     beam.setCollimationHalfAngles(-a, -0.02, a, 0.02);
     beam.setNumberOfExposures(64);
-    beam.setNumberOfParticlesPerExposure(100000);
+    beam.setNumberOfParticlesPerExposure(10000);
     Transport transport;
     constexpr std::size_t B = 12;
     std::array<double, 5> sum = { 0, 0, 0, 0, 0 }, sum2 = { 0, 0, 0, 0, 0 };
