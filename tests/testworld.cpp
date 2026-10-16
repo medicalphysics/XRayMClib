@@ -16,77 +16,167 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2022 Erlend Andersen
 */
 
+#include "testutils.hpp"
+
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
-#include "xraymc/vectormath.hpp"
-#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/world.hpp"
-#include "xraymc/world/worlditems/aavoxelgrid.hpp"
-#include "xraymc/world/worlditems/ctdiphantom.hpp"
-#include "xraymc/world/worlditems/depthdose.hpp"
-#include "xraymc/world/worlditems/enclosedroom.hpp"
-#include "xraymc/world/worlditems/fluencescore.hpp"
-#include "xraymc/world/worlditems/tetrahedalmesh.hpp"
-#include "xraymc/world/worlditems/triangulatedmesh.hpp"
-#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
 #include "xraymc/world/worlditems/worldbox.hpp"
-#include "xraymc/world/worlditems/worldboxgrid.hpp"
 #include "xraymc/world/worlditems/worldcylinder.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
-#include "xraymc/xraymcrandom.hpp"
 
 #include <iostream>
+#include <limits>
+#include <string>
+#include <variant>
 
-bool testWorld()
+using namespace xraymc;
+using xraymctest::check;
+using xraymctest::checkNear;
+using Vec = std::array<double, 3>;
+namespace vm = xraymc::vectormath;
+
+using Sphere = WorldSphere<5, 1>;
+using Box = WorldBox<5, 1>;
+using Cylinder = WorldCylinder<5, 1>;
+using W = World<Sphere, Box, Cylinder>;
+
+void testItems()
 {
-    using Sphere = xraymc::WorldSphere<5, 2>;
+    W world;
+    world.reserveNumberOfItems(3);
+    auto& s = world.addItem<Sphere>({ 2, { 0, 0, 0 } });
+    auto& b = world.addItem<Box>({ { 5, -1, -1, 7, 1, 1 } }, "Box");
+    world.addItem<Cylinder>("Cyl");
+    check(world.items().size() == 3, "World: number of items");
+    check(world.itemNames()[0] == "Item 1" && world.itemNames()[1] == "Box" && world.itemNames()[2] == "Cyl", "World: item names");
+    check(std::holds_alternative<Box>(*world.getItemPointerFromName("Box")), "World: item by name has correct type");
+    check(&std::get<Box>(*world.getItemPointerFromName("Box")) == &b, "World: item by name is the added item");
+    check(world.getItemPointerFromName("nothing") == nullptr, "World: unknown item name gives nullptr");
+    check(world.getItemPointers().size() == 3 && world.getItemPointers()[0] == &world.items()[0], "World: item pointers");
+    (void)s;
 
-    using World = xraymc::World<Sphere>;
+    W w2;
+    w2.reserveNumberOfItems(2);
+    w2.addItem<Sphere>({ 1, { 0, 0, 0 } });
+    w2.addItem<Box>({ { 5, -1, -1, 7, 1, 1 } });
+    w2.build(3);
+    const auto aabb = w2.AABB();
+    const std::array<double, 6> expected = { -4, -4, -4, 10, 4, 4 };
+    bool aabbOk = true;
+    for (std::size_t i = 0; i < 6; ++i)
+        aabbOk = aabbOk && std::abs(aabb[i] - expected[i]) < 1E-6;
+    check(aabbOk, "World: AABB is union of items plus padding");
+    check(xraymctest::checkVectorNear(w2.center(), { 3, 0, 0 }, 1E-6, "World: center"), "World: center of AABB");
+    w2.build({ -50, -1, -1, 1, 1, 60 });
+    // build(aabb) uses the default padding of 10 cm around the items
+    check(std::abs(w2.AABB()[0] + 50) < 1E-9 && std::abs(w2.AABB()[5] - 60) < 1E-9 && std::abs(w2.AABB()[3] - 17) < 1E-6, "World: build with AABB extends world");
 
-    World world;
-    world.reserveNumberOfItems(2);
-    auto& sphere = world.addItem<Sphere>({ 16, { 0, 0, 0 } });
-    auto& sphere2 = world.addItem<Sphere>({ 16, { 0, 0, 0 } });
-    sphere.translate({ 0, 0, 32 });
-    sphere.setRadius(16);
+    w2.translate({ 0, 0, 100 });
+    const auto& sp = std::get<Sphere>(w2.items()[0]);
+    checkNear(sp.center()[2], 100, 1E-12, "World: translate moves items");
+    const Particle p { .pos = { 0, 0, 50 }, .dir = { 0, 0, 1 }, .energy = 60, .weight = 1 };
+    const auto r = w2.intersect(p);
+    check(r.valid() && std::abs(r.intersection - 49) < 1E-9, "World: translate moves kd-tree");
 
-    world.build();
-
-    xraymc::PencilBeam beam;
-    beam.setPosition({ -100, 0, 0 });
-    beam.setDirection({ 1, 0, 0 });
-    beam.setNumberOfExposures(16);
-    beam.setNumberOfParticlesPerExposure(10000);
-
-    xraymc::Transport::run(world, beam);
-
-    xraymc::Particle p = { .pos = { -100, 0, 0 }, .dir = { 1, 0, 0 } };
-    auto intersect = world.intersect(p);
-
-    xraymc::VisualizeWorld viz(world);
-    viz.setDistance(150);
-    viz.setPolarAngleDeg(180);
-    viz.setAzimuthalAngleDeg(0);
-    viz.suggestFOV();
-    viz.setCameraPosition({ 100, 100, 100 });
-
-    auto buffer = viz.createBuffer(2048, 2048);
-    viz.generate(world, buffer);
-    viz.savePNG("test.png", buffer);
-
-    bool test = true;
-    return test;
+    w2.setMaterial(Material<16>::byNistName("Water, Liquid").value(), 0.5);
+    checkNear(w2.fillMaterialDensity(), 0.5, 0, "World: fill material density");
+    check(w2.fillMaterial().composition().contains(8), "World: fill material");
+    w2.setMaterialByWeight({ { 82, 1.0 } }, 2.0);
+    check(w2.fillMaterial().composition().size() == 1 && w2.fillMaterialDensity() == 2.0, "World: fill material by weight");
 }
 
-int main(int argc, char* argv[])
+// The kd-tree must return the nearest intersection among all items
+void testKDTree()
 {
+    W world;
+    world.reserveNumberOfItems(60);
+    auto state = xraymctest::seededState();
+    for (int i = 0; i < 60; ++i) {
+        const Vec c = { state.randomUniform(-30.0, 30.0), state.randomUniform(-30.0, 30.0), state.randomUniform(-30.0, 30.0) };
+        const auto r = state.randomUniform(0.5, 3.0);
+        if (i % 3 == 0)
+            world.addItem<Sphere>({ r, c });
+        else if (i % 3 == 1)
+            world.addItem<Box>({ { c[0] - r, c[1] - r, c[2] - r, c[0] + r, c[1] + 0.5 * r, c[2] + 2 * r } });
+        else
+            world.addItem<Cylinder>({ r, 2 * r, c, { state.randomUniform(-1.0, 1.0), state.randomUniform(-1.0, 1.0), 1 } });
+    }
+    world.build();
 
-    auto success = true;
+    std::size_t wrongItem = 0, wrongDistance = 0, hits = 0, falseMiss = 0;
+    for (int i = 0; i < 20000; ++i) {
+        const auto cost = state.randomUniform(-1.0, 1.0);
+        const auto phi = state.randomUniform(2 * std::numbers::pi);
+        const Vec u = { std::sqrt(1 - cost * cost) * std::cos(phi), std::sqrt(1 - cost * cost) * std::sin(phi), cost };
+        const Vec target = { state.randomUniform(-30.0, 30.0), state.randomUniform(-30.0, 30.0), state.randomUniform(-30.0, 30.0) };
+        const Particle p { .pos = vm::add(target, vm::scale(u, 80.0)), .dir = vm::scale(u, -1.0), .energy = 60, .weight = 1 };
 
-    success = success && testWorld();
+        // brute force nearest intersection
+        double tmin = std::numeric_limits<double>::max();
+        const std::variant<Sphere, Box, Cylinder>* nearest = nullptr;
+        for (const auto& item : world.items()) {
+            const auto r = std::visit([&](const auto& it) { return it.intersect(p); }, item);
+            if (r.valid() && r.intersection < tmin) {
+                tmin = r.intersection;
+                nearest = &item;
+            }
+        }
+        const auto res = world.intersect(p);
+        if (nearest) {
+            ++hits;
+            if (!res.valid())
+                ++falseMiss;
+            else {
+                if (res.item != nearest && std::abs(res.intersection - tmin) > 1E-6)
+                    ++wrongItem;
+                if (std::abs(res.intersection - tmin) > 1E-6)
+                    ++wrongDistance;
+            }
+        } else if (res.valid()) {
+            ++wrongItem;
+        }
+    }
+    check(hits > 2000, "World kd-tree: random rays hit items (" + std::to_string(hits) + ")");
+    check(falseMiss == 0, "World kd-tree: no missed intersections (" + std::to_string(falseMiss) + ")");
+    check(wrongItem == 0, "World kd-tree: nearest item found (" + std::to_string(wrongItem) + " wrong)");
+    check(wrongDistance == 0, "World kd-tree: nearest distance found (" + std::to_string(wrongDistance) + " wrong)");
+}
 
-    if (success)
-        return EXIT_SUCCESS;
-    else
-        return EXIT_FAILURE;
+void testTransportToWorld()
+{
+    W world;
+    world.addItem<Sphere>({ 1, { 0, 0, 0 } });
+    world.build(4);
+    Particle p { .pos = { 0, 0, -100 }, .dir = { 0, 0, 1 }, .energy = 60, .weight = 1 };
+    check(world.transportParticleToWorld(p) && std::abs(p.pos[2] + 5) < 1E-5, "World: particle is moved to world boundary");
+    Particle q { .pos = { 0, 0, -100 }, .dir = { 0, 0, -1 }, .energy = 60, .weight = 1 };
+    check(!world.transportParticleToWorld(q), "World: particle moving away from world is not transported");
+    Particle inside { .pos = { 0, 0, 3 }, .dir = { 0, 0, -1 }, .energy = 60, .weight = 1 };
+    check(world.transportParticleToWorld(inside) && inside.pos[2] == 3, "World: particle inside world is not moved");
+
+    // World fill material interacts: a dense water world attenuates the beam before an item
+    W dense;
+    auto& sphere = dense.addItem<Sphere>({ 1, { 0, 0, 0 } });
+    dense.build(30);
+    PencilBeam<> beam({ 0, 0, -30 }, { 0, 0, 1 }, 60);
+    beam.setNumberOfExposures(10);
+    beam.setNumberOfParticlesPerExposure(10000);
+    Transport transport;
+    transport(dense, beam, nullptr, false);
+    const auto eAir = sphere.energyScored().energyImparted();
+    dense.setMaterial(Material<16>::byNistName("Water, Liquid").value(), 1.0);
+    transport(dense, beam, nullptr, false);
+    const auto eWater = sphere.energyScored().energyImparted();
+    check(eWater < 0.5 * eAir, "World: dense fill material attenuates beam before item");
+}
+
+int main()
+{
+    std::cout << "Testing world\n";
+    testItems();
+    testKDTree();
+    testTransportToWorld();
+    return xraymctest::summary("testworld");
 }

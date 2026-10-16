@@ -13,202 +13,176 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
-Copyright 2022 Erlend Andersen
+Copyright 2023 Erlend Andersen
 */
 
-#include "xraymc/beams/dxbeam.hpp"
+#include "testgeometry.hpp"
+#include "testutils.hpp"
+
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
-#include "xraymc/transportprogress.hpp"
-#include "xraymc/world/visualization/visualizeworld.hpp"
+#include "xraymc/world/basicshapes/aabb.hpp"
 #include "xraymc/world/world.hpp"
-#include "xraymc/world/worlditems/aavoxelgrid.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshreader.hpp"
-#include "xraymc/world/worlditems/worldbox.hpp"
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
-#include <vector>
 
-xraymc::TetrahedalMeshData tetCube()
+using namespace xraymc;
+using xraymctest::check;
+using xraymctest::checkNear;
+using Vec = std::array<double, 3>;
+namespace vm = xraymc::vectormath;
+
+using Mesh = TetrahedalMesh<5, 1, false>;
+
+void testStructure()
 {
-    std::vector<std::array<double, 3>> v(10);
-
-    v[0] = { 1, -1, 1 };
-    v[1] = { -1, 1, -1 };
-    v[2] = { -1, -1, 1 };
-    v[3] = { -1, -1, -1 };
-    v[4] = { 1, -1, -1 };
-    v[5] = { -1, 1, 1 };
-    v[6] = { 1, 1, 1 };
-    v[7] = { 1, 1, -1 };
-    v[8] = { 0, 0, 1 };
-    v[9] = { 0, 0, -1 };
-
-    std::vector<std::array<std::uint32_t, 4>> t(12);
-
-    t[0] = { 0, 7, 4, 9 };
-    t[1] = { 1, 6, 5, 8 };
-    t[2] = { 1, 6, 8, 9 };
-    t[3] = { 6, 1, 7, 9 };
-    t[4] = { 1, 5, 2, 8 };
-    t[5] = { 3, 0, 4, 9 };
-    t[6] = { 3, 1, 2, 9 };
-    t[7] = { 2, 1, 8, 9 };
-    t[8] = { 7, 0, 6, 9 };
-    t[9] = { 6, 0, 8, 9 };
-    t[10] = { 0, 3, 2, 9 };
-    t[11] = { 0, 2, 8, 9 };
-
-    xraymc::TetrahedalMeshData data;
-    data.nodes = v;
-    data.elements = t;
-    data.collectionIndices.resize(t.size(), 0);
-    data.collectionMaterialComposition.resize(1);
-    data.collectionMaterialComposition[0][1] = 0.111894;
-    data.collectionMaterialComposition[0][8] = 0.888106;
-    data.collectionDensities.resize(1, 1.0);
-    data.makeGenericCollectionNames();
-    return data;
+    const auto data = xraymctest::tetCube(1);
+    Mesh mesh(data);
+    check(mesh.numberOfThetrahedrons() == 12, "TetrahedalMesh: number of tetrahedra");
+    double volume = 0;
+    for (std::uint32_t i = 0; i < mesh.numberOfThetrahedrons(); ++i)
+        volume += mesh.tetrahedalVolume(i);
+    checkNear(volume, 8, 1E-12, "TetrahedalMesh: sum of tetrahedron volumes equals cube volume");
+    const auto coll = mesh.collectionData();
+    check(coll.size() == 1, "TetrahedalMesh: one collection");
+    checkNear(coll[0].volume, 8, 1E-12, "TetrahedalMesh: collection volume");
+    checkNear(coll[0].density, 1, 1E-12, "TetrahedalMesh: collection density");
+    check(mesh.collectionNames().size() == 1 && mesh.tetrahedronCollectionIndex(mesh.collectionNames()[0]).has_value(), "TetrahedalMesh: collection names");
+    check(!mesh.tetrahedronCollectionIndex("no such collection").has_value(), "TetrahedalMesh: unknown collection name");
+    const auto aabb = mesh.AABB();
+    bool aabbOk = true;
+    for (std::size_t i = 0; i < 3; ++i)
+        aabbOk = aabbOk && std::abs(aabb[i] + 1) < 1E-5 && std::abs(aabb[i + 3] - 1) < 1E-5;
+    check(aabbOk, "TetrahedalMesh: AABB of cube");
+    check(!mesh.outerContourTetrahedronIndices().empty(), "TetrahedalMesh: outer contour tetrahedra");
+    double area = 0;
+    for (const auto& t : mesh.constructOuterContourTriangles())
+        area += 0.5 * vm::length(vm::cross(vm::subtract(t[1], t[0]), vm::subtract(t[2], t[0])));
+    checkNear(area, 24, 1E-9, "TetrahedalMesh: outer contour triangles cover the cube surface");
+    const auto copy = mesh.copyData();
+    check(copy.nodes == data.nodes && copy.elements.size() == data.elements.size(), "TetrahedalMesh: copyData returns mesh data");
 }
 
-template <std::size_t N = 5, int L = 2, bool F = false>
-xraymc::WorldBox<N, L, F> simplebox()
+void testIntersections()
 {
-    xraymc::WorldBox<N, L, F> box({ -1, -1, -1, 1, 1, 1 });
-    auto water = xraymc::Material<N>::byNistName("Water, Liquid").value();
-    box.setMaterial(water, 1);
-    return box;
+    Mesh mesh(xraymctest::tetCube(1));
+    const std::array<double, 6> aabb = { -1, -1, -1, 1, 1, 1 };
+    auto state = xraymctest::seededState();
+    std::size_t mismatches = 0, hits = 0;
+    for (std::size_t i = 0; i < 20000; ++i) {
+        const Vec pos = { state.randomUniform(-3.0, 3.0), state.randomUniform(-3.0, 3.0), state.randomUniform(-3.0, 3.0) };
+        Vec dir = { state.randomUniform(-1.0, 1.0), state.randomUniform(-1.0, 1.0), state.randomUniform(-1.0, 1.0) };
+        vm::normalize(dir);
+        const Particle p { .pos = pos, .dir = dir, .energy = 60, .weight = 1 };
+        const auto a = mesh.intersect(p);
+        const auto b = basicshape::AABB::intersect(p, aabb);
+        if (b.valid())
+            ++hits;
+        if (a.valid() != b.valid() || (a.valid() && (std::abs(a.intersection - b.intersection) > 1E-6 || a.rayOriginIsInsideItem != b.rayOriginIsInsideItem)))
+            ++mismatches;
+    }
+    check(hits > 1000, "TetrahedalMesh: random rays hit the cube");
+    check(mismatches == 0, "TetrahedalMesh: intersections equal AABB intersections (" + std::to_string(mismatches) + " mismatches)");
+
+    mesh.translate({ 10, 0, 0 });
+    const Particle p { .pos = { 10, 0, -5 }, .dir = { 0, 0, 1 }, .energy = 60, .weight = 1 };
+    check(mesh.intersect(p).valid() && std::abs(mesh.intersect(p).intersection - 4) < 1E-6, "TetrahedalMesh: intersection after translation");
+    mesh.rotate({ 0, 0, 1 }, std::numbers::pi / 4);
+    // rotated about its center, the cube diagonal now spans sqrt(2) in x
+    checkNear(mesh.AABB()[3] - mesh.AABB()[0], 2 * std::sqrt(2.0), 1E-5, "TetrahedalMesh: rotate updates AABB");
 }
 
-template <std::size_t N = 5, int L = 2>
-xraymc::AAVoxelGrid<N, L, 255> simplegrid()
+void testDoseInTetrahedra()
 {
-
-    xraymc::AAVoxelGrid<N, L, 255> grid;
-    std::vector<std::uint8_t> m(1000, 0);
-    std::vector<double> d(1000, 1);
-    std::vector<xraymc::Material<N>> mats;
-    mats.push_back(xraymc::Material<N>::byNistName("Water, Liquid").value());
-    grid.setData({ 10, 10, 10 }, d, m, mats);
-    grid.setSpacing({ .2, .2, .2 });
-
-    return grid;
+    // A pencil beam through the cube only deposits energy in tetrahedra along the beam
+    World<Mesh> world;
+    auto& mesh = world.addItem<Mesh>({ xraymctest::tetCube(1) });
+    world.setMaterialDensity(1E-9);
+    world.build();
+    PencilBeam<> beam({ 0.5, -0.4, -5 }, { 0, 0, 1 }, 60);
+    beam.setNumberOfExposures(10);
+    beam.setNumberOfParticlesPerExposure(20000);
+    Transport transport;
+    transport(world, beam, nullptr, false);
+    double total = 0, onPath = 0;
+    for (std::uint32_t i = 0; i < mesh.numberOfThetrahedrons(); ++i) {
+        const auto e = mesh.energyScored(i).energyImparted();
+        total += e;
+        const auto t = mesh.tetrahedron(i);
+        // tetrahedra that contain a point on the beam line
+        bool contains = false;
+        for (double z = -0.99; z < 1; z += 0.01)
+            contains = contains || basicshape::tetrahedron::pointInside(t[0], t[1], t[2], t[3], { 0.5, -0.4, z });
+        if (contains)
+            onPath += e;
+    }
+    check(total > 0, "TetrahedalMesh: energy deposited in mesh");
+    check(onPath / total > 0.8, "TetrahedalMesh: most energy deposited in tetrahedra along the beam (" + std::to_string(onPath / total) + ")");
+    mesh.addEnergyScoredToDoseScore(1.0);
+    const auto coll = mesh.collectionData();
+    checkNear(coll[0].dose, total / 8.0, 1E-9 * total, "TetrahedalMesh: collection dose is energy per collection mass");
 }
 
-bool testTransport()
+void writeTetgenFiles(const std::filesystem::path& node, const std::filesystem::path& ele, const TetrahedalMeshData& data, bool trailingNewline)
 {
-    constexpr int INTER = 1;
-
-    using M1 = xraymc::TetrahedalMesh<12, INTER, true>;
-    using M2 = xraymc::TetrahedalMesh<12, INTER, false>;
-
-    using B = xraymc::WorldBox<12, INTER, false>;
-    using BF = xraymc::WorldBox<12, INTER, true>;
-    using G = xraymc::AAVoxelGrid<12, INTER, 255>;
-
-    constexpr std::size_t N_THREADS = 0;
-
-    constexpr std::size_t N_HIST = 1000000;
-    constexpr std::size_t N_EXP = 32;
-
-    xraymc::PencilBeam<> beam({ -10, .0001, .0001 }, { 1, 0, 0 }, 60);
-
-    beam.setNumberOfExposures(N_EXP);
-    beam.setNumberOfParticlesPerExposure(N_HIST);
-
-    xraymc::TransportProgress progress;
-
-    bool success = true;
-
     {
-        xraymc::World<M1> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(M1 { tetCube() });
-        w.build();
-
-        double dose = 0;
-        xraymc::Transport transport;
-        transport.setNumberOfThreads(N_THREADS);
-        transport(w, beam, &progress);
-        auto coll = mesh.collectionData();
-        dose = coll[0].dose;
-        std::cout << "Mesh forced " << dose << " " << progress.humanTotalTime() << std::endl;
-        success = success && dose > 16.0 && dose < 16.1;
-    }
-
-    {
-        xraymc::World<M2> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(M2 { tetCube() });
-        w.build();
-
-        double dose = 0;
-        xraymc::Transport transport;
-        transport.setNumberOfThreads(N_THREADS);
-        transport(w, beam, &progress);
-        auto coll = mesh.collectionData();
-        dose = coll[0].dose;
-        std::cout << "Mesh random " << dose << " " << progress.humanTotalTime() << std::endl;
-        success = success && dose > 16.0 && dose < 16.1;
-    }
-
-    {
-        xraymc::World<G> w;
-        w.reserveNumberOfItems(1);
-        auto& mesh = w.addItem(simplegrid<12, INTER>());
-        w.build();
-
-        xraymc::Transport transport;
-        transport.setNumberOfThreads(N_THREADS);
-        transport(w, beam, &progress);
-        auto s = mesh.size();
-        double dose = 0;
-        for (std::size_t i = 0; i < s; ++i)
-            dose += mesh.doseScored(i).dose();
-        std::cout << "Grid random " << dose / s << " " << progress.humanTotalTime() << std::endl;
-        success = success && dose / s > 16.0 && dose / s < 16.1;
-    }
-
-    {
-        xraymc::World<B> w;
-        w.reserveNumberOfItems(1);
-        auto& box = w.addItem(simplebox<12, INTER, false>());
-        w.build();
-
-        xraymc::Transport transport;
-        transport.setNumberOfThreads(N_THREADS);
-        transport(w, beam, &progress);
-        auto dose = box.doseScored().dose();
-        std::cout << "Box random " << dose << " " << progress.humanTotalTime() << std::endl;
-        success = success && dose > 16.0 && dose < 16.1;
+        std::ofstream f(node);
+        f << data.nodes.size() << " 3 0 0\n";
+        for (std::size_t i = 0; i < data.nodes.size(); ++i) {
+            f << i << " " << data.nodes[i][0] << " " << data.nodes[i][1] << " " << data.nodes[i][2];
+            if (trailingNewline || i + 1 < data.nodes.size())
+                f << "\n";
+        }
     }
     {
-        xraymc::World<BF> w;
-        w.reserveNumberOfItems(1);
-        auto& box = w.addItem(simplebox<12, INTER, true>());
-        w.build();
-
-        xraymc::Transport transport;
-        transport.setNumberOfThreads(N_THREADS);
-        transport(w, beam, &progress);
-        auto dose = box.doseScored().dose();
-        std::cout << "Box forced " << dose << " " << progress.humanTotalTime() << std::endl;
-        success = success && dose > 16.0 && dose < 16.1;
+        std::ofstream f(ele);
+        f << data.elements.size() << " 4 1\n";
+        for (std::size_t i = 0; i < data.elements.size(); ++i) {
+            const auto& e = data.elements[i];
+            f << i << " " << e[0] << " " << e[1] << " " << e[2] << " " << e[3] << " " << (i < 6 ? 0 : 1);
+            if (trailingNewline || i + 1 < data.elements.size())
+                f << "\n";
+        }
     }
+}
 
-    return success;
+void testReader()
+{
+    const auto data = xraymctest::tetCube(1);
+    const auto node = xraymctest::tempPath("cube.node");
+    const auto ele = xraymctest::tempPath("cube.ele");
+    for (bool newline : { true, false }) {
+        writeTetgenFiles(node, ele, data, newline);
+        TetrahedalMeshReader reader(node.string(), ele.string());
+        const std::string label = newline ? "" : " (no trailing newline)";
+        check(reader.valid(), "TetrahedalMeshReader: valid" + label);
+        check(reader.data().nodes == data.nodes, "TetrahedalMeshReader: nodes read" + label);
+        check(reader.data().elements == data.elements, "TetrahedalMeshReader: elements read" + label);
+        // region attributes become collections
+        check(reader.data().collectionDensities.size() == 2, "TetrahedalMeshReader: region attributes become collections" + label);
+        if (reader.valid() && reader.data().elements.size() == 12) {
+            Mesh mesh(reader.data());
+            const auto coll = mesh.collectionData();
+            check(coll.size() == 2 && std::abs(coll[0].volume + coll[1].volume - 8) < 1E-9, "TetrahedalMeshReader: mesh from file has cube volume" + label);
+        }
+    }
+    std::filesystem::remove(node);
+    std::filesystem::remove(ele);
+    TetrahedalMeshReader missing(xraymctest::tempPath("missing.node").string(), xraymctest::tempPath("missing.ele").string());
+    check(!missing.valid(), "TetrahedalMeshReader: missing files are not valid");
 }
 
 int main()
 {
-
-    bool success = true;
-
-    success = success && testTransport();
-    if (success)
-        return EXIT_SUCCESS;
-    else
-        return EXIT_FAILURE;
+    std::cout << "Testing tetrahedal mesh\n";
+    testStructure();
+    testIntersections();
+    testDoseInTetrahedra();
+    testReader();
+    return xraymctest::summary("testtetrahedalmesh");
 }

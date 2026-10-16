@@ -1,319 +1,241 @@
+/*This file is part of XRayMClib.
 
+XRayMClib is free software : you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-#include "xraymc/beams/isotropicmonoenergybeam.hpp"
-#include "xraymc/beams/pencilbeam.hpp"
-#include "xraymc/transport.hpp"
-#include "xraymc/world/visualization/visualizeworld.hpp"
-#include "xraymc/world/world.hpp"
-#include "xraymc/world/worlditems/triangulatedmesh.hpp"
-#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
-#include "xraymc/world/worlditems/worldbox.hpp"
-#include "xraymc/world/worlditems/worldsphere.hpp"
+XRayMClib is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
+You should have received a copy of the GNU General Public License
+along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
-std::vector<xraymc::Triangle> getPyramid()
-{
-    std::vector<std::array<double, 3>> p;
-    constexpr auto d = 30.0;
-    p.push_back({ 1, 1, 0 }); // 0
-    p.push_back({ 1, -1, 0 }); // 1
-    p.push_back({ -1, -1, 0 }); // 2
-    p.push_back({ -1, 1, 0 }); // 3
-    p.push_back({ 0, 0, 1 });
-    for (auto& i : p)
-        for (auto& j : i)
-            j *= d;
-
-    std::vector<xraymc::Triangle> t;
-    t.push_back({ p[0], p[1], p[4] });
-    t.push_back({ p[1], p[2], p[4] });
-    t.push_back({ p[2], p[3], p[4] });
-    t.push_back({ p[3], p[0], p[4] });
-
-    // underside
-    t.push_back({ p[0], p[3], p[2] });
-    t.push_back({ p[2], p[1], p[0] });
-
-    return t;
-}
-
-std::vector<xraymc::Triangle> getBox(double scale = 1)
-{
-    std::vector<std::array<double, 3>> p;
-    p.push_back({ 1, 1, 1 }); // 0
-    p.push_back({ 1, 1, -1 }); // 1
-    p.push_back({ 1, -1, 1 }); // 2
-    p.push_back({ -1, 1, 1 }); // 3
-    p.push_back({ -1, -1, 1 }); // 4
-    p.push_back({ -1, 1, -1 }); // 5
-    p.push_back({ 1, -1, -1 }); // 6
-    p.push_back({ -1, -1, -1 }); // 7
-    for (auto& i : p)
-        for (auto& j : i)
-            j *= scale;
-
-    std::vector<xraymc::Triangle> t;
-    t.push_back({ p[0], p[3], p[4] });
-    t.push_back({ p[0], p[4], p[2] });
-    t.push_back({ p[6], p[2], p[4] });
-    t.push_back({ p[6], p[4], p[7] });
-    t.push_back({ p[7], p[4], p[3] });
-    t.push_back({ p[7], p[3], p[5] });
-    t.push_back({ p[5], p[1], p[6] });
-    t.push_back({ p[5], p[6], p[7] });
-    t.push_back({ p[1], p[0], p[2] });
-    t.push_back({ p[1], p[2], p[6] });
-    t.push_back({ p[5], p[3], p[0] });
-    t.push_back({ p[5], p[0], p[1] });
-    return t;
-}
-std::vector<xraymc::Triangle> getPlane(double scale = 1)
-{
-    std::vector<std::array<double, 3>> p;
-    p.push_back({ -1, -1, 0 }); // 0
-    p.push_back({ 1, -1, 0 }); // 1
-    p.push_back({ 1, 1, 0 }); // 2
-    p.push_back({ -1, -1, 0 }); // 3
-    p.push_back({ 1, 1, 0 }); // 4
-    p.push_back({ -1, 1, 0 }); // 5
-
-    for (auto& i : p)
-        for (auto& j : i)
-            j *= scale;
-
-    std::vector<xraymc::Triangle> t;
-    t.push_back({ p[0], p[1], p[2] });
-    t.push_back({ p[3], p[4], p[5] });
-    return t;
-}
-
-template <std::size_t N = 5, int L = 2>
-void testMeshVisualization()
-{
-
-    using Mesh = xraymc::TriangulatedMesh<N, L>;
-    using World = xraymc::World<Mesh>;
-    using Material = xraymc::Material<N>;
-
-    World world;
-
-    const auto waterComp = xraymc::NISTMaterials::Composition("Water, Liquid");
-    auto water = Material::byWeight(waterComp).value();
-
-    int option;
-    option = 0; // Box
-    // option = 1; // Triangle
-    // option = 2; // Bunny
-    // option = 3; // bunny_low
-    // option = 4; // duck
-
-    if (option == 0) {
-        const auto triangles = getBox();
-        Mesh mesh(triangles);
-        mesh.setMaterial(water, 1);
-        world.addItem(std::move(mesh));
-    } else if (option == 1) {
-        const auto triangles = getPyramid();
-        Mesh mesh(triangles);
-        mesh.setMaterial(water, 1);
-        world.addItem(std::move(mesh));
-    } else if (option == 2) {
-        Mesh mesh("bunny.stl");
-        mesh.setMaterial(water, 1);
-        world.addItem(std::move(mesh));
-    } else if (option == 3) {
-        Mesh mesh("bunny_low.stl");
-        mesh.setMaterial(water, 1);
-        world.addItem(std::move(mesh));
-    } else if (option == 4) {
-        Mesh mesh("duck.stl");
-        mesh.setMaterial(water, 1);
-        world.addItem(std::move(mesh));
-    }
-
-    world.build();
-
-    xraymc::VisualizeWorld viz(world);
-
-    auto buffer = viz.createBuffer();
-
-    for (std::size_t i = 0; i < 12; ++i) {
-        viz.setDistance(500);
-        viz.setPolarAngle(std::numbers::pi_v<double> / 3.0);
-        viz.setAzimuthalAngle(std::numbers::pi_v<double> * i / 6.0);
-        // viz.setCameraPosition({ -60, -30, -10 });
-        viz.suggestFOV();
-        viz.generate(world, buffer);
-        std::string name = "color_" + std::to_string(i) + ".png";
-        viz.savePNG(name, buffer);
-        // writeImage(buffer, name);
-    }
-}
-
-double testScoring()
-{
-    using Mesh = xraymc::TriangulatedMesh<5, 2>;
-    using Box = xraymc::WorldBox<5, 2>;
-    using World = xraymc::World<Mesh, Box>;
-    using Material = xraymc::Material<5>;
-
-    using Beam = xraymc::IsotropicMonoEnergyBeam<>;
-    Beam beam({ 0, 0, -1000 }, { 1, 0, 0, 0, 1, 0 }, 60);
-    beam.setNumberOfExposures(12);
-    beam.setNumberOfParticlesPerExposure(1E5);
-
-    const auto waterComp = xraymc::NISTMaterials::Composition("Water, Liquid");
-    auto water = Material::byWeight(waterComp).value();
-
-    {
-        World world;
-        auto tri = getBox();
-        auto& item = world.addItem<Mesh>({ tri });
-        item.setMaterial(water, 1);
-        world.build();
-        xraymc::Transport transport;
-        auto milli = transport.runConsole(world, beam, 1);
-        std::cout << "mesh: " << item.doseScored().dose() << " time: " << milli << std::endl;
-    }
-    {
-        World world;
-        auto& item = world.addItem<Box>({ 1 });
-        item.setMaterial(water, 1);
-        world.build();
-        xraymc::Transport transport;
-        auto milli = transport.runConsole(world, beam, 1);
-        std::cout << "box: " << item.doseScored().dose() << " time: " << milli << std::endl;
-    }
-
-    return 0;
-}
-
-bool testOpenSurface()
-{
-    /*std::vector<xraymc::Triangle> tris;
-    tris.push_back({ { -0.3333333, -1, 0.5743564 },
-        { 0.33333337, -1, 0 },
-        { 0.33333337, 0, -0.5099079 } });
-    tris.push_back({ { -0.3333333, -1, 0.5743564 },
-        { 0.33333337, 0, -0.5099079 },
-        { -0.3333333, 0, 0 } });
-
-    tris.push_back({ { 0.33333337, -1, 0 },
-        { 1, -1, 0.65487117 },
-        { 1, 0, 0 } });
-    tris.push_back({ { 0.33333337, -1, 0 },
-        { 1, 0, 0 },
-        { 0.33333337, 0, -0.5099079 } });
-    tris.push_back({ { -0.3333333, 0, 0 },
-        { 0.33333337, 0, -0.5099079 },
-        { 0.33333337, 1, 0 } });
-    tris.push_back({ { -0.3333333, 0, 0 },
-        { 0.33333337, 1, 0 },
-        { -0.3333333, 1, 0.6040865 } });
-    tris.push_back({ { 0.33333337, 0, -0.5099079 },
-        { 1, 0, 0 },
-        { 1, 1, 0.63710684 } });
-    tris.push_back({ { 0.33333337, 0, -0.5099079 },
-        { 1, 1, 0.63710684 },
-        { 0.33333337, 1, 0 } });
+Copyright 2022 Erlend Andersen
 */
 
-    constexpr int NSHELL = 12;
-    constexpr int MODEL = 2;
+#include "testgeometry.hpp"
+#include "testutils.hpp"
 
-    using Sphere = xraymc::WorldSphere<NSHELL, MODEL>;
+#include "xraymc/beams/pencilbeam.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/basicshapes/aabb.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/triangulatedmesh.hpp"
+#include "xraymc/world/worlditems/triangulatedmesh/triangulatedmeshstlreader.hpp"
+#include "xraymc/world/worlditems/triangulatedopensurface.hpp"
+#include "xraymc/world/worlditems/worldbox.hpp"
 
-    std::cout << "Test surface mesh\n";
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
 
-    xraymc::World<xraymc::TriangulatedOpenSurface<NSHELL, MODEL>, Sphere> w1;
-    xraymc::World<xraymc::WorldBox<NSHELL, MODEL>, Sphere> w2;
+using namespace xraymc;
+using xraymctest::check;
+using xraymctest::checkNear;
+using xraymctest::checkStatisticallyEqual;
+using Vec = std::array<double, 3>;
+namespace vm = xraymc::vectormath;
 
-    w1.reserveNumberOfItems(2);
-    w2.reserveNumberOfItems(2);
+using Mesh = TriangulatedMesh<5, 1>;
 
-    auto lead = xraymc::Material<NSHELL>::byZ(82).value();
-    double lead_dens = 11.34;
-
-    auto& mesh = w1.template addItem<xraymc::TriangulatedOpenSurface<NSHELL, MODEL>>(getPlane());
-    auto& box = w2.template addItem<xraymc::WorldBox<NSHELL, MODEL>>();
-
-    auto& sphere_mesh = w1.template addItem<Sphere>({ 1, { 2, 2, -2 } });
-    auto& sphere_box = w2.template addItem<Sphere>({ 1, { 2, 2, -2 } });
-
-    mesh.setMaterial(lead, lead_dens);
-    mesh.setSurfaceThickness(0.05);
-
-    box.setAABB({ -1, -1, 0, 1, 1, 0.05 });
-    box.setMaterial(lead, lead_dens);
-
-    w1.build();
-    w2.build();
-
-    xraymc::PencilBeam<false> beam;
-    beam.setPosition({ 0, 0, -10 });
-    beam.setDirection({ 0, 0, 1 });
-    beam.setNumberOfExposures(160);
-    beam.setNumberOfParticlesPerExposure(1000000);
-
-    xraymc::Transport transport;
-    transport.runConsole(w1, beam, 1);
-    transport.runConsole(w2, beam, 1);
-
-    std::cout << "Mesh: " << mesh.doseScored(0).dose() << ", Scatter: " << sphere_mesh.doseScored(0).dose() << ", Events: " << sphere_mesh.doseScored(0).numberOfEvents() << std::endl;
-    std::cout << "Box: " << box.doseScored(0).dose() << ", Scatter: " << sphere_box.doseScored(0).dose() << ", Events: " << sphere_box.doseScored(0).numberOfEvents() << std::endl;
-
-    if (std::abs(mesh.doseScored(0).dose() - box.doseScored(0).dose()) < 0.01) {
-        std::cout << "SUCCESS\n";
-        return true;
-    } else {
-        std::cout << "FAILURE\n";
-        return false;
-    }
-
-    /*xraymc::VisualizeWorld viz(w1);
-     auto buffer = viz.createBuffer();
-
-     for (std::size_t i = 0; i < 180; i += 30) {
-         viz.setDistance(500);
-         viz.setPolarAngleDeg(60);
-         viz.setAzimuthalAngleDeg(i);
-
-         viz.suggestFOV();
-         viz.generate(w1, buffer);
-         std::string name = "surf_" + std::to_string(i) + ".png";
-         viz.savePNG(name, buffer);
-         // writeImage(buffer, name);
-     }*/
+Particle randomRay(RandomState& state, double extent)
+{
+    const Vec pos = { state.randomUniform(-extent, extent), state.randomUniform(-extent, extent), state.randomUniform(-extent, extent) };
+    Vec dir = { state.randomUniform(-1.0, 1.0), state.randomUniform(-1.0, 1.0), state.randomUniform(-1.0, 1.0) };
+    vm::normalize(dir);
+    return { .pos = pos, .dir = dir, .energy = 60, .weight = 1 };
 }
 
-int main(int argc, char* argv[])
+void testIntersections()
+{
+    // A triangulated box must intersect exactly as the corresponding AABB
+    Mesh mesh(xraymctest::boxTriangles(2));
+    mesh.translate({ 1, -1, 0.5 });
+    const std::array<double, 6> aabb = { -1, -3, -1.5, 3, 1, 2.5 };
+    bool aabbOk = true;
+    for (std::size_t i = 0; i < 6; ++i)
+        aabbOk = aabbOk && std::abs(mesh.AABB()[i] - aabb[i]) < 1E-5; // the mesh AABB is padded slightly
+    check(aabbOk, "TriangulatedMesh: AABB of translated box");
+    check(xraymctest::checkVectorNear(mesh.center(), { 1, -1, 0.5 }, 1E-9, "TriangulatedMesh: center"), "TriangulatedMesh: center of translated box");
+
+    auto state = xraymctest::seededState();
+    std::size_t mismatches = 0, hits = 0;
+    for (std::size_t i = 0; i < 20000; ++i) {
+        const auto p = randomRay(state, 5);
+        const auto a = mesh.intersect(p);
+        const auto b = basicshape::AABB::intersect(p, aabb);
+        if (b.valid())
+            ++hits;
+        if (a.valid() != b.valid() || (a.valid() && (std::abs(a.intersection - b.intersection) > 1E-9 || a.rayOriginIsInsideItem != b.rayOriginIsInsideItem)))
+            ++mismatches;
+    }
+    check(hits > 1000, "TriangulatedMesh: random rays hit the box");
+    check(mismatches == 0, "TriangulatedMesh: intersections equal AABB intersections (" + std::to_string(mismatches) + " mismatches)");
+
+    // Intersections do not depend on the kd-tree depth
+    Mesh shallow(xraymctest::pyramidTriangles(3), 1);
+    Mesh deep(xraymctest::pyramidTriangles(3), 8);
+    std::size_t depthMismatch = 0;
+    for (std::size_t i = 0; i < 20000; ++i) {
+        const auto p = randomRay(state, 6);
+        const auto a = shallow.intersect(p);
+        const auto b = deep.intersect(p);
+        if (a.valid() != b.valid() || (a.valid() && std::abs(a.intersection - b.intersection) > 1E-9))
+            ++depthMismatch;
+    }
+    check(depthMismatch == 0, "TriangulatedMesh: intersections independent of kd-tree depth (" + std::to_string(depthMismatch) + " mismatches)");
+}
+
+void testTransforms()
+{
+    Mesh mesh(xraymctest::boxTriangles(1));
+    mesh.scale(3);
+    checkNear(mesh.AABB()[3], 3, 1E-5, "TriangulatedMesh: scale");
+    Mesh tall(xraymctest::pyramidTriangles(1));
+    tall.rotate(std::numbers::pi / 2, { 1, 0, 0 });
+    // the apex at z = 1 is rotated to y = -1
+    checkNear(tall.AABB()[1], -1, 1E-6, "TriangulatedMesh: rotate moves apex");
+    checkNear(tall.AABB()[5], 1, 1E-6, "TriangulatedMesh: rotate moves base");
+    Mesh mir(xraymctest::pyramidTriangles(1));
+    mir.mirror(0.0, 2);
+    checkNear(mir.AABB()[2], -1, 1E-6, "TriangulatedMesh: mirror in z plane");
+    // a mirrored mesh must still be a closed surface with outward normals
+    Particle p { .pos = { 0, 0, -5 }, .dir = { 0, 0, 1 }, .energy = 60, .weight = 1 };
+    const auto r = mir.intersect(p);
+    check(r.valid() && !r.rayOriginIsInsideItem && std::abs(r.intersection - 4) < 1E-6, "TriangulatedMesh: mirrored mesh intersects from outside");
+    p.pos = { 0, 0, -0.5 };
+    check(mir.intersect(p).rayOriginIsInsideItem, "TriangulatedMesh: mirrored mesh has outward normals");
+}
+
+void writeAsciiSTL(const std::filesystem::path& path, const std::vector<Triangle>& tris, bool crlf)
+{
+    std::ofstream f(path, std::ios::binary);
+    const std::string nl = crlf ? "\r\n" : "\n";
+    f << "solid test" << nl;
+    for (const auto& t : tris) {
+        const auto n = t.planeVector();
+        f << "  facet normal " << n[0] << " " << n[1] << " " << n[2] << nl;
+        f << "    outer loop" << nl;
+        for (const auto& v : t.vertices())
+            f << "      vertex " << v[0] << " " << v[1] << " " << v[2] << nl;
+        f << "    endloop" << nl;
+        f << "  endfacet" << nl;
+    }
+    f << "endsolid test" << nl;
+}
+
+void writeBinarySTL(const std::filesystem::path& path, const std::vector<Triangle>& tris, const std::string& header)
+{
+    std::ofstream f(path, std::ios::binary);
+    std::array<char, 80> h {};
+    std::memcpy(h.data(), header.data(), std::min(header.size(), h.size()));
+    f.write(h.data(), h.size());
+    const std::uint32_t n = static_cast<std::uint32_t>(tris.size());
+    f.write(reinterpret_cast<const char*>(&n), 4);
+    for (const auto& t : tris) {
+        std::array<float, 12> data;
+        const auto nv = t.planeVector();
+        for (std::size_t i = 0; i < 3; ++i)
+            data[i] = static_cast<float>(nv[i]);
+        std::size_t k = 3;
+        for (const auto& v : t.vertices())
+            for (auto c : v)
+                data[k++] = static_cast<float>(c);
+        f.write(reinterpret_cast<const char*>(data.data()), sizeof(float) * 12);
+        const std::uint16_t attr = 0;
+        f.write(reinterpret_cast<const char*>(&attr), 2);
+    }
+}
+
+bool sameTriangles(const std::vector<Triangle>& a, const std::vector<Triangle>& b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (std::size_t i = 0; i < a.size(); ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                if (std::abs(a[i].vertices()[j][k] - b[i].vertices()[j][k]) > 1E-5)
+                    return false;
+    return true;
+}
+
+void testSTL()
+{
+    const auto tris = xraymctest::pyramidTriangles(2.5);
+    {
+        const auto path = xraymctest::tempPath("ascii.stl");
+        writeAsciiSTL(path, tris, false);
+        STLReader reader;
+        check(sameTriangles(reader(path.string()), tris), "STLReader: ASCII file");
+        writeAsciiSTL(path, tris, true);
+        check(sameTriangles(reader(path.string()), tris), "STLReader: ASCII file with CRLF line endings");
+        Mesh m(path.string());
+        check(m.triangles().size() == tris.size(), "TriangulatedMesh: constructed from STL file");
+        std::filesystem::remove(path);
+    }
+    {
+        const auto path = xraymctest::tempPath("binary.stl");
+        writeBinarySTL(path, tris, "binary stl header");
+        STLReader reader;
+        check(sameTriangles(reader(path.string()), tris), "STLReader: binary file");
+        // Many exporters write "solid" in the header of binary files
+        writeBinarySTL(path, tris, "solid exported by a CAD program");
+        check(sameTriangles(reader(path.string()), tris), "STLReader: binary file with header starting with solid");
+        std::filesystem::remove(path);
+    }
+    STLReader reader;
+    check(reader(xraymctest::tempPath("missing.stl").string()).empty(), "STLReader: missing file gives no triangles");
+}
+
+void testOpenSurface()
+{
+    // A thin lead surface absorbs the same energy as a lead box of the same thickness
+    using Surface = TriangulatedOpenSurface<5, 1>;
+    using Box = WorldBox<5, 1>;
+    const auto lead = Material<5>::byZ(82).value();
+    const double t = 0.01;
+    PencilBeam<> beam({ 0.1, 0.2, -10 }, { 0, 0, 1 }, 60);
+    beam.setNumberOfExposures(20);
+    beam.setNumberOfParticlesPerExposure(20000);
+    Transport transport;
+
+    World<Surface> ws;
+    auto& surface = ws.addItem<Surface>({ xraymctest::planeTriangles(1), t });
+    surface.setMaterial(lead, 11.35);
+    ws.setMaterialDensity(1E-9);
+    ws.build();
+    transport(ws, beam, nullptr, false);
+
+    World<Box> wb;
+    auto& box = wb.addItem<Box>({ { -1, -1, -t / 2, 1, 1, t / 2 }, lead, 11.35 });
+    wb.setMaterialDensity(1E-9);
+    wb.build();
+    transport(wb, beam, nullptr, false);
+    const auto& es = surface.energyScored();
+    const auto& eb = box.energyScored();
+    checkStatisticallyEqual(es.energyImparted(), es.standardDeviation(), eb.energyImparted(), eb.standardDeviation(), 4, "TriangulatedOpenSurface: energy equals thin box of same thickness");
+
+    // oblique incidence through the surface also equals the box
+    PencilBeam<> oblique({ -5, 0.2, -5 }, { 1, 0, 1 }, 60);
+    oblique.setNumberOfExposures(20);
+    oblique.setNumberOfParticlesPerExposure(20000);
+    transport(ws, oblique, nullptr, false);
+    transport(wb, oblique, nullptr, false);
+    checkStatisticallyEqual(es.energyImparted(), es.standardDeviation(), eb.energyImparted(), eb.standardDeviation(), 4, "TriangulatedOpenSurface: energy equals thin box at oblique incidence");
+}
+
+int main()
 {
     std::cout << "Testing triangulated mesh\n";
-    bool success = true;
-    success = success && testOpenSurface();
-    // testScoring();
-    // testMeshPlaneVisualization();
-    // testMeshVisualization();
-
-    /*
-        std::cout << "Testing dose scoring of mesh\n";
-        bool success = true;
-        const auto dmesh = testScoring<true>();
-        const auto dbox = testScoring<false>();
-        const auto ddiff = (dmesh / dbox - 1) * 100;
-        success = success && std::abs(ddiff) < 0.1;
-        if (success)
-            std::cout << "SUCCESS: ";
-        else
-            std::cout << "FAILURE: ";
-        std::cout << "Dose mesh: " << dmesh << ", dose box: ";
-        std::cout << dbox << ", difference[%] " << ddiff << std::endl;
-
-    if (success)
-        return EXIT_SUCCESS;
-        */
-    return EXIT_FAILURE;
+    testIntersections();
+    testTransforms();
+    testSTL();
+    testOpenSurface();
+    return xraymctest::summary("testtriangulatedmesh");
 }

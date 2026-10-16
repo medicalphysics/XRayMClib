@@ -1,5 +1,3 @@
-
-
 /*This file is part of XRayMClib.
 
 XRayMClib is free software : you can redistribute it and/or modify
@@ -18,172 +16,138 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2026 Erlend Andersen
 */
 
-#include "xraymc/xraymc.hpp"
+#include "testutils.hpp"
 
+#include "xraymc/beams/flatmonoenergyfield.hpp"
+#include "xraymc/transport.hpp"
+#include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/personaldosimeter.hpp"
+
+#include <cmath>
 #include <iostream>
+#include <numbers>
+#include <string>
 
-// Simple sanity functions for development
-/*
-bool test_dose()
+using namespace xraymc;
+using xraymctest::check;
+using xraymctest::checkNear;
+using xraymctest::checkRelative;
+using xraymctest::checkStatisticallyEqual;
+namespace vm = xraymc::vectormath;
+
+void testGeometry()
 {
-    xraymc::PersonalDosimeter<false> dos;
-    auto dir = dos.normalVector();
+    PersonalDosimeter<true> d;
+    const auto n = d.normalVector();
+    const auto& c = d.directionCosines();
+    checkNear(vm::length(n), 1, 1E-12, "Dosimeter: normal is unit vector");
+    checkNear(vm::dot(n, c[0]), 0, 1E-12, "Dosimeter: normal is orthogonal to x cosine");
+    checkNear(vm::dot(n, c[1]), 0, 1E-12, "Dosimeter: normal is orthogonal to y cosine");
+    const auto aabb = d.AABB();
+    checkNear(aabb[3] - aabb[0], PersonalDosimeter<true>::width(), 1E-12, "Dosimeter: AABB width");
+    checkNear(aabb[4] - aabb[1], PersonalDosimeter<true>::height(), 1E-12, "Dosimeter: AABB height");
 
-    auto s_vec = xraymc::vectormath::scale(dir, -1.0);
+    d.rotate(std::numbers::pi / 3, { 1, 0, 0 });
+    const auto n2 = d.normalVector();
+    checkNear(vm::angleBetween(n, n2), std::numbers::pi / 3, 1E-9, "Dosimeter: rotate turns normal");
+    checkNear(vm::dot(d.directionCosines()[0], d.directionCosines()[1]), 0, 1E-12, "Dosimeter: rotated cosines stay orthogonal");
 
-    xraymc::PencilBeam<> beam;
-    beam.setDirection(s_vec);
-    beam.setPosition(xraymc::vectormath::add(dos.center(), dir));
-    beam.setEnergy(60);
-    auto kerma = 1;
-    beam.setAirKerma(kerma);
-    beam.setNumberOfExposures(1);
-    beam.setNumberOfParticlesPerExposure(1E6);
+    d.setCenter({ 1, 2, 3 });
+    check(xraymctest::checkVectorNear(d.center(), { 1, 2, 3 }, 1E-12, "Dosimeter: setCenter"), "Dosimeter: center");
 
-    for (double e = 0; e < 500; e = e + 5) {
-
-        std::cout << e << ", " << dos.hp10ConvertionFactor(e) << std::endl;
-    }
-
-    return false;
+    // Only the front face is hit
+    PersonalDosimeter<true> f;
+    const Particle front { .pos = { 0, 0, 5 }, .dir = { 0, 0, -1 }, .energy = 60, .weight = 1 };
+    const Particle side { .pos = { 3, 0, 5 }, .dir = { 0, 0, -1 }, .energy = 60, .weight = 1 };
+    check(f.intersect(front).valid(), "Dosimeter: ray towards front face hits");
+    checkNear(f.intersect(front).intersection, 5, 1E-9, "Dosimeter: distance to face");
+    check(!f.intersect(side).valid(), "Dosimeter: ray beside dosimeter misses");
 }
 
-
-
-template <bool DS = false>
-bool geo_test_angles()
+void testResponse()
 {
+    PersonalDosimeter<true> d;
+    const auto n = d.normalVector();
+    const auto cx = d.directionCosines()[0];
+    auto incidence = [&](double angle) {
+        // direction towards the face, rotated by angle about the y cosine
+        const auto dir = vm::rotate(vm::scale(n, -1.0), d.directionCosines()[1], angle);
+        return Particle { .pos = { 0, 0, 0 }, .dir = dir, .energy = 60, .weight = 1 };
+    };
+    const auto w0 = d.angularResponseWeight(incidence(0));
+    checkNear(w0, std::pow(std::cos(15.0 * std::numbers::pi / 180), 0.2), 1E-9, "Dosimeter: response at normal incidence");
+    check(d.angularResponseWeight(Particle { .pos = { 0, 0, 0 }, .dir = n, .energy = 60, .weight = 1 }) == 0, "Dosimeter: no response from behind");
+    bool decreasing = true, symmetric = true, bounded = true;
+    double last = w0;
+    for (double a = 0.1; a < 1.5; a += 0.1) {
+        const auto w = d.angularResponseWeight(incidence(a));
+        decreasing = decreasing && w < last;
+        symmetric = symmetric && std::abs(w - d.angularResponseWeight(incidence(-a))) < 1E-12;
+        bounded = bounded && w > 0 && w <= 1;
+        last = w;
+    }
+    check(decreasing, "Dosimeter: response decreases with incidence angle");
+    check(symmetric, "Dosimeter: response symmetric in incidence angle");
+    check(bounded, "Dosimeter: response in (0, 1]");
+    (void)cx;
 
-    using D = xraymc::PersonalDosimeter<DS>;
-    using World = xraymc::World<D>;
+    // Hp(10) conversion coefficients (Solc et al. 2025), interpolated by a compact spline
+    checkRelative(d.hp10ConvertionFactor(20), 0.6087834, 0.01, "Dosimeter: Hp(10)/Ka at 20 keV");
+    checkRelative(d.hp10ConvertionFactor(30), 1.1195263, 0.01, "Dosimeter: Hp(10)/Ka at 30 keV");
+    checkRelative(d.hp10ConvertionFactor(60), 1.9001095, 0.01, "Dosimeter: Hp(10)/Ka at 60 keV");
+    checkRelative(d.hp10ConvertionFactor(80), 1.9075632, 0.01, "Dosimeter: Hp(10)/Ka at 80 keV");
+    checkNear(d.hp10ConvertionFactor(5), 0, 0, "Dosimeter: Hp(10)/Ka is zero below 7.5 keV");
+    bool nonNegative = true;
+    for (double e = 7.5; e < 150; e += 0.25)
+        nonNegative = nonNegative && d.hp10ConvertionFactor(e) >= 0;
+    check(nonNegative, "Dosimeter: Hp(10)/Ka is never negative");
+}
 
-    World world(1);
-    auto& dos = world.template addItem<D>("Dosimeter");
-    dos.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
+// Air KERMA and Hp(10) scored in a calibrated flat field
+template <bool DIRECTIONAL>
+void testCalibratedField(double angle)
+{
+    using D = PersonalDosimeter<DIRECTIONAL>;
+    World<D> world;
+    auto& d = world.template addItem<D>();
+    d.rotate(angle, d.directionCosines()[1]);
+    world.setMaterialDensity(1E-9);
+    world.build();
 
-    xraymc::FlatMonoEnergyField<false> beam;
-    beam.setEnergy(60);
+    // Field perpendicular to the beam direction, larger than the dosimeter
+    const auto n = PersonalDosimeter<DIRECTIONAL>().normalVector();
+    FlatMonoEnergyField<> beam(vm::scale(n, 10.0), 60);
+    beam.setDirectionCosines({ 0, 1, 0 }, { 1, 0, 0 }); // beam travels along -z
+    beam.setLenght(8, 8);
     beam.setAirKerma(1.0);
-    beam.setNumberOfExposures(30);
-    beam.setNumberOfParticlesPerExposure(1E6);
-    beam.setLenght(10, 10);
-    constexpr std::array<double, 3> dirX = { 0, -1, 0 };
-    constexpr std::array<double, 3> dirY = { 0, 0, 1 };
-    constexpr std::array<double, 3> pos = { 10, 0, 0 };
-    beam.setPosition(pos);
-    beam.setDirectionCosines(dirX, dirY);
+    beam.setNumberOfExposures(20);
+    beam.setNumberOfParticlesPerExposure(50000);
+    Transport transport;
+    transport(world, beam);
 
-    for (std::size_t i = 0; i < 90; i = i + 5) {
-        const double angle = i * xraymc::DEG_TO_RAD();
-        dos.setDirectionCosines({ 0, 1, 0 }, { 0, 0, 1 });
-        dos.rotate(angle, { 0, 0, 1 });
-        world.build();
-        dos.clearDoseScored();
-        xraymc::Transport::runConsole(world, beam, 0);
-
-        std::cout << "Angle," << i;
-        std::cout << ",AirKerma," << dos.doseScored(1).dose() << "," << dos.doseScored(1).numberOfEvents();
-        std::cout << ",Hp10," << dos.doseScored(0).dose() << std::endl;
-        dos.clearDoseScored();
-
-        xraymc::VisualizeWorld viz(world);
-        auto buffer = viz.createBuffer(512, 512);
-
-        auto corner1 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], -0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], 0.5 * beam.lenghtX())));
-        auto corner2 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], -0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], -0.5 * beam.lenghtX())));
-        auto corner3 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], 0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], 0.5 * beam.lenghtX())));
-        auto corner4 = xraymc::vectormath::add(beam.position(), xraymc::vectormath::add(xraymc::vectormath::scale(beam.directionCosines()[1], 0.5 * beam.lenghtY()), xraymc::vectormath::scale(beam.directionCosines()[0], -0.5 * beam.lenghtX())));
-
-        viz.addLineSegment(corner1, xraymc::vectormath::add(corner1, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
-        viz.addLineSegment(corner2, xraymc::vectormath::add(corner2, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
-        viz.addLineSegment(corner3, xraymc::vectormath::add(corner3, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
-        viz.addLineSegment(corner4, xraymc::vectormath::add(corner4, xraymc::vectormath::scale(beam.direction(), 9.0)), .1);
-
-        viz.addAABBoutline(dos.AABB(), 0.1);
-
-        viz.setAzimuthalAngleDeg(60);
-        viz.setPolarAngleDeg(60);
-        viz.suggestFOV(1);
-        viz.generate(world, buffer);
-        std::string name = std::to_string(i) + ".png";
-        viz.savePNG(name, buffer);
+    const auto label = std::string("Dosimeter") + (DIRECTIONAL ? " (directional)" : "") + " at " + std::to_string(int(std::round(angle * 180 / std::numbers::pi))) + " deg";
+    const auto& ka = d.airKermaScored();
+    const auto& hp = d.hp10DoseScored();
+    // Without directional dependence every crossing photon counts fully, a tilted dosimeter
+    // intercepts cos(angle) of the fluence. The directional model cancels this area effect
+    // and applies the angular response instead.
+    double expected = std::cos(angle);
+    if constexpr (DIRECTIONAL) {
+        const Particle p { .pos = { 0, 0, 0 }, .dir = { 0, 0, -1 }, .energy = 60, .weight = 1 };
+        expected = d.angularResponseWeight(p);
     }
-     xraymc::VisualizeWorld viz(world);
-     auto buffer = viz.createBuffer(512, 512);
-     viz.setAzimuthalAngleDeg(45);
-     viz.setPolarAngleDeg(45);
-     viz.suggestFOV(1);
-     viz.generate(world, buffer);
-     viz.savePNG("test.png", buffer);
-
-    return true;
-}
-
-void testAtt()
-{
-
-    auto mat_cand = xraymc::Material<5>::byNistName("Air, Dry (near sea level)");
-    if (mat_cand) {
-        auto& mat = mat_cand.value();
-        std::vector<double> energy {
-            1.00,
-            1.50,
-            2.00,
-            3.00,
-            3.20,
-            3.20,
-            4.00,
-            5.00,
-            6.00,
-            8.00,
-            10.00,
-            15.00,
-            20.00,
-            30.00,
-            40.00,
-            50.00,
-            60.00,
-            80.00,
-            100.00,
-            150.00
-        };
-        std::cout << "Air kerma [keV/g]\n";
-        for (auto e : energy)
-            std::cout << e << ", " << e * mat.massEnergyTransferAttenuation(e) << std::endl;
-    }
-}
-*/
-
-template <bool OPTIONS>
-bool test_angles(bool print = false)
-{
-    // Simple compile test
-    xraymc::PersonalDosimeter<OPTIONS> dos;
-    xraymc::Particle p;
-    for (std::size_t i = 1; i < 100; ++i) {
-
-        double ang = -std::numbers::pi_v<double> / 2 + i * std::numbers::pi_v<double> / 100.0;
-        p.dir = xraymc::vectormath::rotate({ 0, 0, -1 }, { 1, 0, 0 }, ang);
-
-        auto w = dos.angularResponseWeight(p);
-        if (print)
-            std::cout << ang << "," << w << std::endl;
-    }
-    return true;
+    checkStatisticallyEqual(ka.dose(), ka.standardDeviation(), expected, 0, 4, label + ": scored air KERMA equals field air KERMA times response");
+    checkRelative(hp.dose(), ka.dose() * d.hp10ConvertionFactor(60), 1E-9, label + ": Hp(10) equals air KERMA times conversion coefficient");
 }
 
 int main()
 {
-    bool success = true;
-    success = success && test_angles<false>(false);
-    success = success && test_angles<true>(false);
-
-    // testAtt();
-    // success = success && test_angles();
-    // success = success && geo_test_angles<true>();
-
-    if (success)
-        return EXIT_SUCCESS;
-
-    return EXIT_FAILURE;
+    std::cout << "Testing personal dosimeter\n";
+    testGeometry();
+    testResponse();
+    testCalibratedField<false>(0);
+    testCalibratedField<false>(std::numbers::pi / 4);
+    testCalibratedField<true>(0);
+    testCalibratedField<true>(std::numbers::pi / 4);
+    return xraymctest::summary("testpersonaldosimeter");
 }

@@ -16,112 +16,110 @@ along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 Copyright 2022 Erlend Andersen
 */
 
+#include "testutils.hpp"
+
 #include "xraymc/beams/isotropicbeam.hpp"
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/beams/tube/tube.hpp"
 #include "xraymc/transport.hpp"
-#include "xraymc/world/visualization/visualizeworld.hpp"
 #include "xraymc/world/world.hpp"
 #include "xraymc/world/worlditems/fluencescore.hpp"
-#include "xraymc/world/worlditems/worldbox.hpp"
 
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
 
-template <typename T, typename W, typename B>
-auto runDispatcher(T& transport, W& world, const B& beam)
-{
-    xraymc::TransportProgress progress;
+using namespace xraymc;
+using xraymctest::check;
+using xraymctest::checkNear;
+using xraymctest::checkRelative;
 
-    bool running = true;
-    std::thread job([&]() {
-        transport(world, beam, &progress);
-        running = false;
-    });
-    std::string message;
-    while (running) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        std::cout << std::string(message.length(), ' ') << "\r";
-        message = progress.message();
-        std::cout << message << "\r";
-    }
-    job.join();
-    std::cout << std::string(message.length(), ' ') << "\r";
-    return progress.totalTime();
+void testGeometry()
+{
+    FluenceScore f(2, { 1, 1, 5 }, { 0, 0, -1 });
+    checkNear(f.area(), std::numbers::pi * 4, 1E-12, "FluenceScore: disc area");
+    Particle p { .pos = { 2, 2, 0 }, .dir = { 0, 0, 1 }, .energy = 60, .weight = 1 };
+    const auto r = f.intersect(p);
+    check(r.valid() && std::abs(r.intersection - 5) < 1E-12, "FluenceScore: ray through disc hits");
+    p.pos = { 3, 3, 0 };
+    check(!f.intersect(p).valid(), "FluenceScore: ray outside disc radius misses");
+    p.pos = { 1, 1, 0 };
+    p.dir = { 1, 0, 0 };
+    check(!f.intersect(p).valid(), "FluenceScore: ray parallel to disc misses");
+    f.setRadius(1);
+    checkNear(f.area(), std::numbers::pi, 1E-12, "FluenceScore: setRadius");
 }
 
-template <std::size_t N = 5, int L = 2>
-void testfluencescore()
+void testMonoenergeticFluence()
 {
-    using Box = xraymc::WorldBox<N, L>;
-    using FluenceScore = xraymc::FluenceScore;
-    using World = xraymc::World<Box, FluenceScore>;
-    using Material = xraymc::Material<N>;
-
-    World world;
-
-    auto& box = world.template addItem<Box>({ 10 });
-    auto water = Material::byNistName("Water, Liquid").value();
-    const double density = 1;
-    box.setMaterial(water, density);
-    auto& fluence = world.template addItem<FluenceScore>({ 20, { 0, 0, 15 }, { 0, 0, 1 } });
-
+    World<FluenceScore> world;
+    auto& f = world.addItem<FluenceScore>({ 1, { 0, 0, 10 }, { 0, 0, -1 } });
+    world.setMaterialDensity(1E-12);
     world.build();
+    PencilBeam<> beam({ 0.1, 0, 0 }, { 0, 0, 1 }, 60.3);
+    beam.setNumberOfExposures(4);
+    beam.setNumberOfParticlesPerExposure(2500);
+    Transport transport;
+    transport(world, beam, nullptr, false);
+    const auto spec = f.getSpecter();
+    check(spec[60].second == 10000, "FluenceScore: every photon counted in its energy bin");
+    checkNear(spec[60].first, 60.5, 1E-12, "FluenceScore: bin energy is the bin center");
+    std::uint64_t total = 0;
+    for (const auto& [e, n] : spec)
+        total += n;
+    check(total == 10000, "FluenceScore: no photons in other bins");
+    const auto fl = f.getFluenceSpecter(10000);
+    checkRelative(fl[60].second, 1.0 / f.area(), 1E-12, "FluenceScore: fluence is count per primary per area");
 
-    xraymc::VisualizeWorld viz(world);
-    viz.addLineProp({ -1000, 0, 0 }, { 1, 0, 0 }, 1000, 0.1);
-    int height = 528;
-    int width = 528;
-    std::vector<double> buffer(height * width * 4, 1);
-    for (std::size_t i = 0; i < 12; ++i) {
-        viz.setDistance(500);
-        viz.setPolarAngle(std::numbers::pi_v<double> / 3.0);
-        viz.setAzimuthalAngle(std::numbers::pi_v<double> * i / 6.0);
-        viz.suggestFOV();
-        viz.generate(world, buffer, width, height);
-        std::string name = "fluence_score" + std::to_string(i) + ".png";
-        viz.savePNG(name, buffer, width, height);
-    }
+    f.clearDoseScored();
+    std::uint64_t cleared = 0;
+    for (const auto& [e, n] : f.getSpecter())
+        cleared += n;
+    check(cleared == 0, "FluenceScore: clearDoseScored resets spectrum");
+}
 
-    xraymc::Tube tube;
-    tube.setVoltage(140);
-    tube.setAlFiltration(8);
-    tube.setEnergyResolution(1);
+void testSpectrum()
+{
+    // In vacuum the recorded spectrum equals the beam spectrum
+    World<FluenceScore> world;
+    auto& f = world.addItem<FluenceScore>({ 50, { 0, 0, 10 }, { 0, 0, -1 } });
+    world.setMaterialDensity(1E-12);
+    world.build();
+    Tube tube(100);
+    tube.setAlFiltration(2.5);
+    tube.setEnergyResolution(1.0);
+    IsotropicBeam<> beam({ 0, 0, 0 });
+    beam.setEnergySpecter(tube.getSpecter());
+    beam.setCollimationHalfAngles(0.1);
+    beam.setNumberOfExposures(20);
+    beam.setNumberOfParticlesPerExposure(50000);
+    Transport transport;
+    transport(world, beam, nullptr, false);
+    const auto spec = f.getSpecter();
     const auto ts = tube.getSpecter();
-
-    xraymc::IsotropicBeam<> beam({ -1000, 0, 0 }, { 0, 1, 0, 0, 0, 1 });
-    beam.setEnergySpecter(ts);
-    beam.setCollimationHalfAngles(0, 0, 0, 0);
-
-    beam.setNumberOfParticlesPerExposure(1E6);
-    beam.setNumberOfExposures(100);
-
-    xraymc::Transport transport;
-    runDispatcher(transport, world, beam);
-
-    const auto specter = fluence.getSpecter();
-    const auto N = beam.numberOfExposures() * beam.numberOfParticles();
-
-    std::cout << "Energy, IntensityIn, Energy, IntensityOut\n";
-    for (std::size_t i = 0; i < ts.size(); ++i) {
-        std::cout << ts[i].first << ", " << N * ts[i].second << ", ";
-        std::cout << specter[i + 1].first << ", " << specter[i + 1].second << std::endl;
+    const double N = static_cast<double>(beam.numberOfParticles());
+    double chi2 = 0;
+    std::size_t dof = 0;
+    for (const auto& [e, w] : ts) {
+        // tube bin [e, e+1) is sampled uniformly, fluence bins are [i, i+1)
+        const auto idx = static_cast<std::size_t>(e);
+        const auto expected = w * N;
+        if (expected > 50 && idx < spec.size()) {
+            const auto obs = static_cast<double>(spec[idx].second);
+            chi2 += (obs - expected) * (obs - expected) / expected;
+            ++dof;
+        }
     }
+    const auto z = (chi2 - dof) / std::sqrt(2.0 * dof);
+    check(z < 5, "FluenceScore: recorded spectrum equals beam spectrum (chi-square z = " + std::to_string(z) + ")");
 }
 
 int main()
 {
     std::cout << "Testing fluence scoring\n";
-    bool success = true;
-
-    testfluencescore<5, 2>();
-    if (success)
-        std::cout << "SUCCESS ";
-    else
-        std::cout << "FAILURE ";
-
-    if (success)
-        return EXIT_SUCCESS;
-    return EXIT_FAILURE;
+    testGeometry();
+    testMonoenergeticFluence();
+    testSpectrum();
+    return xraymctest::summary("testfluencescore");
 }

@@ -13,91 +13,87 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with XRayMClib. If not, see < https://www.gnu.org/licenses/>.
 
-Copyright 2023 Erlend Andersen
+Copyright 2022 Erlend Andersen
 */
+
+#include "testutils.hpp"
 
 #include "xraymc/beams/pencilbeam.hpp"
 #include "xraymc/transport.hpp"
 #include "xraymc/world/world.hpp"
 #include "xraymc/world/worlditems/worldsphere.hpp"
 
+#include <cmath>
 #include <iostream>
+#include <string>
 
-bool testForcedinteractions()
+using namespace xraymc;
+using xraymctest::check;
+using xraymctest::checkNear;
+using xraymctest::checkRelative;
+using xraymctest::checkStatisticallyEqual;
+
+// Two small spheres on a line, the second one only receives scattered photons from the first
+template <bool FORCED>
+std::array<DoseScore, 2> twoSpheres()
 {
-    using Sphere = xraymc::WorldSphere<5, 1, false>;
-    using SphereF = xraymc::WorldSphere<5, 1, true>;
-
-    using World = xraymc::World<Sphere>;
-    using WorldF = xraymc::World<SphereF>;
-
-    World w(2);
-    WorldF wf(2);
-
-    constexpr double radii = 0.3;
-    auto& sphere1 = w.addItem<Sphere>({ radii });
-    auto& sphere2 = w.addItem<Sphere>({ radii, { radii * 2 + radii * 100, 0, 0 } });
-    auto& spheref1 = wf.addItem<SphereF>({ radii });
-    auto& spheref2 = wf.addItem<SphereF>({ radii, { radii * 2 + radii * 100, 0, 0 } });
-
-    auto material_water = xraymc::Material<5>::byNistName("Water, Liquid").value();
-    sphere1.setMaterial(material_water, 1.2);
-    sphere2.setMaterial(material_water, 1.2);
-    spheref1.setMaterial(material_water, 1.2);
-    spheref2.setMaterial(material_water, 1.2);
-
-    w.build();
-    wf.build();
-
-    xraymc::PencilBeam<true> beam({ -100, 0, 0 }, { 1, 0, 0 }, 20);
-    beam.setNumberOfExposures(48);
-    beam.setNumberOfParticlesPerExposure(1e4);
-
-    xraymc::Transport transport;
-    transport.runConsole(wf, beam);
-    transport.runConsole(w, beam);
-
-    auto dose1 = sphere1.doseScored().dose();
-    auto dose2 = sphere2.doseScored().dose();
-    auto dosef1 = spheref1.doseScored().dose();
-    auto dosef2 = spheref2.doseScored().dose();
-
-    auto diff1 = std::abs(dose1 - dosef1);
-    auto diff2 = std::abs(dose2 - dosef2);
-
-    auto sttd1 = sphere1.doseScored().standardDeviation();
-    auto sttdf1 = spheref1.doseScored().standardDeviation();
-
-    auto sttd2 = sphere2.doseScored().standardDeviation();
-    auto sttdf2 = spheref2.doseScored().standardDeviation();
-
-    std::cout << "Testing forced interactions in worldsphere" << std::endl;
-    std::cout << "Random " << dose1 << ", " << dose2 << " stddev: " << sttd1 << ", " << sttd2 << std::endl;
-    std::cout << "Forced " << dosef1 << ", " << dosef2 << " stddev: " << sttdf1 << ", " << sttdf2 << std::endl;
-    std::cout << "Diff: " << diff1 << ", " << diff2 << std::endl;
-
-    constexpr auto test_coeff = 2.57;
-
-    const auto test1 = diff1 / std::sqrt(sttd1 * sttd1 + sttdf1 * sttdf1);
-    const auto test2 = diff2 / std::sqrt(sttd2 * sttd2 + sttdf2 * sttdf2);
-
-    std::cout << "Test statistics: " << test1 << ", " << test2 << std::endl;
-    auto success = (test1 < test_coeff) && (test2 < test_coeff);
-    if (success)
-        std::cout << "SUCCESS: differences within statistical limits" << std::endl;
-    else
-        std::cout << "FAILURE: differences outside statistical limits" << std::endl;
-    return success;
+    using Sphere = WorldSphere<5, 1, FORCED>;
+    World<Sphere> world(2);
+    constexpr double r = 0.3;
+    auto& s1 = world.template addItem<Sphere>({ r });
+    auto& s2 = world.template addItem<Sphere>({ r, { 0, 3, 0 } });
+    const auto water = Material<5>::byNistName("Water, Liquid").value();
+    s1.setMaterial(water, 1.2);
+    s2.setMaterial(water, 1.2);
+    world.build();
+    PencilBeam<> beam({ -100, 0, 0 }, { 1, 0, 0 }, 40);
+    beam.setNumberOfExposures(40);
+    beam.setNumberOfParticlesPerExposure(50000);
+    Transport transport;
+    transport(world, beam);
+    return { s1.doseScored(), s2.doseScored() };
 }
 
-int main(int argc, char* argv[])
+void testForced()
 {
-    auto success = true;
+    const auto random = twoSpheres<false>();
+    const auto forced = twoSpheres<true>();
+    checkStatisticallyEqual(forced[0].dose(), forced[0].standardDeviation(), random[0].dose(), random[0].standardDeviation(), 4, "WorldSphere: forced dose equals random dose in primary sphere");
+    checkStatisticallyEqual(forced[1].dose(), forced[1].standardDeviation(), random[1].dose(), random[1].standardDeviation(), 4, "WorldSphere: forced dose equals random dose in scatter sphere");
+    check(forced[0].relativeUncertainty() < random[0].relativeUncertainty(), "WorldSphere: forced interactions reduce uncertainty in primary sphere");
+    check(random[1].dose() > 0 && random[1].dose() < random[0].dose() / 10, "WorldSphere: scatter sphere receives a small dose");
+}
 
-    success = success && testForcedinteractions();
+void testDose()
+{
+    // dose is energy per mass: compare with energy scored for known volume and density
+    using Sphere = WorldSphere<5, 1>;
+    World<Sphere> world;
+    auto& s = world.addItem<Sphere>({ 2 });
+    s.setMaterial(Material<5>::byNistName("Water, Liquid").value(), 1.5);
+    world.build();
+    PencilBeam<> beam({ -10, 0, 0 }, { 1, 0, 0 }, 60);
+    beam.setNumberOfExposures(4);
+    beam.setNumberOfParticlesPerExposure(10000);
+    Transport transport;
+    transport(world, beam, nullptr, false);
+    const auto energy = s.energyScored().energyImparted();
+    s.addEnergyScoredToDoseScore(2.0);
+    const auto mass = 4.0 / 3.0 * std::numbers::pi * 8 * 1.5;
+    checkRelative(s.doseScored().dose(), energy / mass * 2.0, 1E-12, "WorldSphere: dose is energy per mass times calibration");
 
-    if (success)
-        return EXIT_SUCCESS;
-    else
-        return EXIT_FAILURE;
+    s.setRadius(5);
+    checkNear(s.radius(), 5, 0, "WorldSphere: setRadius");
+    checkNear(s.AABB()[3], 5, 1E-12, "WorldSphere: AABB follows radius");
+    s.setCenter({ 1, 2, 3 });
+    checkNear(s.AABB()[0], -4, 1E-12, "WorldSphere: AABB follows center");
+    check(s.setNistMaterial("Water, Liquid") && !s.setNistMaterial("Unobtainium"), "WorldSphere: setNistMaterial");
+}
+
+int main()
+{
+    std::cout << "Testing world sphere\n";
+    testForced();
+    testDose();
+    return xraymctest::summary("testworldsphere");
 }
