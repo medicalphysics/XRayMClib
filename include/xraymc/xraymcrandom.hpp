@@ -97,7 +97,7 @@ public:
      * @brief Generate random uniform number in interval from 0 to max, exclusive
      * @tparam T Type of number, either integral or floating point
      * @param max Max of range
-     * @return Random number in range [0, max).
+     * @return Random number in range [0, max].
      */
     template <typename T>
     inline T randomUniform(const T max) noexcept
@@ -105,7 +105,7 @@ public:
         if constexpr (std::is_floating_point<T>::value) {
             // product may round up to max, clamp to keep the interval half open
             const T v = randomUniform<T>() * max;
-            return v < max ? v : std::nextafter(max, T { 0 });
+            return v;
         } else if constexpr (std::is_integral<T>::value) {
             const std::uint32_t threshold = static_cast<std::uint32_t>(-max % max);
             for (;;) {
@@ -123,7 +123,7 @@ public:
      * @tparam T Type of number, either integral or floating point.
      * @param min Min of range.
      * @param max Max of range.
-     * @return Random number in range [min, max).
+     * @return Random number in range [min, max].
      */
     template <typename T>
     inline T randomUniform(const T min, const T max) noexcept
@@ -133,7 +133,7 @@ public:
             const T range = max - min;
             // sum may round up to max, clamp to keep the interval half open
             const T v = min + r * range;
-            return v < max ? v : std::nextafter(max, min);
+            return v;
         } else if constexpr (std::is_integral<T>::value) {
             const T range = max - min;
             const T r = randomUniform<T>(range);

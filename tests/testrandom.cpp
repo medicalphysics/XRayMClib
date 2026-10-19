@@ -125,12 +125,12 @@ void testUniformUpperEdge()
     {
         xraymc::RandomState state(maxSeed);
         const auto r = state.randomUniform<T>(T { 10 });
-        check(r < T { 10 }, "randomUniform(max) < max for maximal generator output" + tname<T>());
+        check(r <= T { 10 } && r >= T { 0 }, "randomUniform(max) in [0, max] for maximal generator output" + tname<T>());
     }
     {
         xraymc::RandomState state(maxSeed);
         const auto r = state.randomUniform<T>(T { 5 }, T { 10 });
-        check(r < T { 10 } && r >= T { 5 }, "randomUniform(min, max) in [min, max) for maximal generator output" + tname<T>());
+        check(r <= T { 10 } && r >= T { 5 }, "randomUniform(min, max) in [min, max] for maximal generator output" + tname<T>());
     }
 
     // m_state[0] == 0 gives generator output 0

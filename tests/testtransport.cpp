@@ -158,7 +158,7 @@ void testEnergyConservation(const Material<N>& material, double density, double 
 {
     using Sphere = WorldSphere<N, LE>;
     World<Sphere> world;
-    auto& sphere = world.addItem<Sphere>({ radius, { 0, 0, 0 } });
+    auto& sphere = world.template addItem<Sphere>({ radius, { 0, 0, 0 } });
     sphere.setMaterial(material, density);
     world.setMaterialDensity(1E-9);
     world.build();

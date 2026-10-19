@@ -106,7 +106,16 @@ void testOrganAEC()
     g.setUseFilter(true);
     const auto buffer = g.serialize();
     const auto copy = xraymc::CTOrganAECFilter::deserialize(buffer);
-    check(copy.has_value() && copy.value()(0.1) == g(0.1) && copy.value()(2.0) == g(2.0) && copy.value().useFilter(), "Organ AEC: serialize round trip");
+    // compare stored state exactly; evaluated weights may differ by an ulp under -ffast-math
+    check(copy.has_value()
+            && copy->startAngle() == g.startAngle()
+            && copy->stopAngle() == g.stopAngle()
+            && copy->rampAngle() == g.rampAngle()
+            && copy->lowWeight() == g.lowWeight()
+            && copy->compensateOutside() == g.compensateOutside()
+            && copy->useFilter(),
+        "Organ AEC: serialize round trip");
+    checkNear(copy.value()(2.0), g(2.0), 1E-12, "Organ AEC: deserialized filter gives same weight");
 }
 
 void testCTAEC()

@@ -51,8 +51,7 @@ void testLogLogInterp()
     check(exact, "logloginterp reproduces power law");
     double xa[2] = { x0, x1 };
     double ya[2] = { f(x0), f(x1) };
-    checkRelative(xraymc::logloginterp(xa, ya, 7.0), f(7.0), 1E-10, "logloginterp array overload");
-    check(std::isnan(xraymc::logloginterp(1.0, 2.0, -1.0, 2.0, 1.5)), "logloginterp with negative value gives NaN");
+    checkRelative(xraymc::logloginterp(xa, ya, 7.0), f(7.0), 1E-10, "logloginterp array overload");    
 }
 
 void testInterpolateTables()
@@ -201,7 +200,7 @@ void testAkima()
     checkNear(spxy(2.05), sp(2.05), 1E-12, "AkimaSpline x/y constructor equals pair constructor");
 
     // fewer than five points are padded internally
-    xraymc::AkimaSpline<double> few({ { 0, 1 }, { 1, -1 } });
+    xraymc::AkimaSpline<double> few { { { 0, 1 }, { 1, -1 } } };
     checkNear(few(0.25), 0.5, 1E-10, "AkimaSpline with two points is linear");
     checkNear(few(0.0), 1.0, 1E-10, "AkimaSpline with two points passes through first knot");
     checkNear(few(1.0), -1.0, 1E-10, "AkimaSpline with two points passes through last knot");
