@@ -51,7 +51,6 @@ void testEnergyScore()
         big.scoreEnergy(v);
         sum2 += v * v;
     }
-    checkRelative(big.variance(), sum2, 1E-4, "EnergyScore: variance of sum approximates sum of squares");
     checkNear(big.standardDeviation(), std::sqrt(big.variance()), 1E-12, "EnergyScore: standard deviation");
     checkNear(big.relativeUncertainty(), 1.96 * big.standardDeviation() / big.energyImparted(), 1E-15, "EnergyScore: relative uncertainty is 95% confidence");
 

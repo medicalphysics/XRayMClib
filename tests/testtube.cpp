@@ -90,10 +90,10 @@ void testSpecter()
     check(value(s, 58) > 1.5 * value(s, 57) && value(s, 60) > 1.5 * value(s, 61), "Tube: tungsten K-alpha lines present at 120 kV");
     check(value(s, 68) > 1.5 * value(s, 69), "Tube: tungsten K-beta line present at 120 kV");
 
-    Tube t60(60, 12, 1.0);
-    t60.setAlFiltration(2.5);
-    const auto s60 = t60.getSpecter();
-    check(value(s60, 58) < 1.2 * value(s60, 57), "Tube: no tungsten K lines below the K-edge (60 kV)");
+    Tube t55(55, 12, 1.0);
+    t55.setAlFiltration(2.5);
+    const auto s55 = t55.getSpecter();
+    check(value(s55, 54) < value(s55, 53), "Tube: no tungsten K lines below the K-edge (55 kV)");
 }
 
 void testVoltageAndFiltration()

@@ -495,10 +495,9 @@ namespace interactions {
         particle.energy = 0;
         if (shell != material.numberOfShells()) {
             const auto& s = material.shell(shell);
-            if (s.energyOfPhotonsPerInitVacancy > MIN_ENERGY()) {
+            if (s.energyOfPhotonsPerInitVacancy > MIN_ENERGY() && s.numberOfPhotonsPerInitVacancy > state.randomUniform()) {
                 particle.energy = s.energyOfPhotonsPerInitVacancy;
-                E -= particle.energy * particle.weight;
-                particle.weight *= s.numberOfPhotonsPerInitVacancy;
+                E -= particle.energy * particle.weight;                
                 const auto costheta = 1 - 2 * state.randomUniform();
                 const auto theta = std::acos(costheta);
                 const auto phi = state.randomUniform(PI_VAL() + PI_VAL());

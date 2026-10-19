@@ -110,24 +110,43 @@ void testUniform()
 template <Floating T>
 void testUniformUpperEdge()
 {
-    // Search for a generator state whose next output is within 64 of 2^32 - 1.
-    auto search = xraymctest::seededState(7);
-    std::uint64_t found[2] = { 0, 0 };
-    bool haveState = false;
-    for (std::size_t i = 0; i < 400000000 && !haveState; ++i) {
-        const std::uint64_t s0 = search.m_state[0];
-        const std::uint64_t s1 = search.m_state[1];
-        if (search.pcg32() >= 0xFFFFFFC0u) {
-            found[0] = s0;
-            found[1] = s1;
-            haveState = true;
-        }
+    // The PCG32 output depends only on m_state[0]. With bits 41..58 set and all
+    // other bits clear the rotation is zero and the xorshifted value is all ones.
+    std::uint64_t maxSeed[2] = { 0x07FFFE0000000000ULL, 1 };
+    {
+        xraymc::RandomState state(maxSeed);
+        check(state.pcg32() == 0xFFFFFFFFu, "constructed state gives maximal generator output" + tname<T>());
     }
-    check(haveState, "found generator state producing maximal output" + tname<T>());
-    if (haveState) {
-        xraymc::RandomState state(found);
+    {
+        xraymc::RandomState state(maxSeed);
         const auto r = state.randomUniform<T>();
         check(r < T { 1 }, "randomUniform() < 1 for maximal generator output" + tname<T>());
+    }
+    {
+        xraymc::RandomState state(maxSeed);
+        const auto r = state.randomUniform<T>(T { 10 });
+        check(r < T { 10 }, "randomUniform(max) < max for maximal generator output" + tname<T>());
+    }
+    {
+        xraymc::RandomState state(maxSeed);
+        const auto r = state.randomUniform<T>(T { 5 }, T { 10 });
+        check(r < T { 10 } && r >= T { 5 }, "randomUniform(min, max) in [min, max) for maximal generator output" + tname<T>());
+    }
+
+    // m_state[0] == 0 gives generator output 0
+    std::uint64_t zeroSeed[2] = { 0, 1 };
+    {
+        xraymc::RandomState state(zeroSeed);
+        check(state.pcg32() == 0u, "constructed state gives zero generator output" + tname<T>());
+    }
+    {
+        xraymc::RandomState state(zeroSeed);
+        check(state.randomUniform<T>() == T { 0 }, "randomUniform() == 0 for zero generator output" + tname<T>());
+    }
+    {
+        xraymc::RandomState state(zeroSeed);
+        const auto [a, b] = state.randomNormal();
+        check(std::isfinite(a) && std::isfinite(b), "randomNormal() is finite for zero generator output" + tname<T>());
     }
 }
 

@@ -21,6 +21,7 @@ Copyright 2019 Erlend Andersen
 #include "xraymc/floating.hpp"
 
 #include <assert.h>
+#include <cmath>
 #include <concepts>
 #include <execution>
 #include <limits>
@@ -86,9 +87,10 @@ public:
     inline T randomUniform() noexcept
     {
         static_assert(std::is_floating_point<T>::value, "Uniform random number requires floating point precision");
-        const auto ui = pcg32();
-        constexpr T uiMaxInv = T { 2.32830643653869628906e-010 };
-        return ui * uiMaxInv;
+        // Keep only as many top bits as T can represent exactly, so the result is strictly < 1
+        constexpr int bits = std::numeric_limits<T>::digits < 32 ? std::numeric_limits<T>::digits : 32;
+        constexpr T scale = T { 1 } / static_cast<T>(std::uint64_t { 1 } << bits);
+        return static_cast<T>(pcg32() >> (32 - bits)) * scale;
     }
 
     /**
@@ -101,7 +103,9 @@ public:
     inline T randomUniform(const T max) noexcept
     {
         if constexpr (std::is_floating_point<T>::value) {
-            return randomUniform<T>() * max;
+            // product may round up to max, clamp to keep the interval half open
+            const T v = randomUniform<T>() * max;
+            return v < max ? v : std::nextafter(max, T { 0 });
         } else if constexpr (std::is_integral<T>::value) {
             const std::uint32_t threshold = static_cast<std::uint32_t>(-max % max);
             for (;;) {
@@ -127,7 +131,9 @@ public:
         if constexpr (std::is_floating_point<T>::value) {
             const T r = randomUniform<T>();
             const T range = max - min;
-            return min + r * range;
+            // sum may round up to max, clamp to keep the interval half open
+            const T v = min + r * range;
+            return v < max ? v : std::nextafter(max, min);
         } else if constexpr (std::is_integral<T>::value) {
             const T range = max - min;
             const T r = randomUniform<T>(range);
@@ -147,7 +153,7 @@ public:
      */
     inline std::pair<double, double> randomNormal() noexcept
     {
-        const auto u1 = randomUniform();
+        const auto u1 = 1.0 - randomUniform(); // (0, 1], avoids log(0)
         const auto u2 = randomUniform();
         const auto R = std::sqrt(-2.0 * std::log(u1));
         constexpr double pi2 = std::numbers::pi_v<double> * 2;

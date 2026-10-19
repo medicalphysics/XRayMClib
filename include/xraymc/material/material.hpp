@@ -633,7 +633,7 @@ protected:
      */
     inline double attenuationPhotoelectricShell_logEnergy(std::uint8_t shell, double logEnergy) const
     {
-        if (shell < m_numberOfShells) {
+        if (shell < m_numberOfShells - 1) { // We dont have attenuation data for remainder shell
             const auto start = m_attenuationTableOffset[6 + shell];
             const auto stop = m_attenuationTableOffset[6 + shell + 1];
             const auto begin = m_attenuationTable.cbegin() + start;
@@ -873,6 +873,13 @@ protected:
         }
 
         auto weight = compositionByWeight;
+        // removing potential dummy atom Z==0
+        if (weight.contains(0)) {
+            weight.erase(0);
+        }
+        if (weight.size() == 0)
+            return std::nullopt;
+
         const auto totalWeight = std::transform_reduce(weight.cbegin(), weight.cend(), 0.0, std::plus<>(), [](const auto& right) -> double { return right.second; });
         if (!(totalWeight > 0))
             return std::nullopt;
