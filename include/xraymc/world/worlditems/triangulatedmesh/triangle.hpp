@@ -93,7 +93,8 @@ public:
     /**
      * @brief Mirrors all three vertices through a world-space point.
      *
-     * Each vertex v is mapped to v + (-2)(v - point) = 2·point - v.
+     * Each vertex v is mapped to v + (-2)(v - point) = 2·point - v. The vertex order is
+     * reversed so that the normal keeps pointing to the same side of the surface.
      * @param point The point of reflection in cm.
      */
     void mirror(const std::array<double, 3>& point)
@@ -102,10 +103,14 @@ public:
             const auto d = vectormath::subtract(m_vertices[i], point);
             m_vertices[i] = vectormath::add(m_vertices[i], vectormath::scale(d, -2.0));
         }
+        flip();
     }
 
     /**
      * @brief Mirrors all three vertices about a plane perpendicular to axis @p dim at @p value.
+     *
+     * The vertex order is reversed so that the normal keeps pointing to the same side of
+     * the surface.
      * @param value Coordinate of the mirror plane along @p dim.
      * @param dim   Axis index: 0 = x, 1 = y, 2 = z.
      */
@@ -115,10 +120,14 @@ public:
             const auto d = m_vertices[i][dim] - value;
             m_vertices[i][dim] += d * -2.0;
         }
+        flip();
     }
 
     /**
      * @brief Uniformly scales all vertex coordinates by @p scale.
+     *
+     * A negative factor mirrors the triangle, in which case the vertex order is reversed
+     * so that the normal keeps pointing to the same side of the surface.
      * @param scale Scale factor applied to every coordinate of every vertex.
      */
     void scale(double scale)
@@ -128,6 +137,14 @@ public:
                 vert[i] *= scale;
             }
         });
+        if (scale < 0)
+            flip();
+    }
+
+    /// @brief Reverses the vertex order, flipping the direction of planeVector().
+    void flip()
+    {
+        std::swap(m_vertices[1], m_vertices[2]);
     }
 
     /**
