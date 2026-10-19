@@ -6,9 +6,13 @@ target_link_libraries(validation libxraymc)
 add_executable(scattervalidation scattervalidation.cpp)
 target_link_libraries(scattervalidation libxraymc)
 
+add_executable(radiative_cascade radiative_cascade.cpp)
+target_link_libraries(radiative_cascade libxraymc)
+
 ## Adding post build step to copy physicslist.bin to validation folder
 xraymclib_add_physics_list(validation)
 xraymclib_add_physics_list(scattervalidation)
+xraymclib_add_physics_list(radiative_cascade)
 
 set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
 set(CASE5WORLD_BINARY "case5world.bin")
