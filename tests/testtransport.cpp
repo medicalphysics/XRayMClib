@@ -288,7 +288,7 @@ int main()
     testAirKermaCalibration();
     testEnergyConservation(Material<NS>::byNistName("Water, Liquid").value(), 1.0, 50, 60, "Energy conservation (water, 60 keV)");
     // Lead K-shell fluorescence is emitted with the total photon energy per vacancy and the
-    // weight multiplied by the number of photons per vacancy, see testinteractions.
+    // probability equal by the number of photons per vacancy, see testinteractions.
     testEnergyConservation(Material<NS>::byZ(82).value(), 11.35, 10, 100, "Energy conservation (lead, 100 keV)");
     testGeometryEquivalence();
     testProgress();
