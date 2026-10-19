@@ -30,9 +30,11 @@ Copyright 2022 Erlend Andersen
 #include "xraymc/world/worlditems/triangulatedmesh/triangulatedmeshkdtreeflat.hpp"
 #include "xraymc/world/worlditems/triangulatedmesh/triangulatedmeshstlreader.hpp"
 
+#include <algorithm>
 #include <array>
 #include <execution>
 #include <numeric>
+#include <string>
 #include <vector>
 
 namespace xraymc {
@@ -73,6 +75,7 @@ public:
         , m_material(Material<NMaterialShells>::byNistName("Air, Dry (near sea level)").value())
         , m_triangles(triangles)
     {
+        checkSurface();
         m_kdtree.setData(m_triangles, max_tree_dept);
         calculateAABB();
     }
@@ -88,6 +91,7 @@ public:
     {
         STLReader reader;
         m_triangles = reader(path);
+        checkSurface(reader.message());
         m_kdtree.setData(m_triangles, max_tree_dept);
         calculateAABB();
     }
@@ -107,6 +111,7 @@ public:
         std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [=](auto& tri) {
             tri.scale(scale);
         });
+        checkSurface(reader.message());
         m_kdtree.setData(m_triangles, max_tree_dept);
         calculateAABB();
     }
@@ -166,6 +171,140 @@ public:
     const std::vector<Triangle>& triangles() const
     {
         return m_triangles;
+    }
+
+    /**
+     * @brief Checks that a triangle set forms a closed, consistently oriented surface
+     *        with outward facing normals.
+     *
+     * Vertices are matched by exact coordinates. Every edge must be shared by exactly two
+     * triangles that traverse it in opposite directions. Edges used by only one triangle
+     * indicate holes (missing triangles or T-junctions), edges used by more than two
+     * triangles indicate a non-manifold surface, and edges traversed in the same direction
+     * by both triangles indicate flipped triangles. Finally the enclosed signed volume must
+     * be positive, i.e. normals must point outwards. Particle transport determines whether
+     * a particle is inside the mesh from the normal of the nearest triangle, so any of
+     * these defects leads to wrong tracking.
+     * @param triangles Triangles to check.
+     * @return An empty string if the surface is valid, otherwise a description of the problem.
+     */
+    static std::string surfaceValidationError(const std::vector<Triangle>& triangles)
+    {
+        auto error = surfaceTopologyError(triangles);
+        if (error.empty() && signedVolume(triangles) < 0)
+            error = "Triangle normals point inwards";
+        return error;
+    }
+
+    /**
+     * @brief Checks that a triangle set forms a closed, consistently oriented surface.
+     *
+     * Same as surfaceValidationError() except that the direction of the normals (inwards
+     * or outwards) is not tested.
+     * @param triangles Triangles to check.
+     * @return An empty string if the surface is valid, otherwise a description of the problem.
+     */
+    static std::string surfaceTopologyError(const std::vector<Triangle>& triangles)
+    {
+        if (triangles.empty())
+            return "Mesh has no triangles";
+
+        // weld vertices by exact coordinates
+        std::vector<std::array<double, 3>> points;
+        points.reserve(triangles.size() * 3);
+        for (const auto& tri : triangles)
+            for (const auto& v : tri.vertices())
+                points.push_back(v);
+        std::sort(std::execution::par_unseq, points.begin(), points.end());
+        points.erase(std::unique(points.begin(), points.end()), points.end());
+        const auto vertexIndex = [&points](const std::array<double, 3>& v) {
+            return static_cast<std::uint32_t>(std::distance(points.cbegin(), std::lower_bound(points.cbegin(), points.cend(), v)));
+        };
+
+        // undirected edges with traversal direction
+        struct Edge {
+            std::uint32_t a, b;
+            int dir;
+            bool operator<(const Edge& o) const { return a < o.a || (a == o.a && b < o.b); }
+        };
+        std::vector<Edge> edges;
+        edges.reserve(triangles.size() * 3);
+        for (const auto& tri : triangles) {
+            const std::array<std::uint32_t, 3> idx = { vertexIndex(tri.vertices()[0]), vertexIndex(tri.vertices()[1]), vertexIndex(tri.vertices()[2]) };
+            for (std::size_t i = 0; i < 3; ++i) {
+                const auto a = idx[i];
+                const auto b = idx[(i + 1) % 3];
+                edges.push_back(a < b ? Edge { a, b, 1 } : Edge { b, a, -1 });
+            }
+        }
+        std::sort(std::execution::par_unseq, edges.begin(), edges.end());
+
+        std::size_t boundary = 0, nonManifold = 0, flipped = 0;
+        for (std::size_t i = 0; i < edges.size();) {
+            std::size_t j = i;
+            int dirSum = 0;
+            while (j < edges.size() && edges[j].a == edges[i].a && edges[j].b == edges[i].b)
+                dirSum += edges[j++].dir;
+            const auto n = j - i;
+            if (n == 1)
+                ++boundary;
+            else if (n > 2)
+                ++nonManifold;
+            else if (dirSum != 0)
+                ++flipped;
+            i = j;
+        }
+        if (boundary > 0)
+            return "Surface is not closed: " + std::to_string(boundary) + " edge(s) belong to only one triangle (missing triangles)";
+        if (nonManifold > 0)
+            return "Surface is not manifold: " + std::to_string(nonManifold) + " edge(s) are shared by more than two triangles";
+        if (flipped > 0)
+            return "Surface is not consistently oriented: " + std::to_string(flipped) + " edge(s) join triangles with opposite normals";
+        return {};
+    }
+
+    /**
+     * @brief Returns the signed volume enclosed by a closed triangle set.
+     *
+     * Positive if the triangle normals point outwards, negative if they point inwards.
+     * The result is only meaningful for a closed, consistently oriented surface.
+     * @param triangles Triangles enclosing the volume.
+     * @return Signed volume in cm³.
+     */
+    static double signedVolume(const std::vector<Triangle>& triangles)
+    {
+        const auto volume6 = std::transform_reduce(std::execution::par_unseq, triangles.cbegin(), triangles.cend(), 0.0, std::plus<>(), [](const auto& tri) {
+            const auto& v = tri.vertices();
+            return vectormath::dot(v[0], vectormath::cross(v[1], v[2]));
+        });
+        return volume6 / 6;
+    }
+
+    /**
+     * @brief Returns the result of the surface check that runs whenever triangles are set.
+     *
+     * The check runs in every constructor and in setData(): the triangles must form a
+     * closed, consistently oriented surface (see surfaceValidationError()). A closed surface
+     * whose normals all point inwards is corrected automatically by flipping every triangle.
+     * When the mesh was read from an STL file, reader messages (e.g. skipped triangles) are
+     * appended to the error. Transformations (translate, rotate, scale, mirror) preserve
+     * the result.
+     * @return An empty string if the mesh is valid, otherwise a description of the problem.
+     */
+    const std::string& validationError() const
+    {
+        return m_validationError;
+    }
+
+    /**
+     * @brief Returns true if the mesh is a closed, consistently oriented surface.
+     *
+     * Particle transport determines whether a particle is inside the mesh from the normal
+     * of the nearest triangle, so an invalid mesh gives wrong results.
+     */
+    bool valid() const
+    {
+        return m_validationError.empty();
     }
 
     /**
@@ -283,6 +422,7 @@ public:
     void setData(const std::vector<Triangle>& triangles, const std::size_t max_tree_dept = 8)
     {
         m_triangles = triangles;
+        checkSurface();
         m_kdtree.setData(m_triangles, max_tree_dept);
         calculateAABB();
     }
@@ -294,6 +434,8 @@ public:
     std::array<double, 3> center() const
     {
         std::array<double, 3> center { 0, 0, 0 };
+        if (m_triangles.empty())
+            return center;
         std::for_each(std::execution::unseq, m_triangles.cbegin(), m_triangles.cend(), [&](const auto& tri) {
             const auto c = tri.center();
             for (std::size_t i = 0; i < 3; ++i) {
@@ -583,12 +725,30 @@ protected:
         m_aabb = aabb;
     }
 
+    /**
+     * @brief Runs the surface check on m_triangles and stores the result in m_validationError.
+     *
+     * A closed, consistently oriented surface with inward normals is fixed by flipping all
+     * triangles. Must be called before the KD-tree is built since triangles may be modified.
+     * @param readerMessage Message from the STL reader, appended to the error if the check fails.
+     */
+    void checkSurface(const std::string& readerMessage = {})
+    {
+        m_validationError = surfaceTopologyError(m_triangles);
+        if (m_validationError.empty() && signedVolume(m_triangles) < 0) {
+            std::for_each(std::execution::par_unseq, m_triangles.begin(), m_triangles.end(), [](auto& tri) { tri.flip(); });
+        }
+        if (!m_validationError.empty() && !readerMessage.empty())
+            m_validationError += "\n" + readerMessage;
+    }
+
 private:
     double m_materialDensity = 1;
     std::array<double, 6> m_aabb = { 0, 0, 0, 0, 0, 0 };
     EnergyScore m_energyScored;
     DoseScore m_dose;
     std::vector<Triangle> m_triangles;
+    std::string m_validationError = "Mesh has no triangles";
     MeshKDTreeFlat<Triangle> m_kdtree;
     Material<NMaterialShells> m_material;
 };

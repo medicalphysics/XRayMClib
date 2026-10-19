@@ -21,6 +21,10 @@ Copyright 2025 Erlend Andersen
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 
+#include <algorithm>
+#include <array>
+#include <charconv>
+#include <cmath>
 #include <execution>
 #include <fstream>
 #include <iostream>
@@ -102,8 +106,8 @@ public:
      */
     void readData(const std::string& nodeFile, const std::string& elementFile)
     {
-        readNodes(nodeFile);
-        readElements(elementFile);
+        if (!readGeometry(nodeFile, elementFile))
+            return;
 
         // generating collections
         auto coll = m_data.collectionIndices;
@@ -119,7 +123,7 @@ public:
             c.name = "Default water " + std::to_string(i + 1);
         }
 
-        m_valid = mergeTetAndCollData(collection);
+        finalize(collection);
     }
 
     /**
@@ -135,17 +139,9 @@ public:
         const std::string& elementFile,
         const std::string& matorganfilePath, bool ietr_format = false)
     {
-        if (ietr_format) {
-            auto coll = readIETROrganAndMaterial(matorganfilePath);
-            readNodes(nodeFile);
-            readElements(elementFile);
-            m_valid = mergeTetAndCollData(coll);
-        } else {
-            auto coll = readICRPPregnantOrganAndMaterial(matorganfilePath);
-            readNodes(nodeFile);
-            readElements(elementFile);
-            m_valid = mergeTetAndCollData(coll);
-        }
+        auto coll = ietr_format ? readIETROrganAndMaterial(matorganfilePath) : readICRPPregnantOrganAndMaterial(matorganfilePath);
+        if (readGeometry(nodeFile, elementFile))
+            finalize(coll);
     }
 
     /**
@@ -162,9 +158,8 @@ public:
         const std::string& organFilePath)
     {
         auto coll = readICRP145PhantomMaterialAndOrgans(matfilePath, organFilePath);
-        readNodes(nodeFile);
-        readElements(elementFile);
-        m_valid = mergeTetAndCollData(coll);
+        if (readGeometry(nodeFile, elementFile))
+            finalize(coll);
     }
 
     /// @brief Returns a mutable reference to the parsed mesh data.
@@ -176,18 +171,35 @@ public:
     /**
      * @brief Returns true if the last readData() call succeeded and the mesh has nodes and elements.
      *
-     * A false result indicates that one or more collections could not be matched with
-     * density or material data, or that the node/element files were empty or malformed.
+     * A false result indicates that the node/element files were missing, empty or malformed
+     * (e.g. missing or duplicated node/element indices, element counts not matching the
+     * file header), that the mesh is geometrically invalid (see
+     * TetrahedalMeshData::validationError()), or that one or more collections could not be
+     * matched with density or material data. message() describes the problem.
      */
     bool valid() const
     {
         return m_valid && m_data.nodes.size() > 0 && m_data.elements.size() > 0;
     }
 
+    /**
+     * @brief Returns the error or status message from the last readData() call.
+     *
+     * Empty if reading succeeded without remarks. On success it may note corrections that
+     * were applied, such as inverted tetrahedra that were reoriented.
+     */
+    const std::string& message() const
+    {
+        return m_message;
+    }
+
     /// @brief Resets all parsed data, leaving the reader in the same state as after default construction.
     void clear()
     {
         m_data = TetrahedalMeshData { };
+        m_valid = false;
+        m_message.clear();
+        m_nodeIndexBase = 0;
     }
 
     /**
@@ -318,8 +330,49 @@ protected:
             }
         }
         // test if we are missing some data by checking density = -1
-        auto loc = std::find_if(m_data.collectionDensities.cbegin(), m_data.collectionDensities.cend(), [](const auto& dens) { return dens < 0.0; });
-        return loc == m_data.collectionDensities.cend();
+        std::string missing;
+        std::size_t nMissing = 0;
+        for (const auto& [fileIndex, index] : lut) {
+            if (m_data.collectionDensities[index] < 0.0) {
+                if (nMissing < 10)
+                    missing += (nMissing == 0 ? "" : ", ") + std::to_string(fileIndex);
+                ++nMissing;
+            }
+        }
+        if (nMissing > 0) {
+            m_message = "No density/material data for " + std::to_string(nMissing) + " collection(s) used by elements: " + missing + (nMissing > 10 ? ", ..." : "");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @brief Clears previous data and reads the node and element files.
+     * @return true if both files were read without errors; message() describes any error.
+     */
+    bool readGeometry(const std::string& nodeFile, const std::string& elementFile)
+    {
+        clear();
+        return readNodes(nodeFile) && readElements(elementFile);
+    }
+
+    /**
+     * @brief Merges collection data into the mesh, reorients inverted tetrahedra and
+     *        validates the result, setting m_valid and m_message.
+     * @param collection Parsed collection list from one of the readXxx() helpers.
+     */
+    void finalize(const std::vector<ICRPCollection>& collection)
+    {
+        m_valid = mergeTetAndCollData(collection);
+        if (!m_valid)
+            return;
+        const auto nFlipped = m_data.fixTetrahedronOrientation();
+        const auto error = m_data.validationError();
+        m_valid = error.empty();
+        if (!m_valid)
+            m_message = error;
+        else if (nFlipped > 0)
+            m_message = "Reoriented " + std::to_string(nFlipped) + " inverted element(s)";
     }
 
     /**
@@ -660,28 +713,14 @@ protected:
     }
 
     /**
-     * @brief Reads a TetGen .ele element file into m_data.elements and m_data.collectionIndices.
-     *
-     * Expected line format: `<index> <n0> <n1> <n2> <n3> [collection_index]`.
-     * Lines are parsed in parallel; results are sorted by index and any sentinel-valued
-     * (invalid) entries are removed. Indexing must start at 0.
-     * @param path         Path to the .ele file.
-     * @param nHeaderLines Number of header lines to skip; default 1.
-     * @param collength    Estimated average line length used for pre-allocating the line index.
+     * @brief Splits a buffer into lines, returning [begin, end) offsets for each line.
+     * @param data      Buffer to split.
+     * @param collength Estimated average line length used for pre-allocating the result.
      */
-    void readElements(const std::string& path, int nHeaderLines = 1, std::size_t collength = 80)
+    static std::vector<std::pair<std::size_t, std::size_t>> splitLines(const std::string& data, std::size_t collength = 80)
     {
-        // reads a file formatted as <index n0 n1 n2 n3 matIdx000>, i.e "512 51 80 90 101"
-
-        std::vector<std::tuple<std::uint32_t, std::array<std::uint32_t, 4>, std::uint32_t>> nodes;
-
-        const auto data = readBufferFromFile(path);
-        if (data.size() == 0)
-            return;
-
-        // finding line endings
         std::vector<std::pair<std::size_t, std::size_t>> lineIdx;
-        lineIdx.reserve(data.size() / collength);
+        lineIdx.reserve(data.size() / std::max(collength, std::size_t { 1 }) + 1);
         std::size_t start = 0;
         for (std::size_t i = 0; i < data.size(); ++i) {
             if (data[i] == '\n') {
@@ -692,134 +731,302 @@ protected:
         // last line without line ending
         if (start < data.size())
             lineIdx.push_back({ start, data.size() });
-        auto begin = lineIdx.cbegin() + nHeaderLines;
-        auto end = lineIdx.cend();
-        if (end - begin < 4)
-            return;
+        return lineIdx;
+    }
 
-        nodes.resize(end - begin);
+    /**
+     * @brief Splits a line into whitespace (or comma) separated tokens, ignoring anything after '#'.
+     * @tparam N     Maximum number of tokens stored.
+     * @param start  Start of the line.
+     * @param stop   One past the end of the line.
+     * @param tokens Output array of tokens.
+     * @return Number of tokens found; may exceed N, in which case only the first N are stored.
+     */
+    template <std::size_t N>
+    static std::size_t tokenize(const char* start, const char* stop, std::array<std::string_view, N>& tokens)
+    {
+        const auto isSep = [](char c) { return std::isspace(static_cast<unsigned char>(c)) || c == ','; };
+        std::size_t n = 0;
+        while (start != stop && *start != '#') {
+            while (start != stop && isSep(*start))
+                ++start;
+            if (start == stop || *start == '#')
+                break;
+            auto wend = start;
+            while (wend != stop && !isSep(*wend) && *wend != '#')
+                ++wend;
+            if (n < N)
+                tokens[n] = std::string_view(start, wend - start);
+            ++n;
+            start = wend;
+        }
+        return n;
+    }
 
-        std::transform(std::execution::par_unseq, begin, end, nodes.begin(), [&data](const auto& idx) {
-            auto start = data.data() + idx.first;
-            auto stop = data.data() + idx.second;
+    /**
+     * @brief Parses a complete token as a number.
+     * @return true if the whole token was consumed and the value fits in @p val.
+     */
+    template <typename U>
+    static bool parseToken(std::string_view token, U& val)
+    {
+        const auto end = token.data() + token.size();
+        auto [ptr, ec] = std::from_chars(token.data(), end, val);
+        return ec == std::errc() && ptr == end;
+    }
 
-            std::uint32_t index = std::numeric_limits<uint32_t>::max();
-            std::array<std::uint32_t, 4> v {
-                std::numeric_limits<std::uint32_t>::max(),
-                std::numeric_limits<std::uint32_t>::max(),
-                std::numeric_limits<std::uint32_t>::max(),
-                std::numeric_limits<std::uint32_t>::max()
-            };
-            std::uint32_t collection = 0;
+    /**
+     * @brief Parses an unsigned integer token, also accepting integral floating point
+     *        notation such as "3.0" (TetGen may write region attributes as floats).
+     */
+    static bool parseIndexToken(std::string_view token, std::uint32_t& val)
+    {
+        if (parseToken(token, val))
+            return true;
+        double d;
+        if (parseToken(token, d) && d >= 0 && d <= std::numeric_limits<std::uint32_t>::max() && std::floor(d) == d) {
+            val = static_cast<std::uint32_t>(d);
+            return true;
+        }
+        return false;
+    }
 
-            parseLine(start, stop, ' ', index, v[0], v[1], v[2], v[3], collection);
-            return std::make_tuple(index, v, collection);
-        });
+    /**
+     * @brief Reads the counts on the header line of a TetGen file.
+     * @return The leading integer tokens of the header line (empty if none).
+     */
+    static std::vector<std::uint64_t> readHeaderCounts(const std::string& data, const std::pair<std::size_t, std::size_t>& line)
+    {
+        std::array<std::string_view, 4> tokens;
+        const auto n = std::min(tokenize(data.data() + line.first, data.data() + line.second, tokens), tokens.size());
+        std::vector<std::uint64_t> counts;
+        for (std::size_t i = 0; i < n; ++i) {
+            std::uint64_t v;
+            if (!parseToken(tokens[i], v))
+                break;
+            counts.push_back(v);
+        }
+        return counts;
+    }
 
-        // sort nodes
-        std::sort(std::execution::par_unseq, nodes.begin(), nodes.end(), [](const auto& lh, const auto& rh) { return std::get<0>(lh) < std::get<0>(rh); });
+    /// @brief Parse status of one line in a node or element file.
+    enum class LineStatus : std::uint8_t {
+        Empty, ///< Blank or comment-only line.
+        Ok, ///< Line parsed successfully.
+        Malformed ///< Line has content that could not be parsed.
+    };
 
-        // removing nan values and validating;
-        auto delete_from = nodes.cbegin();
-        while (delete_from != nodes.cend() && std::get<0>(*delete_from) != std::numeric_limits<uint32_t>::max()) {
-            ++delete_from;
+    /**
+     * @brief Checks that sorted file indices form a contiguous sequence starting at 0 or 1.
+     * @param indices Sorted index sequence.
+     * @param what    Name used in the error message ("node" or "element").
+     * @param path    File path used in the error message.
+     * @return Empty string if valid, otherwise an error message.
+     */
+    static std::string checkIndexSequence(const std::vector<std::uint32_t>& indices, const std::string& what, const std::string& path)
+    {
+        if (indices.empty())
+            return "No " + what + "s found in " + path;
+        if (indices[0] > 1)
+            return what + " indices in " + path + " must start at 0 or 1, first index is " + std::to_string(indices[0]);
+        for (std::size_t i = 1; i < indices.size(); ++i) {
+            if (indices[i] == indices[i - 1])
+                return "Duplicate " + what + " index " + std::to_string(indices[i]) + " in " + path;
+            if (indices[i] != indices[i - 1] + 1)
+                return "Missing " + what + " index " + std::to_string(indices[i - 1] + 1) + " in " + path;
+        }
+        return {};
+    }
+
+    /**
+     * @brief Reads a TetGen .ele element file into m_data.elements and m_data.collectionIndices.
+     *
+     * Expected line format: `<index> <n0> <n1> <n2> <n3> [collection_index]`. Text after '#'
+     * is ignored. Element indices may start at 0 or 1 and must be contiguous without
+     * duplicates; if the header line starts with a count it must match the number of
+     * elements read. Node references are shifted by the index base of the node file, so
+     * readNodes() must be called first. Either all or no lines may carry a collection index.
+     * @param path         Path to the .ele file.
+     * @param nHeaderLines Number of header lines to skip; default 1.
+     * @param collength    Estimated average line length used for pre-allocating the line index.
+     * @return true on success; on failure m_message describes the problem and no elements are stored.
+     */
+    bool readElements(const std::string& path, int nHeaderLines = 1, std::size_t collength = 80)
+    {
+        // reads a file formatted as <index n0 n1 n2 n3 matIdx000>, i.e "512 51 80 90 101"
+        const auto data = readBufferFromFile(path);
+        if (data.size() == 0) {
+            m_message = "Could not read element file: " + path;
+            return false;
         }
 
-        if (delete_from != nodes.cend())
-            nodes.erase(delete_from, nodes.cend());
+        const auto lineIdx = splitLines(data, collength);
+        const auto nHeader = static_cast<std::size_t>(std::max(nHeaderLines, 0));
+        if (lineIdx.size() <= nHeader) {
+            m_message = "Element file contains no elements: " + path;
+            return false;
+        }
+        const auto header = nHeader > 0 ? readHeaderCounts(data, lineIdx[0]) : std::vector<std::uint64_t> {};
+        // TetGen header: <# of tetrahedra> <nodes per tetrahedron> <# of attributes>
+        const std::size_t nodesPerTet = header.size() > 1 && header[1] >= 4 ? static_cast<std::size_t>(header[1]) : 4;
+        const std::uint32_t nodeBase = m_nodeIndexBase;
 
-        // We dont allow index start from other than 0
-        if (nodes.size() > 0)
-            if (std::get<0>(nodes[0]) != 0)
-                return;
+        struct ElementLine {
+            std::uint32_t index = 0;
+            std::array<std::uint32_t, 4> nodes = { 0, 0, 0, 0 };
+            std::uint32_t collection = 0;
+            bool hasCollection = false;
+            LineStatus status = LineStatus::Empty;
+        };
+        std::vector<ElementLine> lines(lineIdx.size() - nHeader);
+
+        std::transform(std::execution::par_unseq, lineIdx.cbegin() + nHeader, lineIdx.cend(), lines.begin(), [&data, nodesPerTet, nodeBase](const auto& idx) {
+            ElementLine e;
+            std::array<std::string_view, 16> tokens;
+            const auto n = tokenize(data.data() + idx.first, data.data() + idx.second, tokens);
+            if (n == 0)
+                return e;
+            e.status = LineStatus::Malformed;
+            if (n < nodesPerTet + 1 || nodesPerTet + 1 > tokens.size())
+                return e;
+            if (!parseToken(tokens[0], e.index))
+                return e;
+            for (std::size_t i = 0; i < 4; ++i) {
+                if (!parseToken(tokens[i + 1], e.nodes[i]) || e.nodes[i] < nodeBase)
+                    return e;
+                e.nodes[i] -= nodeBase;
+            }
+            if (n > nodesPerTet + 1) {
+                if (nodesPerTet + 1 >= tokens.size() || !parseIndexToken(tokens[nodesPerTet + 1], e.collection))
+                    return e;
+                e.hasCollection = true;
+            }
+            e.status = LineStatus::Ok;
+            return e;
+        });
+
+        const auto malformed = std::find_if(lines.cbegin(), lines.cend(), [](const auto& e) { return e.status == LineStatus::Malformed; });
+        if (malformed != lines.cend()) {
+            const auto nMalformed = std::count_if(lines.cbegin(), lines.cend(), [](const auto& e) { return e.status == LineStatus::Malformed; });
+            const auto lineNumber = std::distance(lines.cbegin(), malformed) + nHeader + 1;
+            m_message = std::to_string(nMalformed) + " malformed line(s) in element file " + path + ", first at line " + std::to_string(lineNumber);
+            return false;
+        }
+        std::erase_if(lines, [](const auto& e) { return e.status == LineStatus::Empty; });
+
+        const auto nWithCollection = std::count_if(lines.cbegin(), lines.cend(), [](const auto& e) { return e.hasCollection; });
+        if (nWithCollection != 0 && static_cast<std::size_t>(nWithCollection) != lines.size()) {
+            m_message = std::to_string(lines.size() - nWithCollection) + " element(s) in " + path + " lack a collection index";
+            return false;
+        }
+
+        // sort elements
+        std::sort(std::execution::par_unseq, lines.begin(), lines.end(), [](const auto& lh, const auto& rh) { return lh.index < rh.index; });
+        std::vector<std::uint32_t> indices(lines.size());
+        std::transform(lines.cbegin(), lines.cend(), indices.begin(), [](const auto& e) { return e.index; });
+        if (auto error = checkIndexSequence(indices, "element", path); !error.empty()) {
+            m_message = error;
+            return false;
+        }
+        if (!header.empty() && header[0] != lines.size()) {
+            m_message = "Element file " + path + " header states " + std::to_string(header[0]) + " elements, but " + std::to_string(lines.size()) + " were read";
+            return false;
+        }
 
         // setting data to mesh data
-        m_data.elements.resize(nodes.size());
-        std::transform(std::execution::par_unseq, nodes.cbegin(), nodes.cend(), m_data.elements.begin(), [](const auto& e) {
-            return std::get<1>(e);
+        m_data.elements.resize(lines.size());
+        std::transform(std::execution::par_unseq, lines.cbegin(), lines.cend(), m_data.elements.begin(), [](const auto& e) {
+            return e.nodes;
         });
-        m_data.collectionIndices.resize(nodes.size());
-        std::transform(std::execution::par_unseq, nodes.cbegin(), nodes.cend(), m_data.collectionIndices.begin(), [](const auto& e) {
-            return std::get<2>(e);
+        m_data.collectionIndices.resize(lines.size());
+        std::transform(std::execution::par_unseq, lines.cbegin(), lines.cend(), m_data.collectionIndices.begin(), [](const auto& e) {
+            return e.collection;
         });
+        return true;
     }
 
     /**
      * @brief Reads a TetGen .node vertex file into m_data.nodes.
      *
-     * Expected line format: `<index> <x> <y> <z>`. Lines starting with '#' are treated
-     * as comments. Lines are parsed in parallel; results are sorted by index and any
-     * NaN-valued entries are removed. Indexing must start at 0.
+     * Expected line format: `<index> <x> <y> <z> [attributes...]`. Text after '#' is
+     * ignored. Node indices may start at 0 or 1 (the base is remembered and applied to
+     * the element file) and must be contiguous without duplicates; if the header line
+     * starts with a count it must match the number of nodes read.
      * @param path         Path to the .node file.
      * @param nHeaderLines Number of header lines to skip; default 1.
      * @param collength    Estimated average line length used for pre-allocating the line index.
+     * @return true on success; on failure m_message describes the problem and no nodes are stored.
      */
-    void readNodes(const std::string& path, int nHeaderLines = 1, std::size_t collength = 80)
+    bool readNodes(const std::string& path, int nHeaderLines = 1, std::size_t collength = 80)
     {
         // reads a file formatted as <index v0 v1 v2>, i.e "512 0.2 0.4523 -0.974"
         // # is treated as comment start
-
-        std::vector<std::pair<std::uint32_t, std::array<double, 3>>> vertices;
-
         const auto data = readBufferFromFile(path);
-        if (data.size() == 0)
-            return;
-
-        // finding line endings
-        std::vector<std::pair<std::size_t, std::size_t>> lineIdx;
-        lineIdx.reserve(data.size() / collength);
-        std::size_t start = 0;
-        for (std::size_t i = 0; i < data.size(); ++i) {
-            if (data[i] == '\n') {
-                lineIdx.push_back({ start, i });
-                start = i + 1;
-            }
+        if (data.size() == 0) {
+            m_message = "Could not read node file: " + path;
+            return false;
         }
-        // last line without line ending
-        if (start < data.size())
-            lineIdx.push_back({ start, data.size() });
-        auto begin = lineIdx.cbegin() + nHeaderLines;
-        auto end = lineIdx.cend();
-        if (end - begin < 4)
-            return;
 
-        vertices.resize(end - begin);
+        const auto lineIdx = splitLines(data, collength);
+        const auto nHeader = static_cast<std::size_t>(std::max(nHeaderLines, 0));
+        if (lineIdx.size() <= nHeader) {
+            m_message = "Node file contains no nodes: " + path;
+            return false;
+        }
+        const auto header = nHeader > 0 ? readHeaderCounts(data, lineIdx[0]) : std::vector<std::uint64_t> {};
 
-        std::transform(std::execution::par_unseq, begin, end, vertices.begin(), [&data](const auto& idx) {
-            auto start = data.data() + idx.first;
-            auto stop = data.data() + idx.second;
-            std::uint32_t index = std::numeric_limits<std::uint32_t>::max();
-            std::array<double, 3> v = {
-                std::numeric_limits<double>::quiet_NaN(),
-                std::numeric_limits<double>::quiet_NaN(),
-                std::numeric_limits<double>::quiet_NaN()
-            };
-            parseLine(start, stop, ' ', index, v[0], v[1], v[2]);
-            return std::make_pair(index, v);
+        struct NodeLine {
+            std::uint32_t index = 0;
+            std::array<double, 3> pos = { 0, 0, 0 };
+            LineStatus status = LineStatus::Empty;
+        };
+        std::vector<NodeLine> lines(lineIdx.size() - nHeader);
+
+        std::transform(std::execution::par_unseq, lineIdx.cbegin() + nHeader, lineIdx.cend(), lines.begin(), [&data](const auto& idx) {
+            NodeLine v;
+            std::array<std::string_view, 4> tokens;
+            const auto n = tokenize(data.data() + idx.first, data.data() + idx.second, tokens);
+            if (n == 0)
+                return v;
+            v.status = LineStatus::Malformed;
+            if (n < 4 || !parseToken(tokens[0], v.index))
+                return v;
+            for (std::size_t i = 0; i < 3; ++i)
+                if (!parseToken(tokens[i + 1], v.pos[i]) || !std::isfinite(v.pos[i]))
+                    return v;
+            v.status = LineStatus::Ok;
+            return v;
         });
+
+        const auto malformed = std::find_if(lines.cbegin(), lines.cend(), [](const auto& v) { return v.status == LineStatus::Malformed; });
+        if (malformed != lines.cend()) {
+            const auto nMalformed = std::count_if(lines.cbegin(), lines.cend(), [](const auto& v) { return v.status == LineStatus::Malformed; });
+            const auto lineNumber = std::distance(lines.cbegin(), malformed) + nHeader + 1;
+            m_message = std::to_string(nMalformed) + " malformed line(s) in node file " + path + ", first at line " + std::to_string(lineNumber);
+            return false;
+        }
+        std::erase_if(lines, [](const auto& v) { return v.status == LineStatus::Empty; });
 
         // sort vertices
-        std::sort(std::execution::par_unseq, vertices.begin(), vertices.end(), [](const auto& lh, const auto& rh) { return lh.first < rh.first; });
-
-        // removing nan values and validating;
-        auto delete_from = vertices.cbegin();
-        while (delete_from != vertices.cend() && delete_from->first != std::numeric_limits<uint32_t>::max()) {
-            ++delete_from;
+        std::sort(std::execution::par_unseq, lines.begin(), lines.end(), [](const auto& lh, const auto& rh) { return lh.index < rh.index; });
+        std::vector<std::uint32_t> indices(lines.size());
+        std::transform(lines.cbegin(), lines.cend(), indices.begin(), [](const auto& v) { return v.index; });
+        if (auto error = checkIndexSequence(indices, "node", path); !error.empty()) {
+            m_message = error;
+            return false;
         }
-
-        if (delete_from != vertices.cend())
-            vertices.erase(delete_from, vertices.cend());
-
-        // We dont allow index start from other than 0
-        if (vertices.size() > 0)
-            if (vertices[0].first != 0)
-                return;
+        if (!header.empty() && header[0] != lines.size()) {
+            m_message = "Node file " + path + " header states " + std::to_string(header[0]) + " nodes, but " + std::to_string(lines.size()) + " were read";
+            return false;
+        }
+        m_nodeIndexBase = indices[0];
 
         // populating mesh data
-        m_data.nodes.resize(vertices.size());
-        std::transform(std::execution::par_unseq, vertices.cbegin(), vertices.cend(), m_data.nodes.begin(), [](const auto& e) {
-            return e.second;
+        m_data.nodes.resize(lines.size());
+        std::transform(std::execution::par_unseq, lines.cbegin(), lines.cend(), m_data.nodes.begin(), [](const auto& v) {
+            return v.pos;
         });
+        return true;
     }
 
     /**
@@ -845,5 +1052,7 @@ protected:
 private:
     TetrahedalMeshData m_data;
     bool m_valid = false;
+    std::string m_message;
+    std::uint32_t m_nodeIndexBase = 0; ///< Index of the first node in the node file (0 or 1).
 };
 }

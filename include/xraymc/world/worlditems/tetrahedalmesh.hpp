@@ -83,7 +83,8 @@ public:
     {
         if (!data.valid())
             return false;
-        makeStructure(data);
+        if (!makeStructure(data))
+            return false;
         calculateAABB();
         buildContourKDTree();
 
@@ -1022,8 +1023,10 @@ protected:
      * @brief Builds the internal tetrahedron list and computes neighbor connectivity
      *        by matching shared faces between adjacent tetrahedrons.
      * @param data Source mesh data; nodes and elements are consumed directly.
+     * @return false if a face is shared by more than two tetrahedrons (overlapping or
+     *         duplicated elements), true otherwise.
      */
-    void makeStructure(const TetrahedalMeshData& data)
+    bool makeStructure(const TetrahedalMeshData& data)
     {
         m_vertices = data.nodes;
 
@@ -1038,7 +1041,7 @@ protected:
         });
 
         if (m_tetrahedrons.size() < 2) {
-            return;
+            return true;
         }
 
         // finding neighbors
@@ -1087,15 +1090,17 @@ protected:
         std::sort(std::execution::par_unseq, faces.begin(), faces.end());
 
         // most faces will have one and only one neighbor, others zero
-        auto first = faces.begin();
-        auto second = first + 1;
-        do {
-            if (*first == *second) {
-                m_tetrahedrons[first->tetIdx].neighborIdx[first->faceNumber] = second->tetIdx;
-                m_tetrahedrons[second->tetIdx].neighborIdx[second->faceNumber] = first->tetIdx;
+        // a face shared by more than two tetrahedrons means overlapping elements
+        for (std::size_t i = 0; i + 1 < faces.size(); ++i) {
+            if (faces[i] == faces[i + 1]) {
+                if (i + 2 < faces.size() && faces[i] == faces[i + 2])
+                    return false;
+                m_tetrahedrons[faces[i].tetIdx].neighborIdx[faces[i].faceNumber] = faces[i + 1].tetIdx;
+                m_tetrahedrons[faces[i + 1].tetIdx].neighborIdx[faces[i + 1].faceNumber] = faces[i].tetIdx;
+                ++i;
             }
-            first = second++;
-        } while (second != faces.end());
+        }
+        return true;
     }
 
     /**

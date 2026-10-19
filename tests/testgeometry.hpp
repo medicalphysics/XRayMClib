@@ -61,7 +61,8 @@ inline std::vector<xraymc::Triangle> boxTriangles(double scale = 1)
     return t;
 }
 
-// Closed square pyramid with base [-d, d]^2 in z = 0 and apex at (0, 0, d)
+// Closed square pyramid with base [-d, d]^2 in z = 0 and apex at (0, 0, d),
+// with outward facing normals
 inline std::vector<xraymc::Triangle> pyramidTriangles(double d = 30)
 {
     std::vector<std::array<double, 3>> p;
@@ -75,13 +76,13 @@ inline std::vector<xraymc::Triangle> pyramidTriangles(double d = 30)
             j *= d;
 
     std::vector<xraymc::Triangle> t;
-    t.push_back({ p[0], p[1], p[4] });
-    t.push_back({ p[1], p[2], p[4] });
-    t.push_back({ p[2], p[3], p[4] });
-    t.push_back({ p[3], p[0], p[4] });
+    t.push_back({ p[0], p[4], p[1] });
+    t.push_back({ p[1], p[4], p[2] });
+    t.push_back({ p[2], p[4], p[3] });
+    t.push_back({ p[3], p[4], p[0] });
     // underside
-    t.push_back({ p[0], p[3], p[2] });
-    t.push_back({ p[2], p[1], p[0] });
+    t.push_back({ p[0], p[2], p[3] });
+    t.push_back({ p[2], p[0], p[1] });
     return t;
 }
 

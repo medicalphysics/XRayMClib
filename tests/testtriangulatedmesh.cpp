@@ -32,6 +32,7 @@ Copyright 2022 Erlend Andersen
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -111,6 +112,13 @@ void testTransforms()
     check(r.valid() && !r.rayOriginIsInsideItem && std::abs(r.intersection - 4) < 1E-6, "TriangulatedMesh: mirrored mesh intersects from outside");
     p.pos = { 0, 0, -0.5 };
     check(mir.intersect(p).rayOriginIsInsideItem, "TriangulatedMesh: mirrored mesh has outward normals");
+    check(Mesh::surfaceValidationError(mir.triangles()).empty(), "TriangulatedMesh: mirrored mesh passes surface check");
+    Mesh pointMirror(xraymctest::pyramidTriangles(1));
+    pointMirror.mirror({ 0, 0, 0 });
+    check(Mesh::surfaceValidationError(pointMirror.triangles()).empty(), "TriangulatedMesh: mesh mirrored through a point passes surface check");
+    Mesh negative(xraymctest::pyramidTriangles(1));
+    negative.scale(-2);
+    check(Mesh::surfaceValidationError(negative.triangles()).empty(), "TriangulatedMesh: negatively scaled mesh passes surface check");
 }
 
 void writeAsciiSTL(const std::filesystem::path& path, const std::vector<Triangle>& tris, bool crlf)
@@ -193,6 +201,135 @@ void testSTL()
     check(reader(xraymctest::tempPath("missing.stl").string()).empty(), "STLReader: missing file gives no triangles");
 }
 
+void writeText(const std::filesystem::path& path, const std::string& text)
+{
+    std::ofstream f(path, std::ios::binary);
+    f << text;
+}
+
+std::string asciiFacet(const Triangle& t, const std::string& indent = "  ")
+{
+    std::ostringstream s;
+    s << indent << "facet normal 0 0 0\n"
+      << indent << "outer loop\n";
+    for (const auto& v : t.vertices())
+        s << indent << indent << "vertex " << v[0] << " " << v[1] << " " << v[2] << "\n";
+    s << indent << "endloop\n"
+      << indent << "endfacet\n";
+    return s.str();
+}
+
+void testSTLMissingElements()
+{
+    const auto tris = xraymctest::boxTriangles(2);
+    const auto path = xraymctest::tempPath("broken.stl");
+    {
+        // tab indented files must not lose vertices
+        std::string text = "solid tabs\n";
+        for (const auto& t : tris)
+            text += asciiFacet(t, "\t");
+        text += "endsolid tabs\n";
+        writeText(path, text);
+        STLReader reader;
+        check(sameTriangles(reader(path.string()), tris), "STLReader: ASCII file with tab indentation");
+    }
+    {
+        // a facet missing a vertex is skipped without shifting the following triangles
+        std::string text = "solid missing\n";
+        for (std::size_t i = 0; i < tris.size(); ++i) {
+            auto facet = asciiFacet(tris[i]);
+            if (i == 3)
+                facet.erase(facet.find("    vertex"), facet.find("\n", facet.find("    vertex")) + 1 - facet.find("    vertex"));
+            text += facet;
+        }
+        text += "endsolid missing\n";
+        writeText(path, text);
+        STLReader reader;
+        const auto read = reader(path.string());
+        auto expected = tris;
+        expected.erase(expected.begin() + 3);
+        check(sameTriangles(read, expected), "STLReader: facet with missing vertex is skipped, other triangles intact");
+        check(reader.numberOfDroppedTriangles() == 1 && !reader.message().empty(), "STLReader: skipped facet is reported (" + reader.message() + ")");
+        Mesh mesh(path.string());
+        check(!mesh.valid() && mesh.validationError().find("not closed") != std::string::npos, "TriangulatedMesh: mesh with missing triangle is not closed (" + mesh.validationError() + ")");
+        check(mesh.validationError().find("Skipped 1 facet") != std::string::npos, "TriangulatedMesh: validation error includes STL reader message");
+    }
+    {
+        // vertex count not a multiple of three at end of file
+        std::string text = "solid truncated\n" + asciiFacet(tris[0]) + "facet normal 0 0 1\nouter loop\nvertex 1 2 3\n";
+        writeText(path, text);
+        STLReader reader;
+        const auto read = reader(path.string());
+        check(read.size() == 1 && reader.numberOfDroppedTriangles() == 1, "STLReader: truncated ASCII file");
+    }
+    {
+        // degenerate triangle is dropped
+        std::string text = "solid degenerate\n" + asciiFacet(tris[0]) + asciiFacet(Triangle({ 0, 0, 0 }, { 1, 1, 1 }, { 2, 2, 2 })) + "endsolid degenerate\n";
+        writeText(path, text);
+        STLReader reader;
+        const auto read = reader(path.string());
+        check(read.size() == 1 && reader.numberOfDroppedTriangles() == 1, "STLReader: degenerate triangle is skipped");
+    }
+    {
+        // binary file shorter than its triangle count
+        writeBinarySTL(path, tris, "binary");
+        std::filesystem::resize_file(path, std::filesystem::file_size(path) - 25);
+        STLReader reader;
+        check(reader(path.string()).empty() && reader.message().find("truncated") != std::string::npos, "STLReader: truncated binary file is rejected (" + reader.message() + ")");
+        // binary file with padding after the last triangle
+        writeBinarySTL(path, tris, "binary");
+        {
+            std::ofstream f(path, std::ios::binary | std::ios::app);
+            f << "padding";
+        }
+        check(sameTriangles(reader(path.string()), tris), "STLReader: binary file with trailing bytes");
+    }
+    std::filesystem::remove(path);
+}
+
+void testSurfaceValidation()
+{
+    const auto tris = xraymctest::boxTriangles(1);
+    check(Mesh(tris).valid(), "TriangulatedMesh: closed box is valid (" + Mesh(tris).validationError() + ")");
+    check(Mesh(xraymctest::pyramidTriangles(1)).valid(), "TriangulatedMesh: closed pyramid is valid");
+    check(Mesh::surfaceValidationError(xraymctest::pyramidTriangles(1)).empty(), "TriangulatedMesh: pyramid fixture has outward normals");
+    check(!Mesh().valid(), "TriangulatedMesh: empty mesh is invalid");
+    checkNear(vm::length(Mesh().center()), 0, 1E-12, "TriangulatedMesh: center of empty mesh");
+    {
+        auto t = tris;
+        t.pop_back();
+        check(Mesh(t).validationError().find("not closed") != std::string::npos, "TriangulatedMesh: missing triangle is detected");
+    }
+    {
+        auto t = tris;
+        const auto& v = t[4].vertices();
+        t[4] = Triangle(v[0], v[2], v[1]);
+        check(Mesh(t).validationError().find("consistently oriented") != std::string::npos, "TriangulatedMesh: flipped triangle is detected");
+    }
+    {
+        auto t = tris;
+        for (auto& tri : t) {
+            const auto& v = tri.vertices();
+            tri = Triangle(v[0], v[2], v[1]);
+        }
+        check(Mesh::surfaceValidationError(t).find("inwards") != std::string::npos, "TriangulatedMesh: inward normals are detected");
+        // the mesh flips inward normals automatically
+        Mesh inward(t);
+        check(inward.valid() && Mesh::surfaceValidationError(inward.triangles()).empty(), "TriangulatedMesh: inward normals are flipped on construction");
+        const Particle p { .pos = { 0, 0, 0.5 }, .dir = { 0, 0, 1 }, .energy = 60, .weight = 1 };
+        check(inward.intersect(p).rayOriginIsInsideItem, "TriangulatedMesh: flipped mesh tracks particles inside");
+        Mesh viaSetData;
+        viaSetData.setData(t);
+        check(viaSetData.valid() && Mesh::surfaceValidationError(viaSetData.triangles()).empty(), "TriangulatedMesh: setData flips inward normals");
+    }
+    {
+        auto t = tris;
+        t.push_back(t[0]);
+        check(Mesh(t).validationError().find("not manifold") != std::string::npos, "TriangulatedMesh: duplicated triangle is detected");
+    }
+    check(Mesh(xraymctest::planeTriangles(1)).validationError().find("not closed") != std::string::npos, "TriangulatedMesh: open surface is not closed");
+}
+
 void testOpenSurface()
 {
     // A thin lead surface absorbs the same energy as a lead box of the same thickness
@@ -236,6 +373,8 @@ int main()
     testIntersections();
     testTransforms();
     testSTL();
+    testSTLMissingElements();
+    testSurfaceValidation();
     testOpenSurface();
     return xraymctest::summary("testtriangulatedmesh");
 }

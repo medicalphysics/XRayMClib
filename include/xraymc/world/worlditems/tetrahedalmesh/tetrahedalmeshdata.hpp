@@ -20,6 +20,8 @@ Copyright 2025 Erlend Andersen
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <cmath>
 #include <execution>
 #include <limits>
 #include <map>
@@ -52,41 +54,149 @@ struct TetrahedalMeshData {
 
     /**
      * @brief Returns the largest collection index present in collectionIndices.
-     * @return Maximum collection index value.
+     * @return Maximum collection index value, or 0 if there are no elements.
      */
-    auto maxCollectionNumber() const
+    std::uint32_t maxCollectionNumber() const
     {
+        if (collectionIndices.empty())
+            return 0;
         auto iter = std::max_element(std::execution::par_unseq, collectionIndices.cbegin(), collectionIndices.cend());
         return *iter;
     }
 
     /**
+     * @brief Returns the signed volume of an element times six.
+     *
+     * Positive for tetrahedra whose face normals point outwards (the orientation
+     * expected by TetrahedalMesh), negative for inverted tetrahedra and zero for
+     * degenerate (flat) tetrahedra.
+     * @param element Element index quad; all indices must be valid node indices.
+     */
+    double signedVolume6(const std::array<std::uint32_t, 4>& element) const
+    {
+        const auto& v0 = nodes[element[0]];
+        const auto& v1 = nodes[element[1]];
+        const auto& v2 = nodes[element[2]];
+        const auto& v3 = nodes[element[3]];
+        std::array<double, 3> a, b, c;
+        for (std::size_t i = 0; i < 3; ++i) {
+            a[i] = v1[i] - v0[i];
+            b[i] = v2[i] - v0[i];
+            c[i] = v3[i] - v0[i];
+        }
+        return a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+    }
+
+    /**
+     * @brief Returns true if an element has (numerically) zero volume.
+     *
+     * The test is scale invariant: the volume is compared to the cube of the longest edge.
+     * @param element Element index quad; all indices must be valid node indices.
+     */
+    bool isDegenerate(const std::array<std::uint32_t, 4>& element) const
+    {
+        double maxEdge2 = 0;
+        for (std::size_t i = 0; i < 4; ++i)
+            for (std::size_t j = i + 1; j < 4; ++j) {
+                double l2 = 0;
+                for (std::size_t k = 0; k < 3; ++k) {
+                    const auto d = nodes[element[i]][k] - nodes[element[j]][k];
+                    l2 += d * d;
+                }
+                maxEdge2 = std::max(maxEdge2, l2);
+            }
+        const auto maxEdge3 = maxEdge2 * std::sqrt(maxEdge2);
+        return !(std::abs(signedVolume6(element)) > 64 * std::numeric_limits<double>::epsilon() * maxEdge3);
+    }
+
+    /**
+     * @brief Swaps the first two vertices of every inverted tetrahedron so that all
+     *        face normals point outwards.
+     *
+     * Degenerate elements and elements with out-of-range node indices are left untouched.
+     * @return Number of elements that were reoriented.
+     */
+    std::size_t fixTetrahedronOrientation()
+    {
+        const auto n_nodes = nodes.size();
+        std::atomic<std::size_t> nFixed = 0;
+        std::for_each(std::execution::par_unseq, elements.begin(), elements.end(), [&](auto& e) {
+            for (const auto& p : e)
+                if (p >= n_nodes)
+                    return;
+            if (signedVolume6(e) < 0 && !isDegenerate(e)) {
+                std::swap(e[0], e[1]);
+                nFixed.fetch_add(1, std::memory_order_relaxed);
+            }
+        });
+        return nFixed.load();
+    }
+
+    /**
      * @brief Checks whether the mesh data is internally consistent.
      *
-     * Verifies that all element vertex indices are within the bounds of the nodes
-     * array, and that collectionDensities, collectionMaterialComposition, and
-     * collectionNames each have exactly maxCollectionNumber() + 1 entries.
-     * @return true if the data is valid and ready to use; false otherwise.
+     * Verifies that:
+     * - the mesh has nodes and elements, and every node coordinate is finite;
+     * - collectionIndices has one entry per element;
+     * - all element vertex indices are within the bounds of the nodes array, and the
+     *   four vertices of each element are distinct;
+     * - no element is degenerate (zero volume) or inverted (inward face normals,
+     *   see fixTetrahedronOrientation());
+     * - collectionDensities, collectionMaterialComposition and collectionNames each
+     *   have exactly maxCollectionNumber() + 1 entries.
+     * @return An empty string if the data is valid, otherwise a description of the first problem found.
+     */
+    std::string validationError() const
+    {
+        if (nodes.empty())
+            return "Mesh has no nodes";
+        if (elements.empty())
+            return "Mesh has no elements";
+        if (collectionIndices.size() != elements.size())
+            return "Number of collection indices (" + std::to_string(collectionIndices.size()) + ") differs from number of elements (" + std::to_string(elements.size()) + ")";
+
+        const auto nonFiniteNodes = std::count_if(std::execution::par_unseq, nodes.cbegin(), nodes.cend(), [](const auto& n) {
+            return !(std::isfinite(n[0]) && std::isfinite(n[1]) && std::isfinite(n[2]));
+        });
+        if (nonFiniteNodes > 0)
+            return std::to_string(nonFiniteNodes) + " node(s) have non-finite coordinates";
+
+        // test if element indices can index nodes
+        const auto n_nodes = nodes.size();
+        const auto outOfRange = std::count_if(std::execution::par_unseq, elements.cbegin(), elements.cend(), [n_nodes](const auto& e) {
+            return std::any_of(e.cbegin(), e.cend(), [n_nodes](const auto p) { return p >= n_nodes; });
+        });
+        if (outOfRange > 0)
+            return std::to_string(outOfRange) + " element(s) reference nodes that do not exist";
+
+        const auto repeated = std::count_if(std::execution::par_unseq, elements.cbegin(), elements.cend(), [](const auto& e) {
+            return e[0] == e[1] || e[0] == e[2] || e[0] == e[3] || e[1] == e[2] || e[1] == e[3] || e[2] == e[3];
+        });
+        if (repeated > 0)
+            return std::to_string(repeated) + " element(s) use the same node more than once";
+
+        const auto degenerate = std::count_if(std::execution::par_unseq, elements.cbegin(), elements.cend(), [this](const auto& e) { return isDegenerate(e); });
+        if (degenerate > 0)
+            return std::to_string(degenerate) + " element(s) are degenerate (zero volume)";
+
+        const auto inverted = std::count_if(std::execution::par_unseq, elements.cbegin(), elements.cend(), [this](const auto& e) { return signedVolume6(e) < 0; });
+        if (inverted > 0)
+            return std::to_string(inverted) + " element(s) are inverted (inward face normals), see fixTetrahedronOrientation()";
+
+        // test if collection indices is complete
+        const std::size_t max_idx = static_cast<std::size_t>(maxCollectionNumber()) + 1;
+        if (collectionDensities.size() != max_idx || collectionMaterialComposition.size() != max_idx || collectionNames.size() != max_idx)
+            return "Collection data is incomplete: expected " + std::to_string(max_idx) + " densities, material compositions and names";
+        return {};
+    }
+
+    /**
+     * @brief Checks whether the mesh data is internally consistent.
+     * @return true if validationError() finds no problems; false otherwise.
      */
     bool valid() const
     {
-        // test if element indices can index nodes
-        const auto n_nodes = nodes.size();
-        auto pos = std::find_if(std::execution::par_unseq, elements.cbegin(), elements.cend(), [n_nodes](const auto& e) {
-            bool v = true;
-            for (const auto& p : e)
-                v = v && p < n_nodes;
-            return !v;
-        });
-
-        bool val = elements.cend() == pos;
-
-        // test if collection indices is complete
-        const auto max_idx = maxCollectionNumber() + 1;
-        val = val && collectionDensities.size() == max_idx;
-        val = val && collectionMaterialComposition.size() == max_idx;
-        val = val && collectionNames.size() == max_idx;
-        return val;
+        return validationError().empty();
     }
 
     /**
