@@ -30,6 +30,7 @@ set(XRAYMCLIB_UNIT_TESTS
     "testworld.cpp"
     "testvisualization.cpp"
     "testcollision.cpp"
+    "testaafluencegrid.cpp"
 )
 
 set(XRAYMCLIB_TRANSPORT_TESTS

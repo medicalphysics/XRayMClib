@@ -133,6 +133,7 @@ set(HEADER_LIST
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/enclosedroom.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/fluencescore.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/aavoxelgrid.hpp"
+    "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/aafluencegrid.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldbox.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldboxgrid.hpp"
     "${xraymclib_SOURCE_DIR}/include/xraymc/world/worlditems/worldsphere.hpp"    
