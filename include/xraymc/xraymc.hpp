@@ -85,6 +85,7 @@ Copyright 2026 Erlend Andersen
 #include "xraymc/world/collision.hpp"
 #include "xraymc/world/visualization/visualizeworld.hpp"
 #include "xraymc/world/world.hpp"
+#include "xraymc/world/worlditems/aafluencegrid.hpp"
 #include "xraymc/world/worlditems/aavoxelgrid.hpp"
 #include "xraymc/world/worlditems/ctdiphantom.hpp"
 #include "xraymc/world/worlditems/depthdose.hpp"
