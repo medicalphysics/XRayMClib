@@ -173,7 +173,7 @@ namespace interactions {
             double cosAngle;
             do {
                 const auto q_squared = material.sampleSquaredMomentumTransferFromFormFactorSquared(qmax_squared, state);
-                cosAngle = 1 - 2 * q_squared / qmax_squared;
+                cosAngle = std::max(-1.0, 1 - 2 * q_squared / qmax_squared);
             } while ((1 + cosAngle * cosAngle) * 0.5 < state.randomUniform());
 
             const auto phi = state.randomUniform(PI_VAL() + PI_VAL());

@@ -23,6 +23,7 @@ Copyright 2022 Erlend Andersen
 
 #include <array>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <string>
 
@@ -230,8 +231,21 @@ void testPeturb()
 }
 
 template <Floating T>
+void testIsFinite()
+{
+    using L = std::numeric_limits<T>;
+    check(!isFinite(L::quiet_NaN()) && !isFinite(-L::quiet_NaN()), "isFinite rejects NaN" + tname<T>());
+    check(!isFinite(L::signaling_NaN()), "isFinite rejects signaling NaN" + tname<T>());
+    check(!isFinite(L::infinity()) && !isFinite(-L::infinity()), "isFinite rejects +-inf" + tname<T>());
+    check(isFinite(L::max()) && isFinite(L::lowest()), "isFinite accepts max and lowest" + tname<T>());
+    check(isFinite(L::denorm_min()) && isFinite(L::min()), "isFinite accepts subnormal and min" + tname<T>());
+    check(isFinite(T { 0 }) && isFinite(-T { 0 }) && isFinite(T { 1 }), "isFinite accepts zero and one" + tname<T>());
+}
+
+template <Floating T>
 void tests()
 {
+    testIsFinite<T>();
     testBasicArithmetic<T>();
     testCrossAndTriple<T>();
     testNormalize<T>();

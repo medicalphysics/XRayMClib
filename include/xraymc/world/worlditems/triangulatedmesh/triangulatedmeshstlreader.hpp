@@ -18,6 +18,7 @@ Copyright 2023 Erlend Andersen
 
 #pragma once
 
+#include "xraymc/floating.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/worlditems/triangulatedmesh/triangle.hpp"
 
@@ -161,13 +162,17 @@ protected:
         const auto& v = tri.vertices();
         for (const auto& p : v)
             for (const auto c : p)
-                if (!std::isfinite(c))
+                if (!isFinite(c))
                     return true;
         const auto e1 = vectormath::subtract(v[1], v[0]);
         const auto e2 = vectormath::subtract(v[2], v[0]);
         const auto e3 = vectormath::subtract(v[2], v[1]);
         const auto maxEdge2 = std::max({ vectormath::dot(e1, e1), vectormath::dot(e2, e2), vectormath::dot(e3, e3) });
         const auto crossLength = vectormath::length(vectormath::cross(e1, e2));
+        // huge but finite coordinates can overflow to inf here; test explicitly since
+        // fast math may assume the comparison below never sees inf or NaN
+        if (!isFinite(crossLength) || !isFinite(maxEdge2))
+            return true;
         return !(crossLength > 64 * std::numeric_limits<double>::epsilon() * maxEdge2);
     }
 

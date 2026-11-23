@@ -18,6 +18,7 @@ Copyright 2025 Erlend Andersen
 
 #pragma once
 
+#include "xraymc/floating.hpp"
 #include "xraymc/vectormath.hpp"
 #include "xraymc/world/worlditems/tetrahedalmesh/tetrahedalmeshdata.hpp"
 
@@ -992,7 +993,7 @@ protected:
             if (n < 4 || !parseToken(tokens[0], v.index))
                 return v;
             for (std::size_t i = 0; i < 3; ++i)
-                if (!parseToken(tokens[i + 1], v.pos[i]) || !std::isfinite(v.pos[i]))
+                if (!parseToken(tokens[i + 1], v.pos[i]) || !isFinite(v.pos[i]))
                     return v;
             v.status = LineStatus::Ok;
             return v;

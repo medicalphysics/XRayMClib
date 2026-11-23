@@ -29,6 +29,7 @@ Copyright 2025 Erlend Andersen
 #include <string>
 #include <vector>
 
+#include "xraymc/floating.hpp"
 #include "xraymc/world/basicshapes/tetrahedron.hpp"
 
 namespace xraymc {
@@ -156,7 +157,7 @@ struct TetrahedalMeshData {
             return "Number of collection indices (" + std::to_string(collectionIndices.size()) + ") differs from number of elements (" + std::to_string(elements.size()) + ")";
 
         const auto nonFiniteNodes = std::count_if(std::execution::par_unseq, nodes.cbegin(), nodes.cend(), [](const auto& n) {
-            return !(std::isfinite(n[0]) && std::isfinite(n[1]) && std::isfinite(n[2]));
+            return !(isFinite(n[0]) && isFinite(n[1]) && isFinite(n[2]));
         });
         if (nonFiniteNodes > 0)
             return std::to_string(nonFiniteNodes) + " node(s) have non-finite coordinates";
