@@ -29,9 +29,25 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set(XRAYMCLIB_GNU_LIKE ON)
 endif()
 
+# add_compile_options/add_link_options only reach targets in this directory. Flags that code using
+# the xraymc headers also needs are collected here as well, and set as INTERFACE options on
+# libxraymc so they propagate to consumers (FetchContent/add_subdirectory) linking libxraymc.
+set(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS "")
+set(XRAYMCLIB_INTERFACE_LINK_OPTIONS "")
+# Appends each flag to the list as its own element, only active in optimized configurations.
+# (A single genex holding several flags would be split apart at the ';' by list operations.)
+function(xraymclib_append_opt_flags LISTVAR)
+    set(RESULT ${${LISTVAR}})
+    foreach(FLAG IN LISTS ARGN)
+        list(APPEND RESULT "$<${XRAYMCLIB_OPT_CONFIG}:${FLAG}>")
+    endforeach()
+    set(${LISTVAR} ${RESULT} PARENT_SCOPE)
+endfunction()
+
 #MSVC fix for heavy templated code
 if(MSVC)
     add_compile_options(/bigobj)
+    list(APPEND XRAYMCLIB_INTERFACE_COMPILE_OPTIONS /bigobj)
 endif()
 
 # /MP: compile source files in parallel within one cl invocation. Only has an effect with the
@@ -84,6 +100,7 @@ if(XRAYMCLIB_USE_FAST_MATH)
     if(XRAYMCLIB_FAST_MATH_FLAGS)
         message(STATUS "Building with fast math flags: ${XRAYMCLIB_FAST_MATH_FLAGS}")
         add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_FAST_MATH_FLAGS}>")
+        xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS ${XRAYMCLIB_FAST_MATH_FLAGS})
     endif()
 endif()
 
@@ -94,15 +111,18 @@ if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
         set_property(CACHE XRAYMCLIB_MSVC_NATIVE_OPTION PROPERTY STRINGS SSE2 AVX AVX2 AVX512)
         message(STATUS "Building with /arch:${XRAYMCLIB_MSVC_NATIVE_OPTION} flag")
         add_compile_options("/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")
+        list(APPEND XRAYMCLIB_INTERFACE_COMPILE_OPTIONS "/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")
     elseif(XRAYMCLIB_GNU_LIKE)
         check_cxx_compiler_flag("-march=native" XRAYMCLIB_HAS_MARCH_NATIVE)
         check_cxx_compiler_flag("-mcpu=native" XRAYMCLIB_HAS_MCPU_NATIVE) # older Apple clang on arm64
         if(XRAYMCLIB_HAS_MARCH_NATIVE)
             message(STATUS "Building with -march=native flag")
             add_compile_options(-march=native)
+            list(APPEND XRAYMCLIB_INTERFACE_COMPILE_OPTIONS -march=native)
         elseif(XRAYMCLIB_HAS_MCPU_NATIVE)
             message(STATUS "Building with -mcpu=native flag")
             add_compile_options(-mcpu=native)
+            list(APPEND XRAYMCLIB_INTERFACE_COMPILE_OPTIONS -mcpu=native)
         endif()
     endif()
 endif()
@@ -111,6 +131,7 @@ if(MSVC)
     # /Ob3: more aggressive inlining than the Release default /Ob2
     # /Gw: put global data in separate sections so the linker can drop unused data
     add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
+    xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS /Ob3 /Gw)
 endif()
 
 # Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. 
@@ -121,8 +142,17 @@ if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
         message(STATUS "Building with link time optimization")
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+        # The IPO variables above do not reach consumers, pass the same flags CMake uses for IPO
+        # (compile: e.g. -flto=auto -fno-fat-lto-objects or /GL, link: the same or /LTCG)
+        set(XRAYMCLIB_IPO_LINK_FLAGS ${CMAKE_CXX_LINK_OPTIONS_IPO})
+        if(NOT XRAYMCLIB_IPO_LINK_FLAGS)
+            set(XRAYMCLIB_IPO_LINK_FLAGS ${CMAKE_CXX_COMPILE_OPTIONS_IPO})
+        endif()
+        xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS ${CMAKE_CXX_COMPILE_OPTIONS_IPO})
+        xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_LINK_OPTIONS ${XRAYMCLIB_IPO_LINK_FLAGS})
         if(MSVC)
             add_link_options("$<${XRAYMCLIB_OPT_CONFIG}:/CGTHREADS:8>")
+            xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_LINK_OPTIONS /CGTHREADS:8)
         endif()
     else()
         message(WARNING "Link time optimization not supported: ${XRAYMCLIB_IPO_ERROR}")
@@ -191,6 +221,8 @@ if(NOT XRAYMCLIB_PGO STREQUAL "OFF")
     message(STATUS "Profile guided optimization: ${XRAYMCLIB_PGO} (profile data in ${XRAYMCLIB_PGO_DIR})")
     add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_PGO_COMPILE_FLAGS}>")
     add_link_options("$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_PGO_LINK_FLAGS}>")
+    xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS ${XRAYMCLIB_PGO_COMPILE_FLAGS})
+    xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_LINK_OPTIONS ${XRAYMCLIB_PGO_LINK_FLAGS})
 endif()
 
 # Find packages go here.
@@ -319,6 +351,17 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         message(STATUS "TBB not found, std::execution parallel algorithms run serially")
     endif()
 endif()
+
+# Performance flags collected above (fast math, native arch, LTO, PGO, ...) for consumers.
+# With PGO the consumer must also be instrumented and linked with the profiling runtime, otherwise
+# linking against the instrumented helper libraries fails (undefined __gcov_* symbols).
+# BUILD_INTERFACE: host specific flags and absolute profile paths are not exported on install.
+foreach(XRAYMCLIB_OPT IN LISTS XRAYMCLIB_INTERFACE_COMPILE_OPTIONS)
+    target_compile_options(libxraymc INTERFACE "$<BUILD_INTERFACE:${XRAYMCLIB_OPT}>")
+endforeach()
+foreach(XRAYMCLIB_OPT IN LISTS XRAYMCLIB_INTERFACE_LINK_OPTIONS)
+    target_link_options(libxraymc INTERFACE "$<BUILD_INTERFACE:${XRAYMCLIB_OPT}>")
+endforeach()
 
 # Must use GNUInstallDirs to install libraries into correct
 # locations on all platforms.
