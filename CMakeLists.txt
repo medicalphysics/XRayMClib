@@ -42,12 +42,13 @@ endif()
 
 # Static C runtime (/MT) instead of the DLL runtime (/MD): calls into the CRT (exp, log, sin, ...)
 # become direct calls instead of going through DLL import stubs. Every library linked into the
-# same executable must use the same runtime, including libraries built by this project (such as
-# lodepng) when it is used as a subproject.
-option(XRAYMCLIB_MSVC_STATIC_RUNTIME "Link the MSVC C runtime statically (/MT)" OFF)
-if(MSVC AND XRAYMCLIB_MSVC_STATIC_RUNTIME)
-    message(STATUS "Building with static MSVC runtime")
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# same executable must use the same runtime, including libraries built by this project.
+if(MSVC)    
+    option(XRAYMCLIB_MSVC_STATIC_RUNTIME "Link the MSVC C runtime statically (/MT)" OFF)
+    if(XRAYMCLIB_MSVC_STATIC_RUNTIME)
+        message(STATUS "Building with static MSVC runtime")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
 endif()
 
 option(XRAYMCLIB_USE_FAST_MATH "Build with fast floating point math" ON)
@@ -109,7 +110,7 @@ if(MSVC)
 endif()
 
 # Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. 
-option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with link time optimization" OFF)
+option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with link time optimization" ON)
 if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
     check_ipo_supported(RESULT XRAYMCLIB_IPO_SUPPORTED OUTPUT XRAYMCLIB_IPO_ERROR)
     if(XRAYMCLIB_IPO_SUPPORTED)
