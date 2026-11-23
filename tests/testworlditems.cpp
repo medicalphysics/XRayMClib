@@ -142,7 +142,7 @@ void testItem(U item, const std::string& name, ItemOptions opt = {})
     transport.setNumberOfThreads(2);
     transport(world, beam, nullptr, false);
     const auto energy = totalEnergy(witem, opt.scoringIndices);
-    check(energy >= 0 && std::isfinite(energy), name + ": energy scored is finite and non-negative");
+    check(energy >= 0 && xraymc::isFinite(energy), name + ": energy scored is finite and non-negative");
     if (opt.scoresEnergy)
         check(energy > 0, name + ": energy is scored for beam through item");
     check(energy <= 60.0 * beam.numberOfParticles(), name + ": energy scored does not exceed beam energy");
@@ -150,7 +150,7 @@ void testItem(U item, const std::string& name, ItemOptions opt = {})
     witem.addEnergyScoredToDoseScore(1.0);
     bool doseOk = true;
     for (std::size_t i = 0; i < opt.scoringIndices; ++i)
-        doseOk = doseOk && witem.doseScored(i).dose() >= 0 && std::isfinite(witem.doseScored(i).dose());
+        doseOk = doseOk && witem.doseScored(i).dose() >= 0 && xraymc::isFinite(witem.doseScored(i).dose());
     check(doseOk, name + ": dose is finite and non-negative");
 
     // Serialization round trip preserves geometry and scored dose

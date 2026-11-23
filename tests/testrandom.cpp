@@ -146,7 +146,7 @@ void testUniformUpperEdge()
     {
         xraymc::RandomState state(zeroSeed);
         const auto [a, b] = state.randomNormal();
-        check(std::isfinite(a) && std::isfinite(b), "randomNormal() is finite for zero generator output" + tname<T>());
+        check(xraymc::isFinite(a) && xraymc::isFinite(b), "randomNormal() is finite for zero generator output" + tname<T>());
     }
 }
 

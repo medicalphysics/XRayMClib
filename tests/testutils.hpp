@@ -24,6 +24,7 @@ Copyright 2026 Erlend Andersen
 // counted globally. A test executable ends with `return xraymctest::summary("name");`
 // which prints a summary and returns EXIT_SUCCESS only if no check failed.
 
+#include "xraymc/floating.hpp"
 #include "xraymc/xraymcrandom.hpp"
 
 #include <array>
@@ -105,7 +106,7 @@ inline bool checkVectorNear(const std::array<double, 3>& value, const std::array
 inline bool checkStatisticallyEqual(double a, double sa, double b, double sb, double z, std::string_view name)
 {
     const auto s = std::sqrt(sa * sa + sb * sb);
-    const auto t = s > 0 ? std::abs(a - b) / s : (a == b ? 0.0 : std::numeric_limits<double>::infinity());
+    const auto t = s > 0 ? std::abs(a - b) / s : (a == b ? 0.0 : std::numeric_limits<double>::max());
     std::ostringstream d;
     d.precision(6);
     d << a << " +/- " << sa << " vs " << b << " +/- " << sb << ", z = " << t << " (limit " << z << ")";

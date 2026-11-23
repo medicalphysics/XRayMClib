@@ -69,7 +69,7 @@ void checkBeamParticles(const B& beam, const std::string& name, double emin, dou
             const auto p = exp.sampleParticle(state);
             unit = unit && std::abs(vm::length(p.dir) - 1) < 1E-9;
             energy = energy && p.energy >= emin && p.energy <= emax;
-            weight = weight && p.weight > 0 && std::isfinite(p.weight);
+            weight = weight && p.weight > 0 && xraymc::isFinite(p.weight);
             if (geometry) {
                 Particle q { .pos = p.pos, .dir = p.dir, .energy = p.energy, .weight = p.weight };
                 geom = geom && geometry(i, q);
@@ -83,7 +83,7 @@ void checkBeamParticles(const B& beam, const std::string& name, double emin, dou
     if (geometry)
         check(geom, name + ": particle geometry within beam definition");
     const auto cal = beam.calibrationFactor();
-    check(cal > 0 && std::isfinite(cal), name + ": calibration factor positive and finite");
+    check(cal > 0 && xraymc::isFinite(cal), name + ": calibration factor positive and finite");
 }
 
 // Angles of direction d projected on the two direction cosines relative to the central direction

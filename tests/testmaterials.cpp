@@ -306,7 +306,7 @@ void testAttenuationProperties()
     const auto lead5 = xraymc::Material<5>::byZ(82).value();
     bool finite = true;
     for (std::size_t i = 0; i <= 5; ++i)
-        finite = finite && std::isfinite(lead5.attenuationPhotoelectricShell(static_cast<std::uint8_t>(i), 60.0));
+        finite = finite && xraymc::isFinite(lead5.attenuationPhotoelectricShell(static_cast<std::uint8_t>(i), 60.0));
     check(finite, "Lead with 5 shells: all shell cross sections finite including remainder");
     checkRelative(lead5.massEnergyTransferAttenuation(60), lead.massEnergyTransferAttenuation(60), 1E-3, "Lead: energy transfer independent of number of explicit shells");
 }

@@ -53,8 +53,9 @@ endif()
 
 option(XRAYMCLIB_USE_FAST_MATH "Build with fast floating point math" ON)
 if(XRAYMCLIB_USE_FAST_MATH)
-    # The individual parts of -ffast-math, except -ffinite-math-only: some code relies on
-    # inf/NaN propagating correctly (clamping of inf, NaN-aware comparisons).
+    # The individual parts of -ffast-math.
+    #   -ffinite-math-only : assume no inf/NaN; code that may meet them must test explicitly
+    #                        (xraymc::isFinite inspects the bits and is not optimized away)
     #   -fno-math-errno    : inline sqrt, allows vectorized log/exp/sin/cos
     #   -fno-trapping-math : FP operations are assumed not to trap
     #   -fno-signed-zeros  : -0.0 and +0.0 may be treated alike (required by -fassociative-math)
@@ -62,6 +63,7 @@ if(XRAYMCLIB_USE_FAST_MATH)
     #   -freciprocal-math  : x / y may become x * (1 / y)
     #   -ffp-contract=fast : fuse multiply-add into FMA instructions
     set(XRAYMCLIB_FAST_MATH_GNU_FLAGS
+        -ffinite-math-only
         -fno-math-errno
         -fno-trapping-math
         -fno-signed-zeros
@@ -70,9 +72,11 @@ if(XRAYMCLIB_USE_FAST_MATH)
         -ffp-contract=fast
     )
     if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        # clang-cl maps /fp:fast to full -ffast-math including -ffinite-math-only, pass the parts instead
+        # clang-cl: pass the same parts as GCC/Clang so all clang front ends build alike
         list(TRANSFORM XRAYMCLIB_FAST_MATH_GNU_FLAGS PREPEND "/clang:" OUTPUT_VARIABLE XRAYMCLIB_FAST_MATH_FLAGS)
     elseif(MSVC)
+        # MSVC has no separate finite-math switch, /fp:fast already lets the optimizer
+        # assume that inf/NaN do not occur
         set(XRAYMCLIB_FAST_MATH_FLAGS /fp:fast)
     elseif(XRAYMCLIB_GNU_LIKE)
         set(XRAYMCLIB_FAST_MATH_FLAGS ${XRAYMCLIB_FAST_MATH_GNU_FLAGS})
