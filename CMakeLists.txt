@@ -34,15 +34,51 @@ if(MSVC)
     add_compile_options(/bigobj)
 endif()
 
+# /MP: compile source files in parallel within one cl invocation. Only has an effect with the
+# Visual Studio generators, Ninja and Makefiles already run one compiler process per file.
+if(MSVC AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(/MP)
+endif()
+
+# Static C runtime (/MT) instead of the DLL runtime (/MD): calls into the CRT (exp, log, sin, ...)
+# become direct calls instead of going through DLL import stubs. Every library linked into the
+# same executable must use the same runtime, including libraries built by this project (such as
+# lodepng) when it is used as a subproject.
+option(XRAYMCLIB_MSVC_STATIC_RUNTIME "Link the MSVC C runtime statically (/MT)" OFF)
+if(MSVC AND XRAYMCLIB_MSVC_STATIC_RUNTIME)
+    message(STATUS "Building with static MSVC runtime")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 option(XRAYMCLIB_USE_FAST_MATH "Build with fast floating point math" ON)
 if(XRAYMCLIB_USE_FAST_MATH)
-    if(MSVC)
-        message(STATUS "Building with /fp:fast flag")
-        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/fp:fast>")
+    # The individual parts of -ffast-math, except -ffinite-math-only: some code relies on
+    # inf/NaN propagating correctly (clamping of inf, NaN-aware comparisons).
+    #   -fno-math-errno    : inline sqrt, allows vectorized log/exp/sin/cos
+    #   -fno-trapping-math : FP operations are assumed not to trap
+    #   -fno-signed-zeros  : -0.0 and +0.0 may be treated alike (required by -fassociative-math)
+    #   -fassociative-math : reordering of sums, enables vectorized reductions
+    #   -freciprocal-math  : x / y may become x * (1 / y)
+    #   -ffp-contract=fast : fuse multiply-add into FMA instructions
+    set(XRAYMCLIB_FAST_MATH_GNU_FLAGS
+        -fno-math-errno
+        -fno-trapping-math
+        -fno-signed-zeros
+        -fassociative-math
+        -freciprocal-math
+        -ffp-contract=fast
+    )
+    if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        # clang-cl maps /fp:fast to full -ffast-math including -ffinite-math-only, pass the parts instead
+        list(TRANSFORM XRAYMCLIB_FAST_MATH_GNU_FLAGS PREPEND "/clang:" OUTPUT_VARIABLE XRAYMCLIB_FAST_MATH_FLAGS)
+    elseif(MSVC)
+        set(XRAYMCLIB_FAST_MATH_FLAGS /fp:fast)
     elseif(XRAYMCLIB_GNU_LIKE)
-        # keep NaN/inf semantics so std::isfinite checks in mesh readers still work
-        message(STATUS "Building with -ffast-math -fno-finite-math-only flags")
-        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:-ffast-math;-fno-finite-math-only>")
+        set(XRAYMCLIB_FAST_MATH_FLAGS ${XRAYMCLIB_FAST_MATH_GNU_FLAGS})
+    endif()
+    if(XRAYMCLIB_FAST_MATH_FLAGS)
+        message(STATUS "Building with fast math flags: ${XRAYMCLIB_FAST_MATH_FLAGS}")
+        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_FAST_MATH_FLAGS}>")
     endif()
 endif()
 
@@ -72,8 +108,7 @@ if(MSVC)
     add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
 endif()
 
-# Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. Each test and example is a
-# single translation unit of a header-only library, so the gain is usually small and link time grows a lot.
+# Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. 
 option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with link time optimization" OFF)
 if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
     check_ipo_supported(RESULT XRAYMCLIB_IPO_SUPPORTED OUTPUT XRAYMCLIB_IPO_ERROR)
@@ -88,6 +123,71 @@ if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
         message(WARNING "Link time optimization not supported: ${XRAYMCLIB_IPO_ERROR}")
     endif()
 endif()
+
+# Profile guided optimization, a two step build in the same build directory:
+#   1. configure with -DXRAYMCLIB_PGO=GENERATE, build, then run the programs on representative
+#      workloads (the pgo-train target runs the test suite)
+#   2. reconfigure with -DXRAYMCLIB_PGO=USE and rebuild
+# Each executable is optimized from its own profile, so only programs that were run benefit.
+set(XRAYMCLIB_PGO "OFF" CACHE STRING "Profile guided optimization: OFF, GENERATE (instrumented build) or USE (optimize from profile)")
+set_property(CACHE XRAYMCLIB_PGO PROPERTY STRINGS OFF GENERATE USE)
+set(XRAYMCLIB_PGO_DIR "${CMAKE_BINARY_DIR}/pgo" CACHE PATH "Directory for profile guided optimization data")
+if(NOT XRAYMCLIB_PGO STREQUAL "OFF")
+    if(NOT XRAYMCLIB_PGO MATCHES "^(GENERATE|USE)$")
+        message(FATAL_ERROR "XRAYMCLIB_PGO must be OFF, GENERATE or USE, not '${XRAYMCLIB_PGO}'")
+    endif()
+    set(XRAYMCLIB_PGO_COMPILE_FLAGS "")
+    set(XRAYMCLIB_PGO_LINK_FLAGS "")
+    if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR "XRAYMCLIB_PGO is not supported with clang-cl")
+    elseif(MSVC)
+        # The .pgd file is written next to each executable, .pgc files from training runs are merged at link time.
+        # /GENPROFILE:EXACT uses thread safe counters since transport is multithreaded.
+        set(XRAYMCLIB_PGO_COMPILE_FLAGS /GL)
+        if(XRAYMCLIB_PGO STREQUAL "GENERATE")
+            set(XRAYMCLIB_PGO_LINK_FLAGS /LTCG /GENPROFILE:EXACT)
+        else()
+            set(XRAYMCLIB_PGO_LINK_FLAGS /LTCG /USEPROFILE)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if(XRAYMCLIB_PGO STREQUAL "GENERATE")
+            # atomic counter updates since transport is multithreaded
+            set(XRAYMCLIB_PGO_COMPILE_FLAGS -fprofile-generate=${XRAYMCLIB_PGO_DIR} -fprofile-update=atomic)
+            set(XRAYMCLIB_PGO_LINK_FLAGS ${XRAYMCLIB_PGO_COMPILE_FLAGS})
+        else()
+            # code not run in training is optimized as usual instead of for size,
+            # and a profile from slightly different sources is a warning instead of an error
+            set(XRAYMCLIB_PGO_COMPILE_FLAGS -fprofile-use=${XRAYMCLIB_PGO_DIR} -fprofile-partial-training
+                -Wno-missing-profile -Wno-error=coverage-mismatch)
+            set(XRAYMCLIB_PGO_LINK_FLAGS -fprofile-use=${XRAYMCLIB_PGO_DIR})
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        # raw profiles must be merged with llvm-profdata before use, the pgo-train target does this
+        get_filename_component(XRAYMCLIB_CXX_COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        string(REGEX MATCH "^[0-9]+" XRAYMCLIB_CLANG_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
+        find_program(XRAYMCLIB_LLVM_PROFDATA NAMES llvm-profdata-${XRAYMCLIB_CLANG_MAJOR} llvm-profdata
+            HINTS "${XRAYMCLIB_CXX_COMPILER_DIR}"
+            DOC "llvm-profdata used to merge raw profiles")
+        set(XRAYMCLIB_PGO_PROFDATA "${XRAYMCLIB_PGO_DIR}/default.profdata")
+        if(XRAYMCLIB_PGO STREQUAL "GENERATE")
+            set(XRAYMCLIB_PGO_COMPILE_FLAGS -fprofile-generate=${XRAYMCLIB_PGO_DIR} -fprofile-update=atomic)
+            set(XRAYMCLIB_PGO_LINK_FLAGS ${XRAYMCLIB_PGO_COMPILE_FLAGS})
+        else()
+            if(NOT EXISTS "${XRAYMCLIB_PGO_PROFDATA}")
+                message(WARNING "No merged profile at ${XRAYMCLIB_PGO_PROFDATA}, build and run pgo-train with XRAYMCLIB_PGO=GENERATE first")
+            endif()
+            set(XRAYMCLIB_PGO_COMPILE_FLAGS -fprofile-use=${XRAYMCLIB_PGO_PROFDATA}
+                -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date -Wno-backend-plugin)
+            set(XRAYMCLIB_PGO_LINK_FLAGS -fprofile-use=${XRAYMCLIB_PGO_PROFDATA})
+        endif()
+    else()
+        message(FATAL_ERROR "XRAYMCLIB_PGO is not supported for compiler ${CMAKE_CXX_COMPILER_ID}")
+    endif()
+    message(STATUS "Profile guided optimization: ${XRAYMCLIB_PGO} (profile data in ${XRAYMCLIB_PGO_DIR})")
+    add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_PGO_COMPILE_FLAGS}>")
+    add_link_options("$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_PGO_LINK_FLAGS}>")
+endif()
+
 # Find packages go here.
 find_package(Threads REQUIRED) # for threading support
 
@@ -237,6 +337,35 @@ if(BUILD_TESTING OR CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # enable_testing must be called from the top level directory for ctest to find the tests from the build root
     enable_testing()
     add_subdirectory(tests)
+
+    if(XRAYMCLIB_PGO STREQUAL "GENERATE")
+        # Runs the test suite with the instrumented build to collect profiles
+        set(XRAYMCLIB_PGO_TRAIN_COMMANDS
+            COMMAND "${CMAKE_CTEST_COMMAND}" -C $<CONFIG> --output-on-failure)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MSVC)
+            if(NOT XRAYMCLIB_LLVM_PROFDATA)
+                message(FATAL_ERROR "llvm-profdata is required for XRAYMCLIB_PGO with Clang, set XRAYMCLIB_LLVM_PROFDATA")
+            endif()
+            # merge every raw profile in the directory, a shell glob is not portable so let CMake expand it
+            list(APPEND XRAYMCLIB_PGO_TRAIN_COMMANDS
+                COMMAND "${CMAKE_COMMAND}" -DPROFDATA=${XRAYMCLIB_LLVM_PROFDATA} -DPGO_DIR=${XRAYMCLIB_PGO_DIR}
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/MergeClangProfiles.cmake")
+        endif()
+        add_custom_target(pgo-train
+            ${XRAYMCLIB_PGO_TRAIN_COMMANDS}
+            WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+            COMMENT "Collecting profiles for profile guided optimization"
+            USES_TERMINAL
+            VERBATIM)
+    endif()
+endif()
+
+if(NOT XRAYMCLIB_PGO STREQUAL "OFF")
+    # Removes collected profiles, counts from earlier training runs are otherwise accumulated
+    add_custom_target(pgo-clean
+        COMMAND "${CMAKE_COMMAND}" -E rm -rf "${XRAYMCLIB_PGO_DIR}"
+        COMMENT "Removing profile data in ${XRAYMCLIB_PGO_DIR}"
+        VERBATIM)
 endif()
 
 # Validation
