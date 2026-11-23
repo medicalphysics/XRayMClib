@@ -249,7 +249,10 @@ void testBeam(const B& beam, const std::string& name, bool compareCalibration = 
         auto s2 = xraymctest::seededState(e + 1);
         const auto ea = beam.exposure(e);
         const auto eb = copy.exposure(e);
-        same = same && ea.position() == eb.position() && ea.numberOfParticles() == eb.numberOfParticles();
+        same = same && ea.numberOfParticles() == eb.numberOfParticles();
+        // with /fp:fast or -ffast-math rounding may differ between inlined copies of the same computation
+        for (std::size_t k = 0; k < 3; ++k)
+            same = same && std::abs(ea.position()[k] - eb.position()[k]) < 1E-12;
         for (int i = 0; i < 100; ++i) {
             const auto pa = ea.sampleParticle(s1);
             const auto pb = eb.sampleParticle(s2);

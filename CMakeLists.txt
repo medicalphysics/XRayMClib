@@ -10,64 +10,82 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
-#Function for adding extra compiler flags if available
+# Single-config generators (Ninja, Makefiles) otherwise build without any optimization
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    message(STATUS "No build type selected, defaulting to Release")
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 include(CheckCXXCompilerFlag)
-function(enable_cxx_compiler_flag_if_supported flag)
-    string(FIND "${CMAKE_CXX_FLAGS}" "${flag}" flag_already_set)
-    if(flag_already_set EQUAL -1)
-        check_cxx_compiler_flag("${flag}" flag_supported)
-        if(flag_supported)
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}" PARENT_SCOPE)
-        endif()
-        unset(flag_supported CACHE)
-    endif()
-endfunction()
-# We want to add extra compiler warnings if supported
-#enable_cxx_compiler_flag_if_supported("-Wall")
-#enable_cxx_compiler_flag_if_supported("-Wextra")
-#enable_cxx_compiler_flag_if_supported("-pedantic")
+include(CheckIPOSupported)
+
+
+# Optimization flags only apply to optimized configurations
+set(XRAYMCLIB_OPT_CONFIG "$<CONFIG:Release,RelWithDebInfo>")
+
+if(MSVC) # cl and clang-cl
+    set(XRAYMCLIB_GNU_LIKE OFF)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(XRAYMCLIB_GNU_LIKE ON)
+endif()
 
 #MSVC fix for heavy templated code
-if(MSVC)        
-    MESSAGE("-- Building with /bigobj flag")
-    enable_cxx_compiler_flag_if_supported("/bigobj")  
+if(MSVC)
+    add_compile_options(/bigobj)
 endif()
 
-option(XRAYMCLIB_USE_FAST_MATH "Build with -fast-math or /fp:fast" ON)
+option(XRAYMCLIB_USE_FAST_MATH "Build with fast floating point math" ON)
 if(XRAYMCLIB_USE_FAST_MATH)
-    if(MSVC)        
-        MESSAGE("-- Building with /fp:fast flag")
-        enable_cxx_compiler_flag_if_supported("/fp:fast")  
-    endif()
-    if(UNIX)
-        MESSAGE("-- Building with -ffast-math flag")
-        enable_cxx_compiler_flag_if_supported("-ffast-math")  
+    if(MSVC)
+        message(STATUS "Building with /fp:fast flag")
+        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/fp:fast>")
+    elseif(XRAYMCLIB_GNU_LIKE)
+        # keep NaN/inf semantics so std::isfinite checks in mesh readers still work
+        message(STATUS "Building with -ffast-math -fno-finite-math-only flags")
+        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:-ffast-math;-fno-finite-math-only>")
     endif()
 endif()
 
-option(XRAYMCLIB_OPTIMIZE_FOR_NATIVE "Build with -march=native on gcc/clang or AVX_x on MSVC " ON)
+option(XRAYMCLIB_OPTIMIZE_FOR_NATIVE "Build for the host CPU (-march=native or /arch:X on MSVC), binaries may not run on other machines" ON)
 if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
     if(MSVC)
         set(XRAYMCLIB_MSVC_NATIVE_OPTION "AVX2" CACHE STRING "Machine instructions support")
         set_property(CACHE XRAYMCLIB_MSVC_NATIVE_OPTION PROPERTY STRINGS SSE2 AVX AVX2 AVX512)
-        MESSAGE("-- Building with /arch:${XRAYMCLIB_MSVC_NATIVE_OPTION} flag")
-        enable_cxx_compiler_flag_if_supported("/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")          
-    endif()
-    if(UNIX)
-        MESSAGE("-- Building with -march=native flag")
-        enable_cxx_compiler_flag_if_supported("-march=native")  
+        message(STATUS "Building with /arch:${XRAYMCLIB_MSVC_NATIVE_OPTION} flag")
+        add_compile_options("/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")
+    elseif(XRAYMCLIB_GNU_LIKE)
+        check_cxx_compiler_flag("-march=native" XRAYMCLIB_HAS_MARCH_NATIVE)
+        check_cxx_compiler_flag("-mcpu=native" XRAYMCLIB_HAS_MCPU_NATIVE) # older Apple clang on arm64
+        if(XRAYMCLIB_HAS_MARCH_NATIVE)
+            message(STATUS "Building with -march=native flag")
+            add_compile_options(-march=native)
+        elseif(XRAYMCLIB_HAS_MCPU_NATIVE)
+            message(STATUS "Building with -mcpu=native flag")
+            add_compile_options(-mcpu=native)
+        endif()
     endif()
 endif()
 
 if(MSVC)
-    option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with /GL flag" ON)
-    if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
-        MESSAGE("-- Building with /GL flag")
-        enable_cxx_compiler_flag_if_supported("/GL")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
-        list(REMOVE_ITEM CMAKE_EXE_LINKER_FLAGS "/INCREMENTAL")
-        enable_cxx_compiler_flag_if_supported("/Gw")  
-        enable_cxx_compiler_flag_if_supported("/cgthreads8")  
+    # /Ob3: more aggressive inlining than the Release default /Ob2
+    # /Gw: put global data in separate sections so the linker can drop unused data
+    add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
+endif()
+
+# Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. Each test and example is a
+# single translation unit of a header-only library, so the gain is usually small and link time grows a lot.
+option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with link time optimization" OFF)
+if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION)
+    check_ipo_supported(RESULT XRAYMCLIB_IPO_SUPPORTED OUTPUT XRAYMCLIB_IPO_ERROR)
+    if(XRAYMCLIB_IPO_SUPPORTED)
+        message(STATUS "Building with link time optimization")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+        if(MSVC)
+            add_link_options("$<${XRAYMCLIB_OPT_CONFIG}:/CGTHREADS:8>")
+        endif()
+    else()
+        message(WARNING "Link time optimization not supported: ${XRAYMCLIB_IPO_ERROR}")
     endif()
 endif()
 # Find packages go here.
@@ -186,6 +204,16 @@ target_include_directories(
 target_link_libraries(libxraymc INTERFACE 
     Threads::Threads # Not needed on all platforms, but doesn't hurt
     )
+
+# libstdc++ runs std::execution::par algorithms in parallel only with TBB
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    find_package(TBB QUIET)
+    if(TBB_FOUND)
+        target_link_libraries(libxraymc INTERFACE TBB::tbb)
+    else()
+        message(STATUS "TBB not found, std::execution parallel algorithms run serially")
+    endif()
+endif()
 
 # Must use GNUInstallDirs to install libraries into correct
 # locations on all platforms.
