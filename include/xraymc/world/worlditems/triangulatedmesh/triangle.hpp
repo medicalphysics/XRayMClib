@@ -247,13 +247,21 @@ public:
         const auto E2 = vectormath::subtract(v2, v0);
         const auto P = vectormath::cross(p.dir, E2);
 
-        const auto det_inv = 1 / vectormath::dot(P, E1);
+        const auto det = vectormath::dot(P, E1);
+        // Barycentric tests are done on det-scaled coordinates so a ray parallel to the
+        // triangle (det == 0) is rejected explicitly, instead of relying on 1/0 producing
+        // inf/NaN that makes the comparisons false (not guaranteed under finite math).
+        // If det < 0 the scaled coordinates have flipped sign, so flip them back.
+        const auto sign = det < 0 ? -1.0 : 1.0;
+        const auto det_abs = det * sign;
+        if (!(det_abs > 0))
+            return std::nullopt;
 
-        const auto v = vectormath::dot(Q, p.dir) * det_inv;
-        const auto u = vectormath::dot(P, TT) * det_inv;
+        const auto v = vectormath::dot(Q, p.dir) * sign;
+        const auto u = vectormath::dot(P, TT) * sign;
 
-        return v >= 0 && u >= 0 && (u + v) <= 1 ? std::make_optional(vectormath::dot(Q, E2) * det_inv)
-                                                : std::nullopt;
+        return v >= 0 && u >= 0 && (u + v) <= det_abs ? std::make_optional(vectormath::dot(Q, E2) / det)
+                                                      : std::nullopt;
     }
 
 private:

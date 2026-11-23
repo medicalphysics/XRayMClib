@@ -243,7 +243,7 @@ public:
                 attSumInv = 1 / (att.sum() * m_materialDensity);
                 updateAtt = false;
             }
-            const auto stepLen = -std::log(state.randomUniform()) * attSumInv; // cm
+            const auto stepLen = -std::log(1 - state.randomUniform()) * attSumInv; // cm
             const auto intLen = intersect(p);
 
             if (stepLen < intLen.intersection) {

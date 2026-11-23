@@ -335,7 +335,7 @@ public:
 
                 const auto att = m_material.attenuationValues(p.energy);
                 const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
-                const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+                const auto stepLen = -std::log(1 - state.randomUniform()) * attSumInv;
                 if (stepLen > lenght) {
                     p.border_translate(lenght);
                     inside = false;
@@ -354,7 +354,7 @@ public:
 
                 const auto att = m_material.attenuationValues(p.energy);
                 const auto attSumInv = 1.0 / (att.sum() * m_materialDensity);
-                const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+                const auto stepLen = -std::log(1 - state.randomUniform()) * attSumInv;
                 if (stepLen > lenght) {
                     p.border_translate(lenght);
                     inside = false;

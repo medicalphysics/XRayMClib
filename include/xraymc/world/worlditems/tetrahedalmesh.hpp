@@ -875,7 +875,7 @@ protected:
             }
             const auto [borderlen, nextTetIdx] = nextTetrahedron(currentTetIdx, particle);
             const auto attSum = attenuation.sum();
-            const auto steplen = -std::log(state.randomUniform()) / (attSum * m_collectionDensities[collIdx]);
+            const auto steplen = -std::log(1 - state.randomUniform()) / (attSum * m_collectionDensities[collIdx]);
 
             if constexpr (FORCEDINTERACTION) {
                 // Forced photoelectric effect

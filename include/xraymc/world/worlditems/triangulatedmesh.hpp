@@ -506,7 +506,7 @@ public:
             }
 
             const auto intM = intersect(p);
-            const auto stepLen = -std::log(state.randomUniform()) * attSumInv;
+            const auto stepLen = -std::log(1 - state.randomUniform()) * attSumInv;
             if (intM.intersection < stepLen) {
                 // transport to edge
                 p.border_translate(intM.intersection);

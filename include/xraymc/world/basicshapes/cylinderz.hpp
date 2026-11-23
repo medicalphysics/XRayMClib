@@ -328,15 +328,22 @@ namespace basicshape {
                 return std::nullopt;
             }
 
-            const auto tz1 = (center[2] + half_height - p.pos[2]) / p.dir[2];
-            const auto tz2 = (center[2] - half_height - p.pos[2]) / p.dir[2];
-
-            const auto tz_min = tz1 < tz2 ? tz1 : tz2;
-            const auto tz_max = tz1 < tz2 ? tz2 : tz1;
             auto& t = t_cand.value();
 
-            t[0] = std::max(t[0], tz_min);
-            t[1] = std::min(t[1], tz_max);
+            if (std::abs(p.dir[2]) > std::numeric_limits<double>::epsilon()) {
+                const auto tz1 = (center[2] + half_height - p.pos[2]) / p.dir[2];
+                const auto tz2 = (center[2] - half_height - p.pos[2]) / p.dir[2];
+
+                const auto tz_min = tz1 < tz2 ? tz1 : tz2;
+                const auto tz_max = tz1 < tz2 ? tz2 : tz1;
+
+                t[0] = std::max(t[0], tz_min);
+                t[1] = std::min(t[1], tz_max);
+            } else if (p.pos[2] < center[2] - half_height || p.pos[2] > center[2] + half_height) {
+                // ray is parallel to the end caps and outside the z-slab; explicit test instead of
+                // relying on division by zero producing inf/NaN (not guaranteed under finite math)
+                return std::nullopt;
+            }
             if (t[0] < 0)
                 t[0] = 0;
             if (t[0] < t[1])

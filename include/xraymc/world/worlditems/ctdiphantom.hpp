@@ -248,7 +248,7 @@ public:
                 attSumInv = 1 / (att.sum() * m_pmma_density);
                 updateAtt = false;
             }
-            const auto stepLen = -std::log(state.randomUniform()) * attSumInv; // cm
+            const auto stepLen = -std::log(1 - state.randomUniform()) * attSumInv; // cm
             const auto intCTDI = intersect(p); // this can not be nullopt
             const auto intLen = intCTDI.intersection;
             const std::array<double, 2> tbox { 0.0, intLen };
@@ -265,7 +265,7 @@ public:
                         cont = intRes.particleAlive;
                     } else {
                         const auto airAtt = m_air.attenuationValues(p.energy);
-                        const auto airStepLen = -std::log(state.randomUniform()) / (airAtt.sum() * m_air_density);
+                        const auto airStepLen = -std::log(1 - state.randomUniform()) / (airAtt.sum() * m_air_density);
                         if (airStepLen < intHoles.intersection) {
                             // interaction happens inside the hole
                             p.translate(airStepLen);

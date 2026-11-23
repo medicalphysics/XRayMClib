@@ -962,7 +962,7 @@ protected:
                 attMaxInv = 1 / maxAttenuationValue(p.energy);
                 updateAtt = false;
             }
-            const auto steplen = -std::log(state.randomUniform()) * attMaxInv;
+            const auto steplen = -std::log(1 - state.randomUniform()) * attMaxInv;
 
             const auto intersection = basicshape::AABB::intersect(p, m_aabb);
 

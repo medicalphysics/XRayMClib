@@ -476,7 +476,7 @@ public:
                 updateAttenuation = false;
             }
 
-            const auto r1 = state.randomUniform();
+            const auto r1 = 1 - state.randomUniform(); // (0, 1], avoids log(0)
             const auto stepLength = -std::log(r1) * attenuationTotalInv; // cm
 
             // where do we hit an object
