@@ -121,11 +121,14 @@ if(XRAYMCLIB_WHOLE_PROGRAM_OPTIMIZATION)
         # The IPO variables above do not reach consumers, pass the same flags CMake uses for IPO
         # (compile: e.g. -flto=auto -fno-fat-lto-objects or /GL, link: the same or /LTCG)
         set(XRAYMCLIB_IPO_LINK_FLAGS ${CMAKE_CXX_LINK_OPTIONS_IPO})
-        if(NOT XRAYMCLIB_IPO_LINK_FLAGS)
-            set(XRAYMCLIB_IPO_LINK_FLAGS ${CMAKE_CXX_COMPILE_OPTIONS_IPO})
-        endif()
-        if(MSVC)
+        if(XRAYMCLIB_CLANG_CL)
+            # lld-link runs (Thin)LTO on bitcode objects by itself and does not understand
+            # compiler flags such as -flto=thin or link.exe switches such as /CGTHREADS
+            set(XRAYMCLIB_IPO_LINK_FLAGS "")
+        elseif(MSVC)
             list(APPEND XRAYMCLIB_IPO_LINK_FLAGS /CGTHREADS:8)
+        elseif(NOT XRAYMCLIB_IPO_LINK_FLAGS)
+            set(XRAYMCLIB_IPO_LINK_FLAGS ${CMAKE_CXX_COMPILE_OPTIONS_IPO})
         endif()
         target_compile_options(xraymclib_flags INTERFACE "$<${XRAYMCLIB_OPT_CONFIG}:${CMAKE_CXX_COMPILE_OPTIONS_IPO}>")
         target_link_options(xraymclib_flags INTERFACE "$<${XRAYMCLIB_OPT_CONFIG}:${XRAYMCLIB_IPO_LINK_FLAGS}>")
