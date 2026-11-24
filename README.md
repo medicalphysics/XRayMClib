@@ -73,14 +73,51 @@ Set one of these CMake variables during configure:
 
 | Option | Default | Description |
 |---|---|---|
-| `XRAYMCLIB_USE_FAST_MATH` | `ON` | Enable `-ffast-math` / `/fp:fast` |
-| `XRAYMCLIB_OPTIMIZE_FOR_NATIVE` | `ON` | Enable `-march=native` / AVX on MSVC |
 | `XRAYMCLIB_EPICS_DOWNLOAD` | `OFF` | Download EPICS data during configure |
 | `XRAYMCLIB_EPICS_DATA_DIRPATH` | _(empty)_ | Path to local EPICS data files |
+| `XRAYMCLIB_USE_LOADPNG` | `ON` | Use the bundled lodepng library for writing PNG files |
+| `XRAYMCLIB_USE_ZLIB` | `ON` | Use zlib, if found, for buffer compression |
+| `XRAYMCLIB_BUILD_TESTS` | `ON` when top level | Build the test suite |
+| `XRAYMCLIB_BUILD_EXAMPLES` | `ON` | Build the examples (top level only) |
+
+### Compiler and optimization options
+
+| Option | Default | Description |
+|---|---|---|
+| `XRAYMCLIB_USE_FAST_MATH` | `ON` | Fast floating point math, see below |
+| `XRAYMCLIB_OPTIMIZE_FOR_NATIVE` | `ON` | Build for the host CPU: `-march=native` (or `-mcpu=native`) on GCC/Clang, `/arch:<XRAYMCLIB_MSVC_NATIVE_OPTION>` on MSVC |
+| `XRAYMCLIB_MSVC_NATIVE_OPTION` | `AVX2` | MSVC instruction set: `SSE2`, `AVX`, `AVX2` or `AVX512` |
+| `XRAYMCLIB_WHOLE_PROGRAM_OPTIMIZATION` | `ON` | Link time optimization (`-flto` on GCC/Clang, `/GL` + `/LTCG` on MSVC), if the toolchain supports it |
+| `XRAYMCLIB_PGO` | `OFF` | Profile guided optimization: `OFF`, `GENERATE` or `USE`, see below |
+| `XRAYMCLIB_PGO_DIR` | `<build>/pgo` | Directory for profile data |
+
+The build type defaults to `Release` when none is given. Fast math, link time optimization, profile guided optimization and the MSVC `/Ob3 /Gw` flags apply only to `Release` and `RelWithDebInfo`. The native architecture flag applies to all configurations.
+
+These flags are also passed on to your targets when you link `libxraymc` through `FetchContent` or `add_subdirectory`, since the header only code is compiled as part of your program. They are not part of an installed package.
+
+**Fast math.** On GCC and Clang (including clang-cl), the individual parts of `-ffast-math` are enabled: `-ffinite-math-only -fno-math-errno -fno-trapping-math -fno-signed-zeros -fassociative-math -freciprocal-math -ffp-contract=fast`. On MSVC, `/fp:fast` is used. With these flags the compiler assumes that inf and NaN do not occur.
+
+**Binaries built for the host CPU** may not run on other machines. Turn `XRAYMCLIB_OPTIMIZE_FOR_NATIVE` off, or pick a lower `XRAYMCLIB_MSVC_NATIVE_OPTION`, when distributing binaries.
+
+**Profile guided optimization** is a two step build in the same build directory. It is supported on GCC, Clang and MSVC, but not on clang-cl:
+
+```bash
+cmake -B build -DXRAYMCLIB_PGO=GENERATE
+cmake --build build
+cmake --build build --target pgo-train   # runs the test suite to collect profiles
+cmake -B build -DXRAYMCLIB_PGO=USE
+cmake --build build
+```
+
+`pgo-train` needs `llvm-profdata` with Clang to merge the profiles. `pgo-clean` removes collected profiles, which otherwise add up over training runs. Each executable is optimized from its own profile, so only programs that ran during training benefit. When your own project consumes an instrumented build, it is instrumented as well.
+
+**MSVC C runtime.** To link the C runtime statically (`/MT`), configure with `-DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>"`. Every library linked into the same executable must use the same runtime.
+
+**Parallel algorithms.** With libstdc++ (GCC, and usually Clang on Linux), `std::execution::par` runs in parallel only when TBB is available. TBB is linked automatically when CMake finds it, otherwise these algorithms run serially.
 
 ## Testing
 
-Tests are built when XrayMClib is the top level project (or with `BUILD_TESTING=ON`). Build all test executables with the `xraymclib_tests` target and run them from the build directory with CTest:
+Tests are built when XrayMClib is the top level project (or with `XRAYMCLIB_BUILD_TESTS=ON`). Build all test executables with the `xraymclib_tests` target and run them from the build directory with CTest:
 
 ```bash
 cmake --build build --config Release --target xraymclib_tests

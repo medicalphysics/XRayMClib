@@ -13,6 +13,7 @@ if(XRAYMCLIB_USE_LOADPNG)
 
     add_library(lodepngwrapper STATIC ${LODEPNG_FILES})
     target_include_directories(lodepngwrapper PUBLIC ${xraymclib_SOURCE_DIR}/thirdparty/include)
+    target_link_libraries(lodepngwrapper PRIVATE xraymclib_flags)
     target_link_libraries(libxraymc INTERFACE lodepngwrapper)
     target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_LOADPNG=1)
     message(STATUS "Using loadpng thirdparty library for png files")
@@ -33,7 +34,7 @@ if(XRAYMCLIB_USE_ZLIB)
 
         add_library(zlibwrapper STATIC ${ZLIBWRAPPER_FILES})
         target_include_directories(zlibwrapper PUBLIC ${xraymclib_SOURCE_DIR}/thirdparty/include)
-        target_link_libraries(zlibwrapper PRIVATE ZLIB::ZLIB)
+        target_link_libraries(zlibwrapper PRIVATE ZLIB::ZLIB xraymclib_flags)
         target_link_libraries(libxraymc INTERFACE zlibwrapper)
         target_compile_definitions(libxraymc INTERFACE XRAYMCLIB_USE_ZLIB=1)    
 

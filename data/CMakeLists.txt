@@ -55,7 +55,7 @@ target_compile_definitions(EPICSparser PUBLIC XRAYMCLIB_EADLPATH="${XRAYMCLIB_EP
 target_compile_definitions(EPICSparser PUBLIC XRAYMCLIB_EPDLPATH="${XRAYMCLIB_EPICS_DATA_EPDLPATH}")
 target_compile_definitions(EPICSparser PUBLIC XRAYMCLIB_PHYSICSLISTSPATH="${XRAYMCLIB_EPICS_PHYSICSLISTS}")
 target_include_directories(EPICSparser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/EPICSParser/include)     
-target_link_libraries(EPICSparser PRIVATE material )
+target_link_libraries(EPICSparser PRIVATE material xraymclib_flags)
 
 ## Copying standard densities for all elements up to 92
 add_custom_command(TARGET EPICSparser PRE_BUILD
