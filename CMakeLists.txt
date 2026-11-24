@@ -128,10 +128,12 @@ if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
 endif()
 
 if(MSVC)
-    # /Ob3: more aggressive inlining than the Release default /Ob2
-    # /Gw: put global data in separate sections so the linker can drop unused data
-    add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
-    xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS /Ob3 /Gw)
+    if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
+        # /Ob3: more aggressive inlining than the Release default /Ob2
+        # /Gw: put global data in separate sections so the linker can drop unused data
+        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
+        xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS /Ob3 /Gw)
+    endif()
 endif()
 
 # Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. 
