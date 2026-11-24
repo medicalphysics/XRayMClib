@@ -112,6 +112,11 @@ if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
         message(STATUS "Building with /arch:${XRAYMCLIB_MSVC_NATIVE_OPTION} flag")
         add_compile_options("/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")
         list(APPEND XRAYMCLIB_INTERFACE_COMPILE_OPTIONS "/arch:${XRAYMCLIB_MSVC_NATIVE_OPTION}")
+
+        # /Ob3: more aggressive inlining than the Release default /Ob2
+        # /Gw: put global data in separate sections so the linker can drop unused data
+        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
+        xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS /Ob3 /Gw)
     elseif(XRAYMCLIB_GNU_LIKE)
         check_cxx_compiler_flag("-march=native" XRAYMCLIB_HAS_MARCH_NATIVE)
         check_cxx_compiler_flag("-mcpu=native" XRAYMCLIB_HAS_MCPU_NATIVE) # older Apple clang on arm64
@@ -127,14 +132,6 @@ if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
     endif()
 endif()
 
-if(MSVC)
-    if(XRAYMCLIB_OPTIMIZE_FOR_NATIVE)
-        # /Ob3: more aggressive inlining than the Release default /Ob2
-        # /Gw: put global data in separate sections so the linker can drop unused data
-        add_compile_options("$<${XRAYMCLIB_OPT_CONFIG}:/Ob3;/Gw>")
-        xraymclib_append_opt_flags(XRAYMCLIB_INTERFACE_COMPILE_OPTIONS /Ob3 /Gw)
-    endif()
-endif()
 
 # Link time optimization: -flto on GCC/Clang, /GL + /LTCG on MSVC. 
 option(XRAYMCLIB_WHOLE_PROGRAM_OPTIMALIZATION "Build with link time optimization" ON)
@@ -345,7 +342,7 @@ target_link_libraries(libxraymc INTERFACE
     )
 
 # libstdc++ runs std::execution::par algorithms in parallel only with TBB
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(XRAYMCLIB_GNU_LIKE  STREQUAL "ON")
     find_package(TBB QUIET)
     if(TBB_FOUND)
         target_link_libraries(libxraymc INTERFACE TBB::tbb)
