@@ -37,9 +37,9 @@ Secondary electrons are assumed to deposit their energy locally (valid for photo
 | Dependency | Purpose |
 |---|---|
 | [EPICS 2025](https://www-nds.iaea.org/epics/) | Cross sections, atomic form factors, electron shell binding energies, atomic data |
-| CMake ≥ 3.20 | Build system |
+| CMake ≥ 3.22 | Build system |
 
-**Compiler requirements:** MSVC ≥ 16.8 or Clang ≥ 13.0 or GCC ≥ 14 (C++20 required, C++23 recommended).
+**Compiler requirements:** MSVC ≥ 17.3 or Clang ≥ 16 or GCC ≥ 14 (C++23 required, linking `libxraymc` enables it for your target).
 
 ## Installation
 
