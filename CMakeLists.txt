@@ -190,19 +190,22 @@ endif()
 find_package(Threads REQUIRED)
 
 # Material headers are shared by libxraymc and the EPICS parser
-add_library(material INTERFACE)
-target_sources(material INTERFACE FILE_SET HEADERS BASE_DIRS include FILES
+add_library(material INTERFACE
     include/xraymc/material/atomicelement.hpp
     include/xraymc/material/atomicshell.hpp
     include/xraymc/material/atomhandler.hpp
     include/xraymc/material/atomserializer.hpp
 )
+target_include_directories(material INTERFACE ${PROJECT_SOURCE_DIR}/include)
 
-# Header only library. The file set also provides the include directory, both in the build tree
-# and when installed.
-add_library(libxraymc INTERFACE)
+# Header only library, headers are listed for IDEs
 file(GLOB_RECURSE XRAYMCLIB_HEADERS CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/include/xraymc/*.hpp")
-target_sources(libxraymc INTERFACE FILE_SET HEADERS BASE_DIRS include FILES ${XRAYMCLIB_HEADERS})
+add_library(libxraymc INTERFACE ${XRAYMCLIB_HEADERS})
+target_include_directories(libxraymc INTERFACE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+# Code including the xraymc headers must be compiled as C++23
+target_compile_features(libxraymc INTERFACE cxx_std_23)
 # BUILD_INTERFACE: host specific flags and absolute profile paths are not exported on install
 target_link_libraries(libxraymc INTERFACE Threads::Threads $<BUILD_INTERFACE:xraymclib_flags>)
 
@@ -217,7 +220,8 @@ if(XRAYMCLIB_GNU_LIKE)
 endif()
 
 include(GNUInstallDirs)
-install(TARGETS libxraymc EXPORT libxraymc FILE_SET HEADERS)
+install(TARGETS libxraymc EXPORT libxraymc)
+install(DIRECTORY include/xraymc TYPE INCLUDE FILES_MATCHING PATTERN "*.hpp")
 
 # EPICS data parser and physics data
 add_subdirectory(data)
