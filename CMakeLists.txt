@@ -260,6 +260,8 @@ if(XRAYMCLIB_BUILD_TESTS)
             COMMENT "Collecting profiles for profile guided optimization"
             USES_TERMINAL
             VERBATIM)
+        # build the test executables before running them
+        add_dependencies(pgo-train xraymclib_tests)
     endif()
 endif()
 
